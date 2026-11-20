@@ -7,6 +7,8 @@ import android.content.pm.PackageManager;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
+import android.graphics.drawable.GradientDrawable;
+import android.view.Gravity;
 import android.view.View;
 import android.webkit.ConsoleMessage;
 import android.webkit.PermissionRequest;
@@ -17,6 +19,9 @@ import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
 import android.widget.FrameLayout;
+import android.widget.LinearLayout;
+import android.widget.ProgressBar;
+import android.widget.TextView;
 
 import android.app.Activity;
 
@@ -46,6 +51,9 @@ public class MainActivity extends Activity {
     private WebView web;
     private ValueCallback<Uri[]> filePathCallback;
     private PermissionRequest pendingWebPermission;
+    private View splash;
+    private View errorBox;
+    private boolean firstLoadDone;
 
     @SuppressLint("SetJavaScriptEnabled")
     @Override
@@ -81,7 +89,36 @@ public class MainActivity extends Activity {
         web.setBackgroundColor(0xFF07070C);
         web.setOverScrollMode(View.OVER_SCROLL_NEVER);
 
+        /* The backend is a Render free instance that sleeps after ~15 minutes idle.
+           A cold start takes 30-60 seconds. Without this overlay the WebView shows
+           Chromium's "Webpage not available" page, which looks like a broken app
+           rather than a server waking up. */
+        splash = buildSplash();
+        errorBox = buildErrorBox();
+        root.addView(splash, new FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT,
+                FrameLayout.LayoutParams.MATCH_PARENT));
+        root.addView(errorBox, new FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT,
+                FrameLayout.LayoutParams.MATCH_PARENT));
+        errorBox.setVisibility(View.GONE);
+
         web.setWebViewClient(new WebViewClient() {
+            @Override
+            public void onPageFinished(WebView view, String url) {
+                firstLoadDone = true;
+                if (splash != null) splash.setVisibility(View.GONE);
+            }
+
+            @Override
+            public void onReceivedError(WebView view, WebResourceRequest request, android.webkit.WebResourceError error) {
+                // Only a failed top-level navigation is worth interrupting the user for.
+                if (request != null && !request.isForMainFrame()) return;
+                if (firstLoadDone) return;
+                if (splash != null) splash.setVisibility(View.GONE);
+                if (errorBox != null) errorBox.setVisibility(View.VISIBLE);
+            }
+
             @Override
             public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
                 Uri uri = request.getUrl();
@@ -156,6 +193,99 @@ public class MainActivity extends Activity {
         } else {
             web.loadUrl(LIVE_URL != null && LIVE_URL.length() > 0 ? LIVE_URL : LOCAL_URL);
         }
+    }
+
+    /** Branded first-paint screen: the mark, the wordmark and a spinner. */
+    private View buildSplash() {
+        FrameLayout box = new FrameLayout(this);
+        box.setBackgroundColor(0xFF07070C);
+
+        LinearLayout col = new LinearLayout(this);
+        col.setOrientation(LinearLayout.VERTICAL);
+        col.setGravity(Gravity.CENTER_HORIZONTAL);
+
+        TextView word = new TextView(this);
+        word.setText("AZOLVE");
+        word.setTextColor(0xFFFFFFFF);
+        word.setTextSize(30f);
+        word.setTypeface(null, android.graphics.Typeface.BOLD);
+        word.setLetterSpacing(0.22f);
+        word.setGravity(Gravity.CENTER);
+
+        TextView sub = new TextView(this);
+        sub.setText("CHAT");
+        sub.setTextColor(0xFF18E0C8);
+        sub.setTextSize(12f);
+        sub.setLetterSpacing(0.5f);
+        sub.setGravity(Gravity.CENTER);
+        sub.setPadding(0, 6, 0, 0);
+
+        ProgressBar spin = new ProgressBar(this);
+        LinearLayout.LayoutParams sp = new LinearLayout.LayoutParams(dp(28), dp(28));
+        sp.topMargin = dp(28);
+
+        col.addView(word);
+        col.addView(sub);
+        col.addView(spin, sp);
+
+        FrameLayout.LayoutParams lp = new FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.WRAP_CONTENT,
+                FrameLayout.LayoutParams.WRAP_CONTENT);
+        lp.gravity = Gravity.CENTER;
+        box.addView(col, lp);
+        return box;
+    }
+
+    /** Shown only when the very first navigation fails — almost always a sleeping server. */
+    private View buildErrorBox() {
+        FrameLayout box = new FrameLayout(this);
+        box.setBackgroundColor(0xFF07070C);
+
+        LinearLayout col = new LinearLayout(this);
+        col.setOrientation(LinearLayout.VERTICAL);
+        col.setGravity(Gravity.CENTER_HORIZONTAL);
+        int pad = dp(32);
+        col.setPadding(pad, 0, pad, 0);
+
+        TextView msg = new TextView(this);
+        msg.setText("Could not reach AZOLVE CHAT.\n\nThe server may be waking up — this can take up to a minute on the free tier.");
+        msg.setTextColor(0xFFE8E8F0);
+        msg.setTextSize(15f);
+        msg.setGravity(Gravity.CENTER);
+        msg.setLineSpacing(dp(4), 1f);
+
+        TextView retry = new TextView(this);
+        retry.setText("Try again");
+        retry.setTextColor(0xFFFFFFFF);
+        retry.setTextSize(16f);
+        retry.setTypeface(null, android.graphics.Typeface.BOLD);
+        retry.setGravity(Gravity.CENTER);
+        GradientDrawable bg = new GradientDrawable();
+        bg.setColor(0xFF6D5EF8);
+        bg.setCornerRadius(dp(12));
+        retry.setBackground(bg);
+        LinearLayout.LayoutParams rp = new LinearLayout.LayoutParams(dp(170), dp(46));
+        rp.topMargin = dp(26);
+        retry.setOnClickListener(v -> {
+            errorBox.setVisibility(View.GONE);
+            if (splash != null) splash.setVisibility(View.VISIBLE);
+            firstLoadDone = false;
+            web.loadUrl(LIVE_URL != null && LIVE_URL.length() > 0 ? LIVE_URL : LOCAL_URL);
+        });
+
+        col.addView(msg);
+        col.addView(retry, rp);
+
+        FrameLayout.LayoutParams lp = new FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.WRAP_CONTENT,
+                FrameLayout.LayoutParams.WRAP_CONTENT);
+        lp.gravity = Gravity.CENTER;
+        box.addView(col, lp);
+        return box;
+    }
+
+    private int dp(int v) {
+        return Math.round(v * getResources().getDisplayMetrics().density);
     }
 
     @Override

@@ -1,49 +1,224 @@
 import UIKit
-import Capacitor
+import WebKit
+
+/**
+ AZOLVE CHAT — native iOS shell.
+
+ This is deliberately a plain WKWebView app with no CocoaPods and no Capacitor
+ dependency, so the project builds the moment you open it in Xcode. `pod install`
+ and `npm install` are not required.
+
+ What the native layer adds on top of the web app:
+   - camera and microphone permission prompts for WebRTC calls
+   - inline media playback (video calls start without a tap)
+   - a native file picker for attachments
+   - external links open in Safari instead of being trapped in the app
+   - a retry screen when the backend is unreachable (Render free tier sleeps)
+
+ The backend is a Render free instance, which goes to sleep after ~15 minutes of
+ inactivity. The first launch after a sleep can take 30–60 seconds; that is the
+ server waking up, not a broken app. The retry button is there for exactly that.
+ */
+
+let AZOLVE_URL = URL(string: "https://azolve-chat.onrender.com")!
 
 @UIApplicationMain
 class AppDelegate: UIResponder, UIApplicationDelegate {
 
     var window: UIWindow?
 
-    func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
-        // Override point for customization after application launch.
+    func application(_ application: UIApplication,
+                     didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
+        let window = UIWindow(frame: UIScreen.main.bounds)
+        window.rootViewController = AzolveViewController()
+        window.backgroundColor = UIColor(red: 0.027, green: 0.027, blue: 0.047, alpha: 1)
+        window.makeKeyAndVisible()
+        self.window = window
         return true
     }
+}
 
-    func applicationWillResignActive(_ application: UIApplication) {
-        // Sent when the application is about to move from active to inactive state. This can occur for certain types of temporary interruptions (such as an incoming phone call or SMS message) or when the user quits the application and it begins the transition to the background state.
-        // Use this method to pause ongoing tasks, disable timers, and invalidate graphics rendering callbacks. Games should use this method to pause the game.
+final class AzolveViewController: UIViewController, WKNavigationDelegate, WKUIDelegate {
+
+    private var webView: WKWebView!
+    private var spinner: UIActivityIndicatorView!
+    private var errorBox: UIView!
+    private var errorLabel: UILabel!
+
+    override func viewDidLoad() {
+        super.viewDidLoad()
+        view.backgroundColor = UIColor(red: 0.027, green: 0.027, blue: 0.047, alpha: 1)
+
+        let config = WKWebViewConfiguration()
+        config.allowsInlineMediaPlayback = true
+        config.mediaTypesRequiringUserActionForPlayback = []
+        config.websiteDataStore = .default()
+
+        webView = WKWebView(frame: .zero, configuration: config)
+        webView.navigationDelegate = self
+        webView.uiDelegate = self
+        webView.allowsBackForwardNavigationGestures = true
+        webView.scrollView.bounces = false
+        webView.isOpaque = false
+        webView.backgroundColor = .clear
+        webView.scrollView.backgroundColor = .clear
+        webView.translatesAutoresizingMaskIntoConstraints = false
+        view.addSubview(webView)
+
+        NSLayoutConstraint.activate([
+            webView.topAnchor.constraint(equalTo: view.topAnchor),
+            webView.bottomAnchor.constraint(equalTo: view.bottomAnchor),
+            webView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+            webView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+        ])
+
+        spinner = UIActivityIndicatorView(style: .large)
+        spinner.color = .white
+        spinner.translatesAutoresizingMaskIntoConstraints = false
+        view.addSubview(spinner)
+        NSLayoutConstraint.activate([
+            spinner.centerXAnchor.constraint(equalTo: view.centerXAnchor),
+            spinner.centerYAnchor.constraint(equalTo: view.centerYAnchor),
+        ])
+
+        buildErrorBox()
+        loadApp()
     }
 
-    func applicationDidEnterBackground(_ application: UIApplication) {
-        // Use this method to release shared resources, save user data, invalidate timers, and store enough application state information to restore your application to its current state in case it is terminated later.
-        // If your application supports background execution, this method is called instead of applicationWillTerminate: when the user quits.
+    private func buildErrorBox() {
+        errorBox = UIView()
+        errorBox.backgroundColor = UIColor(red: 0.027, green: 0.027, blue: 0.047, alpha: 1)
+        errorBox.translatesAutoresizingMaskIntoConstraints = false
+        errorBox.isHidden = true
+
+        errorLabel = UILabel()
+        errorLabel.textColor = .white
+        errorLabel.numberOfLines = 0
+        errorLabel.textAlignment = .center
+        errorLabel.font = .systemFont(ofSize: 15)
+        errorLabel.text = "Could not reach AZOLVE CHAT.\n\nThe server may be waking up — this can take up to a minute on the free tier."
+        errorLabel.translatesAutoresizingMaskIntoConstraints = false
+
+        let retry = UIButton(type: .system)
+        retry.setTitle("Try again", for: .normal)
+        retry.titleLabel?.font = .boldSystemFont(ofSize: 16)
+        retry.setTitleColor(.white, for: .normal)
+        retry.backgroundColor = UIColor(red: 0.427, green: 0.369, blue: 0.973, alpha: 1)
+        retry.layer.cornerRadius = 12
+        retry.translatesAutoresizingMaskIntoConstraints = false
+        retry.addTarget(self, action: #selector(loadApp), for: .touchUpInside)
+
+        errorBox.addSubview(errorLabel)
+        errorBox.addSubview(retry)
+        view.addSubview(errorBox)
+
+        NSLayoutConstraint.activate([
+            errorBox.topAnchor.constraint(equalTo: view.topAnchor),
+            errorBox.bottomAnchor.constraint(equalTo: view.bottomAnchor),
+            errorBox.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+            errorBox.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+
+            errorLabel.centerYAnchor.constraint(equalTo: errorBox.centerYAnchor, constant: -40),
+            errorLabel.leadingAnchor.constraint(equalTo: errorBox.leadingAnchor, constant: 32),
+            errorLabel.trailingAnchor.constraint(equalTo: errorBox.trailingAnchor, constant: -32),
+
+            retry.topAnchor.constraint(equalTo: errorLabel.bottomAnchor, constant: 28),
+            retry.centerXAnchor.constraint(equalTo: errorBox.centerXAnchor),
+            retry.widthAnchor.constraint(equalToConstant: 160),
+            retry.heightAnchor.constraint(equalToConstant: 46),
+        ])
     }
 
-    func applicationWillEnterForeground(_ application: UIApplication) {
-        // Called as part of the transition from the background to the active state; here you can undo many of the changes made on entering the background.
+    @objc private func loadApp() {
+        errorBox.isHidden = true
+        spinner.startAnimating()
+        webView.load(URLRequest(url: AZOLVE_URL, cachePolicy: .useProtocolCachePolicy, timeoutInterval: 90))
     }
 
-    func applicationDidBecomeActive(_ application: UIApplication) {
-        // Restart any tasks that were paused (or not yet started) while the application was inactive. If the application was previously in the background, optionally refresh the user interface.
+    // MARK: - Navigation
+
+    func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
+        spinner.stopAnimating()
+        errorBox.isHidden = true
     }
 
-    func applicationWillTerminate(_ application: UIApplication) {
-        // Called when the application is about to terminate. Save data if appropriate. See also applicationDidEnterBackground:.
+    func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) {
+        spinner.stopAnimating()
+        errorBox.isHidden = false
     }
 
-    func application(_ app: UIApplication, open url: URL, options: [UIApplication.OpenURLOptionsKey: Any] = [:]) -> Bool {
-        // Called when the app was launched with a url. Feel free to add additional processing here,
-        // but if you want the App API to support tracking app url opens, make sure to keep this call
-        return ApplicationDelegateProxy.shared.application(app, open: url, options: options)
+    func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error) {
+        spinner.stopAnimating()
+        errorBox.isHidden = false
     }
 
-    func application(_ application: UIApplication, continue userActivity: NSUserActivity, restorationHandler: @escaping ([UIUserActivityRestoring]?) -> Void) -> Bool {
-        // Called when the app was launched with an activity, including Universal Links.
-        // Feel free to add additional processing here, but if you want the App API to support
-        // tracking app url opens, make sure to keep this call
-        return ApplicationDelegateProxy.shared.application(application, continue: userActivity, restorationHandler: restorationHandler)
+    /// Keep the app's own origin inside the WebView; send everything else to Safari.
+    func webView(_ webView: WKWebView,
+                 decidePolicyFor navigationAction: WKNavigationAction,
+                 decisionHandler: @escaping (WKNavigationActionPolicy) -> Void) {
+        guard let url = navigationAction.request.url else {
+            decisionHandler(.allow); return
+        }
+        let scheme = url.scheme?.lowercased() ?? ""
+        if scheme == "http" || scheme == "https" || scheme == "file" || scheme == "about" {
+            if let host = url.host, host != AZOLVE_URL.host, navigationAction.navigationType == .linkActivated {
+                UIApplication.shared.open(url)
+                decisionHandler(.cancel)
+                return
+            }
+            decisionHandler(.allow)
+            return
+        }
+        // mailto:, tel:, whatsapp:, etc.
+        UIApplication.shared.open(url)
+        decisionHandler(.cancel)
     }
 
+    // MARK: - Permissions (camera / microphone for WebRTC)
+
+    @available(iOS 15.0, *)
+    func webView(_ webView: WKWebView,
+                 requestMediaCapturePermissionFor origin: WKSecurityOrigin,
+                 initiatedByFrame frame: WKFrameInfo,
+                 type: WKMediaCaptureType,
+                 decisionHandler: @escaping (WKPermissionDecision) -> Void) {
+        // The page only asks once the user starts a call, so granting here is
+        // still user-initiated. iOS itself shows the system camera/mic prompt.
+        decisionHandler(.grant)
+    }
+
+    // MARK: - File uploads
+
+    @available(iOS 14.0, *)
+    func webView(_ webView: WKWebView,
+                 runOpenPanelWith parameters: WKOpenPanelParameters,
+                 initiatedByFrame frame: WKFrameInfo,
+                 completionHandler: @escaping ([URL]?) -> Void) {
+        let picker = UIDocumentPickerViewController(forOpeningContentTypes: [.image, .movie, .audio, .data], asCopy: true)
+        picker.allowsMultipleSelection = parameters.allowsMultipleSelection
+        picker.delegate = self
+        picker.presentCompletion = completionHandler
+        present(picker, animated: true)
+    }
+}
+
+/// Small shim so the document picker can hand its result back to WebKit.
+extension UIDocumentPickerViewController {
+    private struct Holder { static var completion: (([URL]?) -> Void)? }
+    var presentCompletion: (([URL]?) -> Void)? {
+        get { Holder.completion }
+        set { Holder.completion = newValue }
+    }
+}
+
+extension AzolveViewController: UIDocumentPickerDelegate {
+    func documentPicker(_ controller: UIDocumentPickerViewController, didPickDocumentsAt urls: [URL]) {
+        controller.presentCompletion?(urls)
+        controller.presentCompletion = nil
+    }
+
+    func documentPickerWasCancelled(_ controller: UIDocumentPickerViewController) {
+        controller.presentCompletion?(nil)
+        controller.presentCompletion = nil
+    }
 }

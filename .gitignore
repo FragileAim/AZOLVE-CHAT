@@ -4,3 +4,20 @@ web/dist/
 .env
 *.log
 .DS_Store
+
+# Android build output
+mobile/android/.gradle/
+mobile/android/app/build/
+mobile/android/build/
+mobile/android/local.properties
+mobile/android/keystore/
+
+# iOS build output
+mobile/ios/App/build/
+mobile/ios/App/DerivedData/
+**/xcuserdata/
+.DS_Store
+
+# Deliverables
+dist/*.apk
+dist/*.zip
