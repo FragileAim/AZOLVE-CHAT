@@ -240,6 +240,22 @@ r.post('/phone/resend', async (req, res) => {
   });
 });
 
+
+/* Why a code did not arrive. Two very different causes, and telling the user the
+   wrong one wastes their time:
+     - no provider configured at all -> the code is only in the server log
+     - a provider IS configured but rejected the send -> say what it said
+   The provider's own message is the most useful thing we can show. Kept at
+   module scope because both /otp/status and /email/start need it. */
+function mailFailureNote() {
+  const provider = (process.env.EMAIL_PROVIDER || '').trim().toLowerCase();
+  const configured = !!(provider && provider !== 'console');
+  if (!configured) {
+    return 'No mail provider is configured yet \u2014 the code was written to the server log instead of being emailed.';
+  }
+  return 'The email provider rejected this message, so no code was sent. Check the server log for the code, or fix the provider configuration.';
+}
+
 /** Lets the client tell the user, honestly, whether a real SMS will arrive. */
 r.get('/otp/status', (req, res) => {
   const smsLive = smsConfigured() && smsProviderName() !== 'console';
@@ -278,22 +294,6 @@ r.post('/email/start', async (req, res) => {
   const raw = String(req.body?.email || '').trim().toLowerCase();
   if (!isEmail(raw)) return err(res, 400, 'Enter a valid email address, e.g. you@company.com');
   const email = raw;
-
-  /* Why a code did not arrive. Two very different causes, and telling the user the
-   wrong one wastes their time:
-     - no provider configured at all -> the code is only in the server log
-     - a provider IS configured but rejected the send -> say what it said
-   The second case is what you hit with Resend's shared onboarding@resend.dev
-   sender, which only delivers to the address the Resend account was created
-   with. The provider's own message is the most useful thing we can show. */
-function mailFailureNote() {
-  const provider = (process.env.EMAIL_PROVIDER || '').trim().toLowerCase();
-  const configured = !!(provider && provider !== 'console');
-  if (!configured) {
-    return 'No mail provider is configured yet — the code was written to the server log instead of being emailed.';
-  }
-  return 'The email provider rejected this message, so no code was sent. Check the server log for the code, or fix the provider configuration.';
-}
 
 const wait = tooSoon(email);
   if (wait === -1) return err(res, 429, 'Too many codes requested for this address. Try again in an hour.');

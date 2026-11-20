@@ -10,6 +10,22 @@ export const setSession = ({ token, refreshToken }) => {
 export const clearSession = () => { localStorage.removeItem(TOKEN_KEY); localStorage.removeItem(REFRESH_KEY); };
 
 let refreshing = null;
+
+/* Endpoints where a 401 is the answer to the request itself (wrong password,
+   bad code, dead refresh token). Retrying them through the refresh flow would
+   only produce a second, more confusing failure. */
+const NO_RETRY = /^\/auth\/(refresh|login|signup|otp|forgot|reset|logout|email|phone)/;
+
+/* Called when the refresh token itself is no longer good. The stored session is
+   useless at that point, so drop it and let the app show the sign-in screen
+   instead of leaving a half-signed-in shell that keeps failing. */
+export function endSession(reason = 'expired') {
+  clearSession();
+  try {
+    window.dispatchEvent(new CustomEvent('azolve:session-expired', { detail: { reason } }));
+  } catch { /* older browsers */ }
+}
+
 async function refreshSession() {
   if (refreshing) return refreshing;
   const rt = getRefresh();
@@ -19,6 +35,7 @@ async function refreshSession() {
   }).then(async (r) => {
     if (!r.ok) throw new Error('refresh failed');
     const d = await r.json();
+    if (!d || !d.token) throw new Error('refresh failed');
     setSession(d);
     return d.token;
   }).finally(() => { refreshing = null; });
@@ -34,8 +51,16 @@ export async function api(path, { method = 'GET', body, headers = {}, raw = fals
   let res;
   try { res = await fetch(`/api${path}`, opts); }
   catch { throw new Error('Network error — check your connection'); }
-  if (res.status === 401 && retry && getRefresh()) {
-    try { await refreshSession(); return api(path, { method, body, headers, raw, retry: false }); } catch { /* fall through */ }
+  if (res.status === 401 && retry && getRefresh() && !NO_RETRY.test(path)) {
+    const peek = await res.clone().json().catch(() => ({}));
+    try {
+      await refreshSession();
+      return api(path, { method, body, headers, raw, retry: false });
+    } catch {
+      /* Refresh failed: the session is genuinely gone. Clear it so the app can
+         return to the sign-in screen rather than looping on 401s. */
+      endSession(peek && peek.code === 'session_revoked' ? 'revoked' : 'expired');
+    }
   }
   if (raw) return res;
   const data = await res.json().catch(() => ({}));

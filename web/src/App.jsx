@@ -118,6 +118,26 @@ export default function App() {
     navigate('home');
   }, []);
 
+  /* The API layer fires this when a refresh token is dead (expired, signed out
+     elsewhere, or wiped with the database). Drop straight to the sign-in screen
+     with one clear sentence instead of a wall of 401 errors. */
+  useEffect(() => {
+    const onExpired = (e) => {
+      setUser(null);
+      setNeedsOnboarding(false);
+      disconnectSocket();
+      navigate('home');
+      notify(
+        e?.detail?.reason === 'revoked'
+          ? 'This session was signed out. Please sign in again.'
+          : 'Your session expired. Please sign in again.',
+        'err',
+      );
+    };
+    window.addEventListener('azolve:session-expired', onExpired);
+    return () => window.removeEventListener('azolve:session-expired', onExpired);
+  }, [notify]);
+
   const value = {
     user, setUser, refreshMe, lang, t, theme, themePref, setTheme: setThemePref,
     notify, login, logout, needsOnboarding, setNeedsOnboarding, route, navigate,

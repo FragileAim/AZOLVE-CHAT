@@ -121,6 +121,8 @@ const migrations = [
   ['otps', 'attempts', 'INTEGER DEFAULT 0'],
   ['otps', 'sent_at', 'INTEGER'],
   ['otps', 'channel', "TEXT DEFAULT 'sms'"],
+  ['sessions', 'prev_hash', 'TEXT'],
+  ['sessions', 'prev_at', 'INTEGER'],
 ];
 for (const [table, column, type] of migrations) {
   try {

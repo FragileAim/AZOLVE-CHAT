@@ -108,8 +108,25 @@
 .demo-code .dc-code { font-family: ui-monospace, monospace; font-size: 22px; letter-spacing: .3em; font-weight: 700; color: var(--teal); }
 .oauth-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .otp-row { display: flex; gap: 8px; justify-content: center; }
-.otp-input { width: 46px; height: 54px; text-align: center; font-size: 22px; font-weight: 700; border-radius: var(--r-sm); border: 1px solid var(--border); background: var(--surface-2); }
-.otp-input:focus { border-color: var(--violet); box-shadow: 0 0 0 3px rgba(109,94,248,.16); }
+/* six separate one-digit cells (see components/OtpInput.jsx) */
+.otp-boxes { display: flex; gap: 10px; justify-content: center; margin: 6px 0 2px; }
+.otp-box {
+  width: 52px; height: 58px; flex: 0 1 52px; min-width: 0;
+  text-align: center; font-size: 24px; font-weight: 700; font-variant-numeric: tabular-nums;
+  color: var(--text); border-radius: var(--r-md);
+  border: 1.5px solid var(--border); background: var(--surface-2);
+  caret-color: var(--violet);
+  transition: border-color .16s ease, box-shadow .16s ease, background .16s ease;
+  -webkit-appearance: none; appearance: none;
+}
+.otp-box::-webkit-outer-spin-button, .otp-box::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+.otp-box:focus { outline: none; border-color: var(--violet); background: var(--surface); box-shadow: 0 0 0 3px rgba(109,94,248,.18); }
+.otp-box.filled { border-color: rgba(109,94,248,.45); }
+.otp-box:disabled { opacity: .6; }
+@media (max-width: 400px) {
+  .otp-boxes { gap: 7px; }
+  .otp-box { flex: 1 1 0; width: auto; height: 54px; font-size: 21px; }
+}
 .auth-mobile-logo { display: none; }
 .form-error { color: #ff6b85; font-size: 13px; }
 @media (max-width: 900px) {

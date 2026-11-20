@@ -103,6 +103,11 @@ if (fs.existsSync(webDist)) {
   });
 }
 
+/* One bad request must never take the whole service down. Log it and keep
+   serving; the client still gets a normal 500 from the error middleware. */
+process.on('unhandledRejection', (e) => console.error('[unhandledRejection]', (e && e.message) || e));
+process.on('uncaughtException', (e) => console.error('[uncaughtException]', (e && e.message) || e));
+
 initRealtime(server);
 seedIfEmpty();
 

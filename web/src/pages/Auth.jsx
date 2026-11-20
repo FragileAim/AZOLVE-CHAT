@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useApp } from '../App.jsx';
 import { API, api } from '../lib/api.js';
 import { Icon, Logo } from '../components/UI.jsx';
+import OtpInput from '../components/OtpInput.jsx';
 
 const WORDS = [
   ['नमस्ते', 'hi'], ['Hello', 'en'], ['مرحبا', 'ar'], ['Hola', 'es'],
@@ -47,6 +48,7 @@ export default function Auth() {
   }, []);
 
   const run = async (fn) => {
+    if (busy) return;
     setBusy(true); setError('');
     try { await fn(); }
     catch (e) { setError(e.message || 'Something went wrong'); }
@@ -75,8 +77,8 @@ export default function Auth() {
     setStep('phoneotp');
   });
 
-  const verifyPhone = () => run(async () => {
-    const d = await API.phoneVerify(pending.userId, form.code);
+  const verifyPhone = (code) => run(async () => {
+    const d = await API.phoneVerify(pending.userId, code || form.code);
     await login(d);
     notify(d.isNew ? 'Welcome to AZOLVE CHAT' : 'Welcome back');
   });
@@ -113,8 +115,8 @@ export default function Auth() {
     setStep('phoneotp');
   });
 
-  const verifyEmail = () => run(async () => {
-    const d = await API.emailVerify(pending.userId, form.code);
+  const verifyEmail = (code) => run(async () => {
+    const d = await API.emailVerify(pending.userId, code || form.code);
     await login(d);
     notify(d.isNew ? 'Welcome to AZOLVE CHAT' : 'Welcome back');
   });
@@ -153,8 +155,8 @@ export default function Auth() {
     setStep('otp');
   });
 
-  const doVerify = () => run(async () => {
-    const d = await API.verifyOtp(pending.userId, form.code);
+  const doVerify = (code) => run(async () => {
+    const d = await API.verifyOtp(pending.userId, code || form.code);
     await login(d);
     notify('Verified — welcome to AZOLVE CHAT');
   });
@@ -347,15 +349,12 @@ export default function Auth() {
                 We sent a 6-digit code to <b>{pending.channel === 'email' ? pending.email : pending.phone}</b>.
               </p>
 
-              <input
-                className="input otp-input"
-                maxLength={6}
-                inputMode="numeric"
+              <OtpInput
                 value={form.code}
-                onChange={e => setForm(f => ({ ...f, code: e.target.value.replace(/\D/g, '') }))}
-                onKeyDown={e => e.key === 'Enter' && form.code.length === 6 && (pending.channel === 'email' ? verifyEmail() : verifyPhone())}
-                placeholder="000000"
-                autoFocus
+                onChange={(code) => setForm(f => ({ ...f, code }))}
+                onComplete={(code) => (pending.channel === 'email' ? verifyEmail(code) : verifyPhone(code))}
+                disabled={busy}
+                ariaLabel="Six digit verification code"
               />
 
               {pending.delivered && (
@@ -458,9 +457,13 @@ export default function Auth() {
               <button className="back-link" onClick={() => setStep('login')}><Icon name="back" size={15} /> Back</button>
               <h2>Verify your {pending.channel === 'sms' ? 'phone' : 'email'}</h2>
               <p className="sub">Enter the 6-digit code we sent to <b>{pending.target}</b>.</p>
-              <input className="input otp-input" maxLength={6} inputMode="numeric" value={form.code}
-                onChange={e => setForm(f => ({ ...f, code: e.target.value.replace(/\D/g, '') }))}
-                onKeyDown={e => e.key === 'Enter' && doVerify()} placeholder="000000" autoFocus />
+              <OtpInput
+                value={form.code}
+                onChange={(code) => setForm(f => ({ ...f, code }))}
+                onComplete={(code) => doVerify(code)}
+                disabled={busy}
+                ariaLabel="Six digit verification code"
+              />
               {pending.deliveryCode ? (
                 <div className="demo-code">
                   <div className="dc-label"><Icon name="info" size={14} /> Test mode — the server is echoing the code</div>
@@ -502,8 +505,12 @@ export default function Auth() {
             <>
               <h2>Choose a new password</h2>
               <p className="sub">Enter the code sent to <b>{pending.target}</b> and your new password.</p>
-              <input className="input otp-input" maxLength={6} inputMode="numeric" value={form.code}
-                onChange={e => setForm(f => ({ ...f, code: e.target.value.replace(/\D/g, '') }))} placeholder="000000" />
+              <OtpInput
+                value={form.code}
+                onChange={(code) => setForm(f => ({ ...f, code }))}
+                disabled={busy}
+                ariaLabel="Six digit reset code"
+              />
               {pending.deliveryCode && (
                 <div className="demo-code">
                   <div className="dc-label"><Icon name="info" size={14} /> Test mode — the server is echoing the code</div>
