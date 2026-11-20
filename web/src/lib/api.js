@@ -30,7 +30,7 @@ async function refreshSession() {
   if (refreshing) return refreshing;
   const rt = getRefresh();
   if (!rt) throw new Error('no refresh token');
-  refreshing = fetch('/api/auth/refresh', {
+  refreshing = fetchWithWakeUp('/api/auth/refresh', {
     method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ refreshToken: rt }),
   }).then(async (r) => {
     if (!r.ok) throw new Error('refresh failed');
@@ -42,15 +42,56 @@ async function refreshSession() {
   return refreshing;
 }
 
+/* A free-tier host sleeps when nobody is using it, and the first request after
+   that can fail outright while the container boots. Reporting that as "check
+   your connection" is wrong and makes people think the app is broken, so we
+   wait and try again, and tell the UI what is actually happening. */
+const BOOT_STATUSES = new Set([502, 503, 504]);
+const BOOT_DELAYS = [1200, 2500, 4000, 6000, 8000, 10000, 10000];
+
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+function announce(detail) {
+  try { window.dispatchEvent(new CustomEvent('azolve:server-waking', { detail })); } catch { /* noop */ }
+}
+
+async function fetchWithWakeUp(url, opts) {
+  let lastErr = null;
+  for (let attempt = 0; attempt <= BOOT_DELAYS.length; attempt++) {
+    try {
+      const res = await fetch(url, opts);
+      /* A 502/503/504 from the platform means the app never ran, so the request
+         is safe to repeat — except for a body we cannot replay (FormData). */
+      if (BOOT_STATUSES.has(res.status) && !(opts.body instanceof FormData) && attempt < BOOT_DELAYS.length) {
+        announce({ attempt: attempt + 1, total: BOOT_DELAYS.length });
+        await sleep(BOOT_DELAYS[attempt]);
+        continue;
+      }
+      if (attempt > 0) announce({ done: true });
+      return res;
+    } catch (e) {
+      lastErr = e;
+      if (attempt < BOOT_DELAYS.length) {
+        announce({ attempt: attempt + 1, total: BOOT_DELAYS.length });
+        await sleep(BOOT_DELAYS[attempt]);
+        continue;
+      }
+    }
+  }
+  announce({ done: true });
+  const err = new Error('Could not reach the server. It may be starting up — please try again in a moment.');
+  err.cause = lastErr;
+  err.network = true;
+  throw err;
+}
+
 export async function api(path, { method = 'GET', body, headers = {}, raw = false, retry = true } = {}) {
   const token = getToken();
   const opts = { method, headers: { ...headers } };
   if (token) opts.headers.Authorization = `Bearer ${token}`;
   if (body instanceof FormData) opts.body = body;
   else if (body !== undefined) { opts.headers['Content-Type'] = 'application/json'; opts.body = JSON.stringify(body); }
-  let res;
-  try { res = await fetch(`/api${path}`, opts); }
-  catch { throw new Error('Network error — check your connection'); }
+  const res = await fetchWithWakeUp(`/api${path}`, opts);
   if (res.status === 401 && retry && getRefresh() && !NO_RETRY.test(path)) {
     const peek = await res.clone().json().catch(() => ({}));
     try {
@@ -155,3 +196,10 @@ export const API = {
   adminResolve: (id) => api(`/admin/reports/${id}`, { method: 'POST', body: { status: 'resolved' } }),
   deleteMe: () => api('/users/me', { method: 'DELETE' }),
 };
+
+/* Nudge a sleeping host awake as soon as the app opens, so the first real
+   request (sign-in, code, feed) does not have to wait for a cold start.
+   Fire-and-forget: failures are silent, the retry wrapper handles the rest. */
+export function warmUp() {
+  try { fetch('/api/health', { method: 'GET', cache: 'no-store' }).catch(() => {}); } catch { /* noop */ }
+}

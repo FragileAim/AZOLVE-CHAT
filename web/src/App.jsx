@@ -1,5 +1,5 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
-import { API, clearSession, getToken, setSession } from './lib/api.js';
+import { API, clearSession, getToken, setSession, warmUp } from './lib/api.js';
 import { connectSocket, disconnectSocket } from './lib/socket.js';
 import { makeT } from './lib/i18n.js';
 import Auth from './pages/Auth.jsx';
@@ -37,6 +37,7 @@ export default function App() {
   const [systemDark, setSystemDark] = useState(prefersDark);
   const [device, setDevice] = useState(() => localStorage.getItem('azolve.device') || 'desktop');
   const [toast, setToast] = useState(null);
+  const [waking, setWaking] = useState(null);
 
   const theme = themePref === 'system' ? (systemDark ? 'dark' : 'light') : themePref;
 
@@ -82,6 +83,8 @@ export default function App() {
 
   useEffect(() => {
     const started = performance.now();
+    /* Start the server booting while the splash is still on screen. */
+    warmUp();
     (async () => {
       if (getToken()) {
         try { await refreshMe(); } catch { clearSession(); }
@@ -116,6 +119,14 @@ export default function App() {
     disconnectSocket();
     setUser(null);
     navigate('home');
+  }, []);
+
+  /* The API layer fires this while it waits for a sleeping server to boot, so
+     people see "starting up" rather than a wrong "check your connection". */
+  useEffect(() => {
+    const onWaking = (e) => setWaking(e?.detail?.done ? null : (e?.detail || {}));
+    window.addEventListener('azolve:server-waking', onWaking);
+    return () => window.removeEventListener('azolve:server-waking', onWaking);
   }, []);
 
   /* The API layer fires this when a refresh token is dead (expired, signed out
@@ -171,6 +182,12 @@ export default function App() {
       )}
       {toast && (
         <div className={`toast ${toast.kind === 'err' ? 'err' : 'ok'}`}>{toast.msg}</div>
+      )}
+      {waking && (
+        <div className="wake-banner" role="status" aria-live="polite">
+          <span className="wake-dot" />
+          <span>Starting the server — this can take up to a minute after a quiet spell. Hang tight.</span>
+        </div>
       )}
       {DEMO && !FRAME && (
         <div className="demo-flag" title="Static preview: data is a snapshot of the seeded database and changes stay in this browser.">
