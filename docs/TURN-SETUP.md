@@ -1,5 +1,14 @@
 # Metered TURN — what to click, step by step
 
+> **STATUS: CONFIGURED AND VERIFIED (live).**
+> `TURN_USERNAME` / `TURN_CREDENTIAL` are set on the Render service
+> `srv-dc06qdcs728c73ckquh0`. `GET https://azolve-chat.onrender.com/api/rtc/config`
+> returns `"hasTurn": true, "turnSource": "static"`, and the TURN entry carries the
+> username and credential. A real relay allocation against
+> `global.relay.metered.ca:3478` was tested with `turnutils_uclient` and passed
+> with 8/8 packets and 0% loss. Nothing left to do here unless the credential is
+> rotated.
+
 You said you are clueless about the TURN app. That is fine — there are only two
 things to do, and **one of them is much easier than the other**. Read §1, do the
 easy one, and you are finished.

@@ -19,7 +19,7 @@
 - [x] `docs/EMAIL-OTP.md` — provider setup guide
 - [x] `docs/RENDER-SETUP.md` — Render API key + which options to select
 - [ ] SMS gateway key (real OTP texts) — blocked on DLT approval, email is primary now
-- [ ] TURN credential — user to create a static credential in Metered dashboard (see docs/TURN-SETUP.md §1)
+- [x] TURN credential — Metered static credential applied to Render as TURN_USERNAME/TURN_CREDENTIAL; `/api/rtc/config` returns hasTurn:true, turnSource:static; relay allocation verified with turnutils_uclient (0% loss)
 - [x] Push repo to GitHub (FragileAim/AZOLVE-CHAT) and deploy live on Render
 - [x] Fix Render build (`vite: not found`) — vite moved into dependencies
 - [x] Replace first-user-is-admin race with ADMIN_EMAILS allowlist
