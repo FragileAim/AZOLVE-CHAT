@@ -257,7 +257,7 @@ r.get('/otp/status', (req, res) => {
     primary: mailLive ? 'email' : (smsLive ? 'phone' : 'email'),
     note: mailLive
       ? 'Verification codes are sent by email.'
-      : 'No mail provider is configured yet — codes are written to the server log.',
+      : mailFailureNote(),
   });
 });
 
@@ -273,7 +273,23 @@ r.post('/email/start', async (req, res) => {
   if (!isEmail(raw)) return err(res, 400, 'Enter a valid email address, e.g. you@company.com');
   const email = raw;
 
-  const wait = tooSoon(email);
+  /* Why a code did not arrive. Two very different causes, and telling the user the
+   wrong one wastes their time:
+     - no provider configured at all -> the code is only in the server log
+     - a provider IS configured but rejected the send -> say what it said
+   The second case is what you hit with Resend's shared onboarding@resend.dev
+   sender, which only delivers to the address the Resend account was created
+   with. The provider's own message is the most useful thing we can show. */
+function mailFailureNote() {
+  const provider = (process.env.EMAIL_PROVIDER || '').trim().toLowerCase();
+  const configured = !!(provider && provider !== 'console');
+  if (!configured) {
+    return 'No mail provider is configured yet — the code was written to the server log instead of being emailed.';
+  }
+  return 'The email provider rejected this message, so no code was sent. Check the server log for the code, or fix the provider configuration.';
+}
+
+const wait = tooSoon(email);
   if (wait === -1) return err(res, 429, 'Too many codes requested for this address. Try again in an hour.');
   if (wait > 0) return err(res, 429, `Please wait ${wait}s before requesting another code.`, { retryAfter: wait });
 
@@ -295,7 +311,7 @@ r.post('/email/start', async (req, res) => {
     deliveryCode: echoOtp() ? out.code : undefined,
     message: out.delivered
       ? `A 6-digit code was emailed to ${email}.`
-      : 'Code generated. No mail provider is configured, so read it from the server log.',
+      : mailFailureNote(),
   });
 });
 
