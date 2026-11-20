@@ -1,5 +1,14 @@
 # Deploying AZOLVE CHAT on Render
 
+> **Status as of this deploy:** the service already exists and is live at
+> **<https://azolve-chat.onrender.com>** (`srv-dc06qdcs728c73ckquh0`, workspace
+> *azolve chat*, repo `FragileAim/AZOLVE-CHAT`, branch `main`, region Singapore,
+> Node 22.23.4, free instance). `GET /api/health` returns
+> `{"ok":true,...}`. Two values are still missing: a **Metered TURN credential**
+> (see `TURN-SETUP.md`) and a **Resend API key** (see `EMAIL-OTP.md`). Until
+> then `/api/rtc/config` reports `hasTurn:false` and OTP codes are written to the
+> server log instead of emailed.
+
 This answers two things: **how to get a Render API key**, and **which options to
 select** when you create the service. There are two different things people mean
 by "Render API", so both are covered.
@@ -112,7 +121,7 @@ If you would rather click through every field, choose these exact values:
 | **Root directory** | *(leave blank — the repo root)* |
 | **Language / Runtime** | **Node** |
 | **Node version** | set env `NODE_VERSION=22.23.4` (see note) |
-| **Build command** | `npm install && npm run build` |
+| **Build command** | `npm install --include=dev && npm run build` |
 | **Start command** | `npm start` |
 | **Instance type** | **Starter** (see the warning below) |
 | **Health check path** | `/api/health` |
