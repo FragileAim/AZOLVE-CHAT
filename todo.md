@@ -19,7 +19,11 @@
 - [x] `docs/EMAIL-OTP.md` — provider setup guide
 - [x] `docs/RENDER-SETUP.md` — Render API key + which options to select
 - [ ] SMS gateway key (real OTP texts) — blocked on DLT approval, email is primary now
-- [ ] TURN app sub-domain (`TURN_APP`) — Metered API keys stored, app name still needed
+- [ ] TURN credential — user to create a static credential in Metered dashboard (see docs/TURN-SETUP.md §1)
+- [x] Push repo to GitHub (FragileAim/AZOLVE-CHAT) and deploy live on Render
+- [x] Fix Render build (`vite: not found`) — vite moved into dependencies
+- [x] Replace first-user-is-admin race with ADMIN_EMAILS allowlist
+- [x] Live verification: /api/health, /api/auth/otp/status, /api/rtc/config, email signup
 - [x] Verify translation provider chain reads keys correctly
 - [x] Verify AI provider chain reads keys correctly
 - [x] Admin/Settings "Integrations" panel showing live vs missing providers
