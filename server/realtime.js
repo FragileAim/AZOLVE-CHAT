@@ -1,7 +1,7 @@
 import { Server } from 'socket.io';
 import jwt from 'jsonwebtoken';
 import { get, run, all } from './db.js';
-import { now } from './util.js';
+import { now, parseJSON } from './util.js';
 import { translateMessage } from './services/translate.js';
 
 const SECRET = process.env.JWT_SECRET || 'dev-only-secret-change-me';
@@ -87,7 +87,38 @@ export async function deliverMessage(message, conversationId) {
     const u = get('SELECT * FROM users WHERE id = ?', p.user_id);
     if (!u) return;
     const lang = p.language_override || u.language || 'en';
-    let payload = { ...message, conversationId };
+    /* The socket payload must look exactly like the REST payload. It used to be
+       the raw database row, which meant the client received `created_at` and
+       `client_id` where it expected `createdAt` and `clientId`. The visible
+       symptoms were a message stamped "Invalid Date", the sender's own bubble
+       drawn on the receiving side, and every message appearing twice because
+       the optimistic copy could not be matched to its echo. */
+    let payload = {
+      id: message.id,
+      conversationId,
+      senderId: message.sender_id,
+      body: message.deleted ? '' : (message.body || ''),
+      displayBody: message.deleted ? '' : message.body,
+      originalBody: message.original_body ?? message.body,
+      originalLang: message.original_lang,
+      translated: false,
+      type: message.type,
+      mediaUrl: message.media_url,
+      mediaMeta: message.media_meta ? parseJSON(message.media_meta, null) : null,
+      replyTo: null,
+      createdAt: message.created_at,
+      editedAt: message.edited_at,
+      deleted: !!message.deleted,
+      pinned: !!message.pinned,
+      starred: false,
+      scheduledFor: message.scheduled_for,
+      silent: !!message.silent,
+      location: message.location ? parseJSON(message.location, null) : null,
+      contact: message.contact ? parseJSON(message.contact, null) : null,
+      reactions: {},
+      reads: [],
+      clientId: message.client_id,
+    };
     if (message.type === 'text' && !message.deleted) {
       const t = await translateMessage(message, lang);
       payload = { ...payload, displayBody: t.text, translated: t.translated, displayLang: t.lang, translationProvider: t.provider };

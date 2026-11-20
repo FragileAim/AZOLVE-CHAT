@@ -126,7 +126,11 @@ export default function Home() {
             <button onClick={() => navigate('ai')}><Icon name="magic" size={17} /> Caption</button>
           </div>
           <div className="hint" style={{ marginTop: 10 }}>
-            Engine: <b>{aiStatus?.engine || 'checking'}</b>. Add an API key in <code>.env</code> to use a hosted model.
+            {aiStatus?.engine && !/local|heuristic|offline/i.test(aiStatus.engine) ? (
+              <>Engine: <b>{aiStatus.engine}</b> — live.</>
+            ) : (
+              <>Engine: <b>{aiStatus?.engine || 'checking'}</b>. Add an API key in <code>.env</code> to use a hosted model.</>
+            )}
           </div>
         </section>
 

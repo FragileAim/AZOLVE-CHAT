@@ -1,48 +1,29 @@
-# AZOLVE CHAT — Request G
+# AZOLVE CHAT — pre-team-testing audit + mobile builds
 
-## 1. Calling rebuilt to production quality
-- [x] Server-side call state machine (ringing timeout, busy, missed, decline-while-ringing, disconnect cleanup)
-- [x] TURN support via env (`TURN_URL`/`TURN_USERNAME`/`TURN_CREDENTIAL`) + `/api/rtc/config`
-- [x] Client ICE config fetch + ICE restart on failure
-- [x] getStats() telemetry driving real quality indicator
-- [x] Peer mute/camera state, ringing countdown, busy/missed screens
-- [x] Call UI polish pass
+## 1. Audit the live deployment end to end
+- [ ] Health, static assets, SPA fallback, security headers
+- [ ] Auth: email OTP start/verify/resend, session, refresh, logout, rate limits
+- [ ] Profile: read/update, avatar upload, privacy settings
+- [ ] Chats: create conversation, send message, per-recipient translation, See Original
+- [ ] Translation provider chain actually returns translations
+- [ ] AI assistant: real provider response, no key leakage
+- [ ] Moments: create, view, react
+- [ ] Social feed: post, like, comment, save, follow
+- [ ] Communities: create, join, post, poll
+- [ ] Notifications: generate + read
+- [ ] Calls: /api/rtc/config, socket signalling, call state machine
+- [ ] Admin: RBAC enforcement, non-admin blocked
+- [ ] Uploads: media upload + serve
+- [ ] Error handling: bad input returns clean errors, no stack traces
+- [ ] Fix every defect found
 
-## 2. Provider integrations
-- [x] Gemini live (auto-fallback model chain) + DeepL live, both verified end-to-end
-- [x] Email OTP delivery module (`services/email.js`) — Resend / Brevo / SMTP / SendGrid / Mailgun / console
-- [x] `POST /api/auth/email/start|verify|resend` wired end-to-end, `email_verified` column added
-- [x] Auth UI: email-first signup with channel-aware OTP screen
-- [x] `/api/auth/otp/status` reports email provider, delivery truth, and primary channel
-- [x] TURN credential broker (`services/turn.js`) — Metered REST, coturn REST, static; cached
-- [x] `/api/rtc/config` async, reports `hasTurn` + `turnSource`
-- [x] `docs/EMAIL-OTP.md` — provider setup guide
-- [x] `docs/RENDER-SETUP.md` — Render API key + which options to select
-- [x] Email OTP live via Brevo HTTPS API — real delivery confirmed in Brevo's event log; full start→verify→session flow exercised
-- [x] Diagnosed and cleared the three delivery walls (Resend sender lock, Render blocked ports 25/465/587, Brevo IP restriction)
-- [x] `/api/auth/otp/status` now reports the real outcome of the last send, not just whether a provider is configured
-- [x] Branded sender live: mail goes out as AZOLVE CHAT <no-reply@azolve.io>; azolve.io was already DKIM-authenticated in Brevo
-- [ ] Optional: add include:spf.sendinblue.com to the root SPF record (DKIM already passes; not blocking)
-- [ ] SMS gateway key (real OTP texts) — blocked on DLT approval, email is primary now
-- [x] TURN credential — Metered static credential applied to Render as TURN_USERNAME/TURN_CREDENTIAL; `/api/rtc/config` returns hasTurn:true, turnSource:static; relay allocation verified with turnutils_uclient (0% loss)
-- [x] Push repo to GitHub (FragileAim/AZOLVE-CHAT) and deploy live on Render
-- [x] Fix Render build (`vite: not found`) — vite moved into dependencies
-- [x] Replace first-user-is-admin race with ADMIN_EMAILS allowlist
-- [x] Live verification: /api/health, /api/auth/otp/status, /api/rtc/config, email signup
-- [x] Verify translation provider chain reads keys correctly
-- [x] Verify AI provider chain reads keys correctly
-- [x] Admin/Settings "Integrations" panel showing live vs missing providers
-- [x] Document exactly which env keys to paste
+## 2. Mobile builds
+- [ ] Verify Capacitor config points at the live URL
+- [ ] Build signed-release Android APK, verify it installs
+- [ ] Produce iOS Xcode project (project.pbxproj, Info.plist, assets)
+- [ ] Zip the iOS project for Mac use + write build instructions
+- [ ] Document what works and what is credential-gated
 
-## 3. UI / design overhaul
-- [x] New design tokens (type scale, spacing, radii, shadows, color)
-- [x] Refined shell: sidebar, topbar, mobile tab bar
-- [x] Auth screens
-- [x] Chats + composer + bubbles
-- [x] Moments / Social / Explore / AI / Calls / Communities / Profile / Settings
-- [x] Motion + empty states
-
-## 4. Mobile apps
-- [x] Capacitor project scaffold (Android + iOS)
-- [x] Build installable Android APK
-- [x] iOS project + Mac build instructions + PWA path
+## 3. Deliver
+- [ ] Write audit report with real test evidence
+- [ ] Attach APK, iOS zip, report

@@ -1,5 +1,5 @@
 export const timeAgo = (ts) => {
-  if (!ts) return '';
+  if (!ts || Number.isNaN(new Date(ts).getTime())) return '';
   const s = Math.floor((Date.now() - ts) / 1000);
   if (s < 45) return 'now';
   if (s < 3600) return `${Math.floor(s / 60)}m`;
@@ -8,10 +8,14 @@ export const timeAgo = (ts) => {
   return new Date(ts).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
 };
 
-export const clock = (ts) => new Date(ts).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
-export const fullDate = (ts) => new Date(ts).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' });
+/* Never render "Invalid Date" at a user. If a timestamp is missing or malformed
+   the honest thing is to show nothing. */
+const valid = (ts) => ts && !Number.isNaN(new Date(ts).getTime());
+export const clock = (ts) => (valid(ts) ? new Date(ts).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' }) : '');
+export const fullDate = (ts) => (valid(ts) ? new Date(ts).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' }) : '');
 
 export const dayLabel = (ts) => {
+  if (!valid(ts)) return '';
   const d = new Date(ts); const today = new Date(); const y = new Date(Date.now() - 864e5);
   const same = (a, b) => a.toDateString() === b.toDateString();
   if (same(d, today)) return 'Today';

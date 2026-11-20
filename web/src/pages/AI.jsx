@@ -191,7 +191,16 @@ export default function AI() {
                 <span key={p.name} className={`prov ${p.available ? 'on' : ''}`}>{p.name}</span>
               ))}
             </div>
-            <p className="muted small">Add API keys in <code>.env</code> to unlock DeepL, Google, OpenAI, Anthropic, Gemini or Groq. Without keys the assistant uses a deterministic local engine and MyMemory translation.</p>
+            <p className="muted small">
+              {(() => {
+                const on = (status?.translationProviders || []).filter(p => p.available).map(p => p.name);
+                const live = status?.engine && !/local|heuristic|offline/i.test(status.engine);
+                if (!on.length && !live) {
+                  return <>No provider keys are set, so the assistant uses a deterministic local engine and MyMemory translation. Add keys in <code>.env</code> to unlock DeepL, Google, OpenAI, Anthropic, Gemini or Groq.</>;
+                }
+                return <>Active now: <b>{live ? status.engine : 'local engine'}</b>{on.length ? <> · translation via <b>{on.join(', ')}</b></> : null}. Any provider without a key stays greyed out above.</>;
+              })()}
+            </p>
           </div>
         </aside>
       </div>

@@ -132,7 +132,7 @@ export default function Calls() {
       <div className="page-head">
         <div>
           <h1>Calls</h1>
-          <p className="muted">Crystal-clear audio and video, peer-to-peer, with live translated captions.</p>
+          <p className="muted">Crystal-clear audio and video over WebRTC, encrypted in transit, with TURN relay when a direct path is blocked.</p>
         </div>
         <div className="row-gap">
           {DEMO && (
@@ -157,11 +157,12 @@ export default function Calls() {
       <div className="cv-hero">
         <div className="cv-hero-glow" aria-hidden />
         <div className="cv-hero-body">
-          <span className="cv-hero-eyebrow"><i /> WebRTC · end-to-end media path</span>
+          <span className="cv-hero-eyebrow"><i /> WebRTC · DTLS-SRTP encrypted media</span>
           <h2>Talk to anyone, in any language.</h2>
           <p>
-            Your voice travels directly between devices. AZOLVE adds live captions in the other
-            person's language, so a call across four time zones feels like a call next door.
+            Audio and video are negotiated peer-to-peer and fall back to a TURN relay when a
+            direct path is blocked, so a call across four time zones still connects. Live
+            translated captions inside calls are not built yet — text translation in chats is.
           </p>
           <div className="cv-hero-actions">
             <button className="cv-hero-btn primary" onClick={() => openPicker('video')}>

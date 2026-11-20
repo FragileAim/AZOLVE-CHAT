@@ -76,9 +76,22 @@ app.use('/api/ai', aiRoutes);
 app.use('/api/admin', adminRoutes);
 
 app.use('/api', (req, res) => res.status(404).json({ error: `Unknown endpoint ${req.method} ${req.originalUrl}` }));
+/* Every error used to become a 500, including a malformed JSON body — which is
+   the client's mistake, not the server's. Map the ones we can recognise to the
+   right status so a broken request gets a 4xx and a useful message, and keep
+   stack traces out of the response. */
 app.use((e, req, res, next) => {
-  console.error('[error]', e.message);
-  res.status(500).json({ error: 'Internal server error' });
+  const status = e.status || e.statusCode || 500;
+  if (e.type === 'entity.parse.failed' || e instanceof SyntaxError) {
+    return res.status(400).json({ error: 'Request body is not valid JSON' });
+  }
+  if (e.type === 'entity.too.large') {
+    return res.status(413).json({ error: 'Request body is too large' });
+  }
+  if (status >= 500) console.error('[error]', e.message);
+  res.status(status >= 400 && status < 600 ? status : 500).json({
+    error: status >= 500 ? 'Internal server error' : (e.message || 'Bad request'),
+  });
 });
 
 const webDist = path.join(process.cwd(), 'web', 'dist');

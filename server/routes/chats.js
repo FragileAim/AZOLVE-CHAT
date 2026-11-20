@@ -8,6 +8,11 @@ import { task } from '../services/ai.js';
 
 const r = Router();
 
+/* 10,000 characters is roughly 1,500 words — far beyond any real chat message,
+   but small enough that storing, translating and fanning out a message stays
+   cheap. Anything larger is a client bug or an abuse attempt. */
+const MAX_MESSAGE_CHARS = 10000;
+
 export function conversationFor(conv, viewerId) {
   const parts = all('SELECT p.*, u.display_name, u.username, u.avatar, u.language, u.last_seen FROM participants p JOIN users u ON u.id = p.user_id WHERE p.conversation_id = ?', conv.id);
   const me = parts.find(p => p.user_id === viewerId);
@@ -135,7 +140,13 @@ r.post('/:id/messages', requireAuth, (req, res) => {
   if (!me) return err(res, 403, 'Not a participant');
   if (me.locked) return err(res, 423, 'This chat is locked. Unlock it to send messages.');
   const { body = '', type = 'text', mediaUrl, mediaMeta, replyTo, clientId, scheduledFor, silent, location, contact } = req.body || {};
+  if (typeof body !== 'string') return err(res, 400, 'Message body must be text');
   if (!body.trim() && !mediaUrl && type === 'text') return err(res, 400, 'Message cannot be empty');
+  // Without a ceiling a single request can store megabytes in the row, which
+  // then has to be translated into 27 languages and shipped to every client.
+  if (body.length > MAX_MESSAGE_CHARS) {
+    return err(res, 413, `Message is too long (${body.length} characters, limit ${MAX_MESSAGE_CHARS})`);
+  }
   const mid = id('m_');
   const lang = detectLanguage(body);
   run(`INSERT INTO messages (id, conversation_id, sender_id, body, original_body, original_lang, type, media_url, media_meta, reply_to, created_at, scheduled_for, silent, location, contact, client_id)

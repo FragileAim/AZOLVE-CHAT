@@ -34,6 +34,15 @@ r.patch('/me', requireAuth, (req, res) => {
   res.json({ user: publicUser(u, u.id) });
 });
 
+/* The signed-in user's own profile. `/auth/me` also returns this, but a client
+   that only holds a user id should not have to guess a username to re-read
+   itself. Declared before `/:username` so "me" is never treated as a handle. */
+r.get('/me', requireAuth, (req, res) => {
+  const u = get('SELECT * FROM users WHERE id = ?', req.user.id);
+  if (!u) return err(res, 404, 'User not found');
+  res.json({ user: publicUser(u, u.id) });
+});
+
 r.get('/search', requireAuth, (req, res) => {
   const q = `%${String(req.query.q || '').toLowerCase()}%`;
   const rows = all(`SELECT * FROM users WHERE status = 'active' AND (lower(username) LIKE ? OR lower(display_name) LIKE ? OR lower(bio) LIKE ?)
