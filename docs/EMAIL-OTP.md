@@ -31,8 +31,8 @@ POST /api/auth/email/verify  -> 200, JWT + refreshToken + sessionId returned
 |---|---|
 | `EMAIL_PROVIDER` | `brevo` |
 | `BREVO_API_KEY` | `xkeysib-…` (API key, **not** the `xsmtpsib-` SMTP key) |
-| `BREVO_FROM` | `trivediabhishek267@gmail.com` |
-| `EMAIL_FROM` | `trivediabhishek267@gmail.com` |
+| `BREVO_FROM` | `no-reply@azolve.io` |
+| `EMAIL_FROM` | `no-reply@azolve.io` |
 | `EMAIL_FROM_NAME` | `AZOLVE CHAT` |
 | `EMAIL_REPLY_TO` | `support@azolve.io` |
 
@@ -58,18 +58,50 @@ and the API has no IP allowlist. That is why it is the right choice on Render
 Free. Keep the IP restriction disabled, or switch to Render Starter for a static
 IP if you ever want it back on.
 
-## Sender identity
+## Sender identity — branded, `no-reply@azolve.io`
 
-Mail is sent as `AZOLVE CHAT <trivediabhishek267@gmail.com>`. Recipients see a
-Gmail address, not `no-reply@azolve.io`. This is cosmetic and acceptable for
-team testing. To brand it:
+Mail is sent as `AZOLVE CHAT <no-reply@azolve.io>` with `Reply-To:
+support@azolve.io`. Confirmed in Brevo's event log:
 
-- verify `azolve.io` at https://resend.com/domains (the domain is already added
-  to the Resend account, id `8bc1d1d4-ca3a-4d04-9ced-08260280d974`, status
-  `not_started`; DNS records in `docs/DNS-RESEND-GODADDY.md`), then
-- set `EMAIL_PROVIDER=resend`, `RESEND_API_KEY=re_…`, `RESEND_FROM=no-reply@azolve.io`.
+```
+22:55:54 | no-reply@azolve.io | Your AZOLVE CHAT verification code | delivered
+```
 
-Brevo can also verify a whole domain if you prefer to stay on it.
+`azolve.io` was already authenticated on the Brevo account (provider GoDaddy),
+so no DNS work was needed. Brevo's DNS check reports:
+
+| Record | Host | Value | Status |
+|---|---|---|---|
+| DKIM 1 | `brevo1._domainkey` | CNAME `b1.azolve-io.dkim.brevo.com` | verified |
+| DKIM 2 | `brevo2._domainkey` | CNAME `b2.azolve-io.dkim.brevo.com` | verified |
+| Ownership | `@` | TXT `brevo-code:00a0a521…` | verified |
+| DMARC | `_dmarc` | TXT `v=DMARC1; p=none; rua=mailto:rua@dmarc.brevo.com` | verified |
+
+Note these are **CNAME** records, not the `mail._domainkey` TXT record that older
+Brevo guides describe. Looking for a TXT record finds nothing and looks like a
+misconfiguration when the domain is in fact fine — verify with
+`GET /v3/senders/domains/azolve.io` instead of guessing.
+
+### One optional DNS improvement
+
+The root SPF record is still `v=spf1 include:secureserver.net -all`. It does not
+include Brevo, and `-all` is a hard fail. This does **not** break delivery today
+because Brevo sends with its own envelope domain (`mailin.fr`), so SPF is
+evaluated against Brevo's domain, and DMARC alignment is satisfied by the DKIM
+signature on `azolve.io`. But if you ever want SPF to pass for mail sent *as*
+`azolve.io` from any server, add Brevo's include:
+
+```
+v=spf1 include:secureserver.net include:spf.sendinblue.com -all
+```
+
+Not urgent — DKIM is doing the work, and DMARC is at `p=none` so nothing is
+being rejected. Worth doing before you send at volume.
+
+The Resend path is no longer needed. `azolve.io` is still sitting unverified in
+that account (id `8bc1d1d4-ca3a-4d04-9ced-08260280d974`); it can be deleted, or
+left as a spare provider. `docs/DNS-RESEND-GODADDY.md` is kept only as a
+fallback reference.
 
 ## Honest limitation: `delivered` means "provider accepted"
 

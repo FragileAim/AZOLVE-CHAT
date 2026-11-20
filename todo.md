@@ -21,7 +21,8 @@
 - [x] Email OTP live via Brevo HTTPS API — real delivery confirmed in Brevo's event log; full start→verify→session flow exercised
 - [x] Diagnosed and cleared the three delivery walls (Resend sender lock, Render blocked ports 25/465/587, Brevo IP restriction)
 - [x] `/api/auth/otp/status` now reports the real outcome of the last send, not just whether a provider is configured
-- [ ] Optional: verify azolve.io in Resend for a branded no-reply@azolve.io sender; DNS records in docs/DNS-RESEND-GODADDY.md
+- [x] Branded sender live: mail goes out as AZOLVE CHAT <no-reply@azolve.io>; azolve.io was already DKIM-authenticated in Brevo
+- [ ] Optional: add include:spf.sendinblue.com to the root SPF record (DKIM already passes; not blocking)
 - [ ] SMS gateway key (real OTP texts) — blocked on DLT approval, email is primary now
 - [x] TURN credential — Metered static credential applied to Render as TURN_USERNAME/TURN_CREDENTIAL; `/api/rtc/config` returns hasTurn:true, turnSource:static; relay allocation verified with turnutils_uclient (0% loss)
 - [x] Push repo to GitHub (FragileAim/AZOLVE-CHAT) and deploy live on Render
