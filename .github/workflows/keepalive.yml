@@ -1,0 +1,37 @@
+name: Keep the API awake
+
+# Render's free plan puts a service to sleep after ~15 minutes without traffic.
+# The first visitor after that waits 30-60 seconds for the container to boot,
+# and if they arrive mid-boot the browser can fail the request outright.
+# A cheap ping every 10 minutes keeps the instance warm so nobody meets a cold
+# start. Free-plan allowance is 750 instance hours a month; one always-on
+# service uses roughly 730, so this fits.
+
+on:
+  schedule:
+    - cron: '*/10 * * * *'
+  workflow_dispatch:
+
+concurrency:
+  group: keepalive
+  cancel-in-progress: false
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Ping /api/health
+        run: |
+          url="https://azolve-chat.onrender.com/api/health"
+          for attempt in 1 2 3 4 5; do
+            code=$(curl -s -o /tmp/health.json -w '%{http_code}' --max-time 90 "$url" || echo 000)
+            echo "attempt $attempt -> HTTP $code"
+            if [ "$code" = "200" ]; then
+              cat /tmp/health.json; echo
+              exit 0
+            fi
+            sleep 20
+          done
+          echo "Health check did not return 200 after 5 attempts" >&2
+          exit 1
