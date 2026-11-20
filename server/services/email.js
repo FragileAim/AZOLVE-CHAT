@@ -301,6 +301,18 @@ export function emailWillDeliver() {
   return PROVIDER !== 'console' && emailConfigured();
 }
 
+/* The last real send attempt, whatever the outcome.
+   `emailWillDeliver()` answers "is a provider configured", which is not the same
+   question as "did the last email actually go out". A misconfigured provider
+   (wrong port, blocked IP, unverified sender) is still *configured*, so a status
+   endpoint built only on that flag will happily report success while every send
+   fails. This records the truth so the client can show it. */
+let lastSend = null;
+
+export function lastEmailDelivery() {
+  return lastSend;
+}
+
 /**
  * Deliver an OTP by email. Never throws.
  * @returns {Promise<{ok:boolean, provider:string, id?:string, toLog?:boolean, error?:string}>}
@@ -318,13 +330,21 @@ export async function deliverEmailOtp({ email, code, purpose = 'signup', name })
   if (!emailConfigured()) {
     return { ok: false, provider: PROVIDER, error: `EMAIL_PROVIDER=${PROVIDER} is selected but its credentials are missing.` };
   }
+  let out;
   try {
-    return await fn({ to: email, code, purpose, name });
+    out = await fn({ to: email, code, purpose, name });
   } catch (e) {
     const msg = e?.name === 'AbortError' ? 'Provider timed out'
       : (e?.response || e?.message || String(e));
-    return { ok: false, provider: PROVIDER, error: String(msg).slice(0, 300) };
+    out = { ok: false, provider: PROVIDER, error: String(msg).slice(0, 300) };
   }
+  lastSend = {
+    ok: !!out.ok,
+    at: Date.now(),
+    provider: out.provider || PROVIDER,
+    error: out.ok ? undefined : out.error,
+  };
+  return out;
 }
 
 /**

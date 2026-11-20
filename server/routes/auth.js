@@ -4,7 +4,7 @@ import { get, run, all } from '../db.js';
 import { id, now, code6, publicUser, err, parseJSON } from '../util.js';
 import { createSession, rotateSession, requireAuth, issueToken } from '../auth.js';
 import { deliverOtp, echoOtp, smsProviderName, smsConfigured } from '../services/sms.js';
-import { deliverEmailOtp, emailProviderName, emailConfigured, emailWillDeliver } from '../services/email.js';
+import { deliverEmailOtp, emailProviderName, emailConfigured, emailWillDeliver, lastEmailDelivery } from '../services/email.js';
 
 const r = Router();
 
@@ -243,7 +243,12 @@ r.post('/phone/resend', async (req, res) => {
 /** Lets the client tell the user, honestly, whether a real SMS will arrive. */
 r.get('/otp/status', (req, res) => {
   const smsLive = smsConfigured() && smsProviderName() !== 'console';
-  const mailLive = emailWillDeliver();
+  const mailConfigured = emailWillDeliver();
+  const last = lastEmailDelivery();
+  // A configured provider is not proof of delivery: a wrong port, a blocked IP
+  // or an unverified sender all fail *after* configuration. If the most recent
+  // send failed, say so instead of claiming email works.
+  const mailLive = mailConfigured && !(last && last.ok === false);
   res.json({
     provider: smsProviderName(),
     configured: smsConfigured(),
@@ -255,9 +260,10 @@ r.get('/otp/status', (req, res) => {
     // Which channel the client should lead with. Email is the default while
     // SMS is blocked on DLT approval in India.
     primary: mailLive ? 'email' : (smsLive ? 'phone' : 'email'),
+    lastEmail: last || undefined,
     note: mailLive
       ? 'Verification codes are sent by email.'
-      : mailFailureNote(),
+      : (last && last.ok === false ? `The last email failed: ${last.error}` : mailFailureNote()),
   });
 });
 
@@ -310,7 +316,7 @@ const wait = tooSoon(email);
     deliveryError: out.delivered ? undefined : out.error,
     deliveryCode: echoOtp() ? out.code : undefined,
     message: out.delivered
-      ? `A 6-digit code was emailed to ${email}.`
+      ? `A 6-digit code was sent to ${email}. Check your inbox and spam folder.`
       : mailFailureNote(),
   });
 });
