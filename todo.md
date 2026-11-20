@@ -18,6 +18,8 @@
 - [x] `/api/rtc/config` async, reports `hasTurn` + `turnSource`
 - [x] `docs/EMAIL-OTP.md` — provider setup guide
 - [x] `docs/RENDER-SETUP.md` — Render API key + which options to select
+- [x] Email OTP live via Resend — `/api/auth/otp/status` reports emailDelivery:true, real send confirmed delivered
+- [ ] Resend domain verification (azolve.io) — required before anyone other than the account owner can register; DNS records in docs/EMAIL-OTP.md
 - [ ] SMS gateway key (real OTP texts) — blocked on DLT approval, email is primary now
 - [x] TURN credential — Metered static credential applied to Render as TURN_USERNAME/TURN_CREDENTIAL; `/api/rtc/config` returns hasTurn:true, turnSource:static; relay allocation verified with turnutils_uclient (0% loss)
 - [x] Push repo to GitHub (FragileAim/AZOLVE-CHAT) and deploy live on Render
