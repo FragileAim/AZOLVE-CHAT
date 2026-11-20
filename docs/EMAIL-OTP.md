@@ -1,90 +1,110 @@
-# Email OTP — current state and the one remaining step
+# Email OTP — live on Brevo
 
-## Status: WORKING (live)
+## Status: WORKING, verified end to end
 
-`RESEND_API_KEY` is set on Render service `srv-dc06qdcs728c73ckquh0`, with
-`EMAIL_PROVIDER=resend`. `GET https://azolve-chat.onrender.com/api/auth/otp/status`
-now returns:
+Provider: **Brevo**, over the HTTPS API (not SMTP). Configured on Render service
+`srv-dc06qdcs728c73ckquh0`.
 
-```json
-{ "emailProvider": "resend", "emailConfigured": true, "emailDelivery": true,
+```
+GET https://azolve-chat.onrender.com/api/auth/otp/status
+{ "emailProvider": "brevo", "emailConfigured": true, "emailDelivery": true,
   "primary": "email", "note": "Verification codes are sent by email." }
 ```
 
-A real signup was run against the live deployment and Resend reported the
-message `delivered`:
+Proof of delivery, from Brevo's own event log:
 
 ```
-POST /api/auth/email/start {"email":"trivediabhishek267@gmail.com"}
-→ {"provider":"resend","delivered":true,"message":"A 6-digit code was emailed ..."}
+22:47:32 | trivediabhishek267@gmail.com | Your AZOLVE CHAT verification code | delivered
+22:44:34 | trivediabhishek267@gmail.com | Your AZOLVE CHAT verification code | delivered
 ```
 
-## The limitation you must fix before your team can sign up
-
-Right now `RESEND_FROM=onboarding@resend.dev`. That is Resend's shared testing
-sender, and it has a hard rule: **it will only deliver to the email address the
-Resend account was created with.** Any other recipient is rejected:
+Full flow exercised on a local instance with the production config:
 
 ```
-HTTP 403  "You can only send testing emails to your own email address
-(trivediabhishek267@gmail.com). To send emails to other recipients, please
-verify a domain at resend.com/domains."
+POST /api/auth/email/start   -> delivered:true, code stored
+POST /api/auth/email/verify  -> 200, JWT + refreshToken + sessionId returned
 ```
 
-So today only `trivediabhishek267@gmail.com` can receive a code. Your team
-cannot register until a domain is verified.
+## Environment variables
 
-## Fix: verify azolve.io in Resend
+| Key | Value |
+|---|---|
+| `EMAIL_PROVIDER` | `brevo` |
+| `BREVO_API_KEY` | `xkeysib-…` (API key, **not** the `xsmtpsib-` SMTP key) |
+| `BREVO_FROM` | `trivediabhishek267@gmail.com` |
+| `EMAIL_FROM` | `trivediabhishek267@gmail.com` |
+| `EMAIL_FROM_NAME` | `AZOLVE CHAT` |
+| `EMAIL_REPLY_TO` | `support@azolve.io` |
 
-The domain has already been added to your Resend account (id
-`8bc1d1d4-ca3a-4d04-9ced-08260280d974`, region `us-east-1`, status
-`not_started`). It now needs four DNS records at your domain registrar
-(Hostinger / GoDaddy / Cloudflare / wherever azolve.io's DNS lives):
+## Why the API and not SMTP — three walls, in order
 
-| Type | Name / Host | Value | Priority |
-|---|---|---|---|
-| TXT | `resend._domainkey` | `p=MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQCaqLH/U4zUuNKf2AFUTpFFfUIU4B+24mdIGWBQb4VLhct9Vbx4KYfuz94OBRnXWDyBFIu97+uMDPnTYplQwNpz7BfDho4gmDVGpAfFqLx73lb7ZeM+Nql0NGZvZn20rqDHrbNtIUUU5/6EnxzDk+Uiacuem1wZVOJWUH3HQp/KfwIDAQAB` | — |
-| MX | `send` | `feedback-smtp.us-east-1.amazonses.com` | 10 |
-| TXT | `send` | `v=spf1 include:amazonses.com ~all` | — |
-| CNAME | `rsend` | `send.forge.rmta.net` | — |
+This is worth recording because each failure looked like a code bug and was not.
 
-Notes on entering these:
-- Some registrars want the full host (`send.azolve.io`), others want just the
-  prefix (`send`). If one form is rejected, try the other.
-- Cloudflare users: set the MX and CNAME records to **DNS only** (grey cloud),
-  not proxied, or verification fails.
-- The DKIM value is long; paste it as a single line with no line breaks.
+1. **Resend's shared sender is locked to one recipient.** `onboarding@resend.dev`
+   only delivers to the address the Resend account was created with:
+   `403 — You can only send testing emails to your own email address`. Verifying
+   a domain is the only cure, which the owner did not want to do yet.
+2. **Render Free blocks outbound ports 25, 465 and 587.** SMTP to
+   `smtp-relay.brevo.com:587` timed out. Brevo's alternate port **2525** is open,
+   which is how we got past this one.
+3. **Brevo rejects unrecognised IPs.** On 2525 the relay answered
+   `525 5.7.1 Unauthorized IP address`. Render Free has no static outbound IP, so
+   there is nothing to allowlist — the IP changes on every deploy. The owner
+   authorised the IP / disabled the restriction at
+   https://app.brevo.com/security/authorised_ips, which unblocked it.
 
-**GoDaddy-specific click-by-click steps are in `docs/DNS-RESEND-GODADDY.md`** —
-`azolve.io` is registered at GoDaddy, and I confirmed from outside that none of
-the four records exist yet. The existing root SPF record
-(`v=spf1 include:secureserver.net -all`) does **not** conflict and must be left
-alone.
+The **HTTPS API on port 443** sidesteps 2 and 3 entirely: 443 is never blocked,
+and the API has no IP allowlist. That is why it is the right choice on Render
+Free. Keep the IP restriction disabled, or switch to Render Starter for a static
+IP if you ever want it back on.
 
-Then press **Verify** at https://resend.com/domains. Propagation is usually
-minutes, occasionally up to an hour.
+## Sender identity
 
-## The last step, which I do for you
+Mail is sent as `AZOLVE CHAT <trivediabhishek267@gmail.com>`. Recipients see a
+Gmail address, not `no-reply@azolve.io`. This is cosmetic and acceptable for
+team testing. To brand it:
 
-Once Resend shows the domain as **Verified**, tell me and I will blank the
-`RESEND_FROM` variable on Render so the sender falls back to `EMAIL_FROM`
-(`no-reply@azolve.io`), then redeploy and confirm with a live send to a
-non-owner address. That is a two-minute change.
+- verify `azolve.io` at https://resend.com/domains (the domain is already added
+  to the Resend account, id `8bc1d1d4-ca3a-4d04-9ced-08260280d974`, status
+  `not_started`; DNS records in `docs/DNS-RESEND-GODADDY.md`), then
+- set `EMAIL_PROVIDER=resend`, `RESEND_API_KEY=re_…`, `RESEND_FROM=no-reply@azolve.io`.
 
-## If you do not own azolve.io
+Brevo can also verify a whole domain if you prefer to stay on it.
 
-Say so and I will delete the domain from Resend. The alternative is to verify
-whatever domain you do own and change `EMAIL_FROM` to match, or switch to SMTP
-with a mailbox you already have (Gmail app password, Zoho, Hostinger) — SMTP
-needs no domain verification at all and would unblock the team immediately.
+## Honest limitation: `delivered` means "provider accepted"
 
-## Provider reference
+`POST /api/auth/email/start` returns `delivered:true` when Brevo accepts the
+message (`201`), not when it lands in an inbox. Delivery is asynchronous, so a
+mailbox that does not exist still reports `delivered:true` and only bounces
+later. Observed during testing:
+
+```
+flowtest.azolve@gmail.com | hardBounces | 550-5.1.1 The email account you tried to reach does not exist
+```
+
+That is correct behaviour, not a bug — no provider can know synchronously. But
+do not test with invented addresses: hard bounces damage the sending reputation
+of the Brevo account. Use real mailboxes.
+
+`/api/auth/otp/status` used to claim `emailDelivery:true` purely because a
+provider was *configured*, even when every send was failing. It now also reports
+`lastEmail` (the outcome of the most recent real attempt) and drops
+`emailDelivery` to `false` if that attempt failed, with the provider's error in
+`note`.
+
+## Free tier
+
+Brevo free: **300 emails/day**, no card. Each signup or sign-in uses one. If the
+team exceeds it, sends fail with a rate-limit error visible in `lastEmail` and
+the server log.
+
+## Other providers, for reference
 
 | `EMAIL_PROVIDER` | Free tier | Needs domain? | Notes |
 |---|---|---|---|
-| `resend` | 3,000/mo, 100/day | Yes, for other recipients | Current choice |
-| `brevo` | 300/day | Sender verification | `BREVO_API_KEY` |
-| `smtp` | your mailbox | No | `SMTP_HOST/PORT/USER/PASS` |
+| `brevo` | 300/day | No (sender email verification) | **Current** |
+| `resend` | 3,000/mo, 100/day | Yes, for other recipients | Branded sender once DNS is done |
+| `smtp` | your mailbox | No | Needs an open outbound port; blocked on Render Free |
 | `sendgrid` | 100/day | Sender verification | `SENDGRID_API_KEY` |
 | `mailgun` | trial | Yes | `MAILGUN_API_KEY` + `MAILGUN_DOMAIN` |
-| `console` | free | No | Code goes to server log only |
+| `console` | free | No | Code goes to the server log only |
