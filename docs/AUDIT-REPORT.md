@@ -212,7 +212,8 @@ Every screen was opened in a real browser, not just asserted over HTTP.
 | minSdk / targetSdk | 24 / 34 |
 | Signature | `apksigner verify` → **Verifies**, APK Signature Scheme v2 |
 | Signer | `CN=AZOLVE INFOTECH, O=AZOLVE INFOTECH PVT LTD, L=Ahmedabad, ST=Gujarat, C=IN` |
-| SHA-256 | `31f20436e892ba7751a494b28ffc4b7040ad5ce303b6383e7aa8a6390f092f11` |
+| APK file SHA-256 | `31615f6fb3b0b977d54b6ee3665f7424b61d9d2f329295cd488d815c8e5eb04c` |
+| Signing cert SHA-256 | `31f20436e892ba7751a494b28ffc4b7040ad5ce303b6383e7aa8a6390f092f11` |
 | Backend baked in | `https://azolve-chat.onrender.com` (confirmed inside `classes.dex`) |
 
 The APK is a native WebView shell around the live product, which means it always
@@ -231,7 +232,7 @@ sleeping server. This was the single most likely thing to make a tester report
 
 | Property | Value |
 | --- | --- |
-| File | `AZOLVE-CHAT-iOS-Xcode.zip` (429 KB) |
+| File | `AZOLVE-CHAT-iOS-Xcode.zip` (428 KB) |
 | Project | `App.xcodeproj` |
 | Bundle id | `io.azolve.chat` |
 | Deployment target | iOS 13.0 |
