@@ -82,8 +82,12 @@ services:
         sync: false
       - key: OTP_DEV_ECHO
         value: "1"                   # team testing: code is shown in the UI. Set 0 for real users.
+      - key: ADMIN_EMAILS
+        sync: false
+      - key: ADMIN_PHONES
+        sync: false
       - key: FIRST_USER_IS_ADMIN
-        value: "1"
+        value: "0"
       - key: SEED_DEMO
         value: "0"
       - key: TRANSLATION_PROVIDER

@@ -100,11 +100,26 @@ function uniqueUsername(base) {
   return candidate;
 }
 
-/* The very first account on a fresh deployment becomes the admin so the team
-   has someone who can open the admin dashboard. Set FIRST_USER_IS_ADMIN=0 to
-   disable this and promote admins manually. */
-function roleForNewUser() {
-  if (process.env.FIRST_USER_IS_ADMIN === '0') return 'user';
+/* Who becomes an admin.
+   1. ADMIN_EMAILS / ADMIN_PHONES — an explicit allowlist. This is the safe way:
+      the role is tied to an identity you control, so nobody can grab admin by
+      registering first.
+   2. FIRST_USER_IS_ADMIN — legacy behaviour where the very first account on a
+      fresh deployment becomes admin. Convenient, but on a public URL anyone who
+      finds the site first wins the role, so it is off unless explicitly set. */
+function adminAllowlist() {
+  const emails = String(process.env.ADMIN_EMAILS || '')
+    .split(',').map(s => s.trim().toLowerCase()).filter(Boolean);
+  const phones = String(process.env.ADMIN_PHONES || '')
+    .split(',').map(s => s.trim()).filter(Boolean);
+  return { emails, phones };
+}
+
+function roleForNewUser({ email = null, phone = null } = {}) {
+  const { emails, phones } = adminAllowlist();
+  if (email && emails.includes(String(email).toLowerCase())) return 'admin';
+  if (phone && phones.includes(String(phone))) return 'admin';
+  if (process.env.FIRST_USER_IS_ADMIN !== '1') return 'user';
   const n = get('SELECT COUNT(*) AS n FROM users');
   return (n?.n || 0) === 0 ? 'admin' : 'user';
 }
@@ -117,7 +132,7 @@ function newUserRow({ email = null, phone = null, passwordHash = null, displayNa
        created_at, last_seen, status, role, phone_verified, prefs, privacy)
      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
     uid, email, phone, passwordHash, uname, displayName || uname, null, language,
-    now(), now(), 'pending', roleForNewUser(), phone ? 1 : 0,
+    now(), now(), 'pending', roleForNewUser({ email, phone }), phone ? 1 : 0,
     JSON.stringify({ autoTranslate: true, notifications: { messages: true, social: true, calls: true } }),
     JSON.stringify({ profile: 'public', lastSeen: 'contacts', readReceipts: true, storyAudience: 'followers' }),
   );

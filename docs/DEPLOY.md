@@ -56,7 +56,8 @@ git ls-files | grep -c node_modules   # should print 0
 | `JWT_SECRET` | auto-generated | sessions are signed with a real secret |
 | `SMS_PROVIDER` | `console` | works with zero signup; codes go to the log |
 | `OTP_DEV_ECHO` | `1` | **team testing**: the code appears in the UI |
-| `FIRST_USER_IS_ADMIN` | `1` | first sign-up becomes the admin |
+| `ADMIN_EMAILS` | *(your address)* | comma-separated allowlist that receives the admin role |
+| `FIRST_USER_IS_ADMIN` | `0` | legacy: `1` makes the first sign-up the admin (unsafe on a public URL) |
 | `SEED_DEMO` | `0` | no sample accounts |
 | disk | 1 GB at `/var/data` | survives redeploys |
 

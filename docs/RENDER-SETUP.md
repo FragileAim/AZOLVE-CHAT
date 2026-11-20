@@ -249,8 +249,11 @@ The full list with explanations is in `.env.example`.
    `{"ok":true,...}`.
 2. Open `https://azolve-chat.onrender.com/api/auth/otp/status` — check that
    `emailDelivery` is `true` and `primary` is `"email"`.
-3. Register the first account. On an empty database the first user becomes
-   **admin** (`FIRST_USER_IS_ADMIN=1`), which unlocks the admin dashboard.
+3. Register your own account, then set `ADMIN_EMAILS` to that address and
+   redeploy — that account gets the admin role and unlocks the admin dashboard.
+   (`FIRST_USER_IS_ADMIN=1` is the legacy shortcut that makes the first sign-up
+   the admin; it is off by default because on a public URL anyone who registers
+   first would win the role.)
 4. Open `/api/rtc/config` — `hasTurn` must be `true` before you trust calls on
    cellular.
 5. Set `OTP_DEV_ECHO=0` and redeploy.
