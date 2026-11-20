@@ -1,0 +1,12 @@
+node_modules
+web/node_modules
+data
+.env
+.env.*
+!.env.example
+screenshots
+*.log
+.git
+.gitignore
+docs
+README.md

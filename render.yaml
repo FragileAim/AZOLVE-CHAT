@@ -1,0 +1,125 @@
+# Render Blueprint — https://render.com/docs/blueprint-spec
+#
+# Push this repo to GitHub, then in Render choose:
+#   New + → Blueprint → pick the repo → Apply.
+#
+# IMPORTANT: SQLite is a local file, so this service must run as a SINGLE
+# instance. Do not scale it horizontally — two instances would each hold a
+# different database. For multi-instance you would move to Postgres.
+services:
+  - type: web
+    name: azolve-chat
+    runtime: docker
+    plan: starter            # free plan also works, but sleeps after 15 min idle
+    region: singapore        # change to oregon / frankfurt / ohio if you prefer
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /api/health
+    autoDeploy: true
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 3000
+      - key: DATA_DIR
+        value: /var/data
+      - key: JWT_SECRET
+        generateValue: true          # Render creates a strong secret for you
+      - key: STUN_URLS
+        value: "stun:stun.l.google.com:19302,stun:stun1.l.google.com:19302"
+      - key: TURN_URL
+        sync: false
+      # Metered: set TURN_APP to your sub-domain (the "yourapp" in
+      # yourapp.metered.live). sk_id_/sk_secret_ are API keys, not a TURN
+      # username/password — the server exchanges them for short-lived creds.
+      - key: TURN_APP
+        sync: false
+      - key: TURN_API_KEY
+        sync: false
+      - key: TURN_API_SECRET
+        sync: false
+      # Self-hosted coturn alternative: coturn's static-auth-secret.
+      - key: TURN_STATIC_AUTH_SECRET
+        sync: false
+      - key: TURN_USERNAME
+        sync: false
+      - key: TURN_CREDENTIAL
+        sync: false
+      - key: CALL_RING_TIMEOUT_MS
+        value: "45000"
+      - key: SMS_PROVIDER
+        value: console               # change to textbelt / fast2sms / msg91 / twilio
+      # Email is the primary OTP channel while SMS is blocked on DLT approval.
+      # Leave EMAIL_PROVIDER blank to auto-detect from whichever key is present.
+      - key: EMAIL_PROVIDER
+        sync: false
+      - key: EMAIL_FROM
+        value: no-reply@azolve.io
+      - key: EMAIL_FROM_NAME
+        value: AZOLVE CHAT
+      - key: EMAIL_REPLY_TO
+        value: support@azolve.io
+      - key: RESEND_API_KEY
+        sync: false
+      - key: BREVO_API_KEY
+        sync: false
+      - key: SENDGRID_API_KEY
+        sync: false
+      - key: MAILGUN_API_KEY
+        sync: false
+      - key: MAILGUN_DOMAIN
+        sync: false
+      - key: SMTP_HOST
+        sync: false
+      - key: SMTP_PORT
+        value: "587"
+      - key: SMTP_SECURE
+        value: "0"
+      - key: SMTP_USER
+        sync: false
+      - key: SMTP_PASS
+        sync: false
+      - key: SMTP_FROM
+        sync: false
+      - key: OTP_DEV_ECHO
+        value: "1"                   # team testing: code is shown in the UI. Set 0 for real users.
+      - key: FIRST_USER_IS_ADMIN
+        value: "1"
+      - key: SEED_DEMO
+        value: "0"
+      - key: TRANSLATION_PROVIDER
+        value: deepl,google,libre,openai,mymemory,offline
+      # Fill these in the Render dashboard (marked sync:false = not stored in git)
+      - key: TEXTBELT_API_KEY
+        sync: false
+      - key: FAST2SMS_API_KEY
+        sync: false
+      - key: MSG91_AUTH_KEY
+        sync: false
+      - key: MSG91_TEMPLATE_ID
+        sync: false
+      - key: TWOFACTOR_API_KEY
+        sync: false
+      - key: TWILIO_ACCOUNT_SID
+        sync: false
+      - key: TWILIO_AUTH_TOKEN
+        sync: false
+      - key: TWILIO_FROM
+        sync: false
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: GEMINI_MODEL
+        value: gemini-3.6-flash
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: GROQ_API_KEY
+        sync: false
+      - key: DEEPL_API_KEY
+        sync: false
+      - key: GOOGLE_TRANSLATE_API_KEY
+        sync: false
+    disk:
+      name: azolve-data
+      mountPath: /var/data
+      sizeGB: 1

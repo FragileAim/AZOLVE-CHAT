@@ -1,0 +1,98 @@
+import express from 'express';
+import http from 'node:http';
+import path from 'node:path';
+import fs from 'node:fs';
+import 'dotenv/config';
+import { initRealtime } from './realtime.js';
+import { iceServers } from './services/turn.js';
+import authRoutes from './routes/auth.js';
+import userRoutes from './routes/users.js';
+import chatRoutes, { processScheduled } from './routes/chats.js';
+import socialRoutes from './routes/social.js';
+import communityRoutes from './routes/communities.js';
+import aiRoutes from './routes/ai.js';
+import adminRoutes from './routes/admin.js';
+import { seedIfEmpty } from './seed.js';
+
+const app = express();
+const server = http.createServer(app);
+const PORT = process.env.PORT || 3000;
+const DATA_DIR = process.env.DATA_DIR || path.join(process.cwd(), 'data');
+
+app.set('trust proxy', 1);
+app.use(express.json({ limit: '2mb' }));
+app.use(express.urlencoded({ extended: true }));
+app.use('/uploads', express.static(path.join(DATA_DIR, 'uploads'), { maxAge: '30d' }));
+
+/* basic rate limiting (per IP, in-memory) */
+const hits = new Map();
+app.use('/api', (req, res, next) => {
+  const key = req.ip;
+  const bucket = hits.get(key) || { count: 0, reset: Date.now() + 60000 };
+  if (Date.now() > bucket.reset) { bucket.count = 0; bucket.reset = Date.now() + 60000; }
+  bucket.count++;
+  hits.set(key, bucket);
+  if (bucket.count > 600) return res.status(429).json({ error: 'Too many requests — slow down.' });
+  next();
+});
+
+app.get('/api/health', (req, res) => res.json({ ok: true, service: 'azolve-chat', version: '1.0.0', time: Date.now() }));
+
+/* ---------------------------------------------------------------------------
+   WebRTC ICE configuration
+   STUN alone only works when both peers can be reached directly. Behind
+   cellular CGNAT or a symmetric NAT — which is most mobile networks — media
+   needs a TURN relay. TURN credentials stay on the server and are handed to
+   the client per session; nothing is baked into the bundle.
+--------------------------------------------------------------------------- */
+app.get('/api/rtc/config', async (req, res) => {
+  try {
+    const { servers, turn, source } = await iceServers();
+    res.json({
+      iceServers: servers,
+      hasTurn: turn,
+      turnSource: source,
+      ringTimeout: Number(process.env.CALL_RING_TIMEOUT_MS || 45000),
+      iceTransportPolicy: process.env.ICE_TRANSPORT_POLICY || 'all',
+    });
+  } catch (e) {
+    console.warn('[rtc] config failed:', e.message);
+    res.json({
+      iceServers: [{ urls: 'stun:stun.l.google.com:19302' }],
+      hasTurn: false,
+      turnSource: 'error',
+      ringTimeout: Number(process.env.CALL_RING_TIMEOUT_MS || 45000),
+      iceTransportPolicy: 'all',
+    });
+  }
+});
+
+app.use('/api/auth', authRoutes);
+app.use('/api/users', userRoutes);
+app.use('/api/chats', chatRoutes);
+app.use('/api/social', socialRoutes);
+app.use('/api/communities', communityRoutes);
+app.use('/api/ai', aiRoutes);
+app.use('/api/admin', adminRoutes);
+
+app.use('/api', (req, res) => res.status(404).json({ error: `Unknown endpoint ${req.method} ${req.originalUrl}` }));
+app.use((e, req, res, next) => {
+  console.error('[error]', e.message);
+  res.status(500).json({ error: 'Internal server error' });
+});
+
+const webDist = path.join(process.cwd(), 'web', 'dist');
+if (fs.existsSync(webDist)) {
+  app.use(express.static(webDist, { index: false }));
+  app.use((req, res, next) => {
+    if (req.method !== 'GET' || req.path.startsWith('/api') || req.path.startsWith('/uploads') || req.path.startsWith('/socket.io')) return next();
+    res.sendFile(path.join(webDist, 'index.html'));
+  });
+}
+
+initRealtime(server);
+seedIfEmpty();
+
+setInterval(() => { processScheduled().catch(() => {}); }, 20000);
+
+server.listen(PORT, '0.0.0.0', () => console.log(`AZOLVE CHAT server on http://localhost:${PORT}`));

@@ -1,0 +1,82 @@
+/* ---------------------------------------------------------------------------
+   ICE configuration loader
+   The server decides which STUN/TURN servers to use (see /api/rtc/config).
+   We cache the answer for the session so a call never waits on a round trip
+   after the first one.
+--------------------------------------------------------------------------- */
+
+const FALLBACK = {
+  iceServers: [
+    { urls: 'stun:stun.l.google.com:19302' },
+    { urls: 'stun:stun1.l.google.com:19302' },
+  ],
+  hasTurn: false,
+  ringTimeout: 45000,
+  iceTransportPolicy: 'all',
+};
+
+let cached = null;
+let inflight = null;
+
+export async function getIceConfig() {
+  if (cached) return cached;
+  if (inflight) return inflight;
+  inflight = (async () => {
+    try {
+      const r = await fetch('/api/rtc/config', { credentials: 'include' });
+      if (!r.ok) throw new Error(String(r.status));
+      const d = await r.json();
+      cached = { ...FALLBACK, ...d };
+    } catch {
+      cached = FALLBACK;
+    }
+    inflight = null;
+    return cached;
+  })();
+  return inflight;
+}
+
+export function toRtcConfig(cfg) {
+  return {
+    iceServers: cfg.iceServers,
+    iceTransportPolicy: cfg.iceTransportPolicy || 'all',
+    bundlePolicy: 'max-bundle',
+    rtcpMuxPolicy: 'require',
+    iceCandidatePoolSize: 4,
+  };
+}
+
+/* ---------------------------------------------------------------------------
+   Quality from real getStats() numbers rather than connection state alone.
+   Returns 'excellent' | 'good' | 'weak' | 'lost' | 'connecting'.
+--------------------------------------------------------------------------- */
+export async function readQuality(pc) {
+  if (!pc || pc.connectionState === 'failed' || pc.connectionState === 'closed') return 'lost';
+  if (pc.connectionState !== 'connected') return 'connecting';
+  try {
+    const stats = await pc.getStats();
+    let rtt = null;
+    let lossPct = null;
+    let jitter = null;
+
+    stats.forEach((s) => {
+      if (s.type === 'candidate-pair' && s.state === 'succeeded' && s.currentRoundTripTime != null) {
+        rtt = s.currentRoundTripTime * 1000;
+      }
+      if (s.type === 'inbound-rtp' && s.kind === 'audio') {
+        if (s.jitter != null) jitter = s.jitter * 1000;
+        if (s.packetsReceived && s.packetsLost != null) {
+          const total = s.packetsReceived + s.packetsLost;
+          if (total > 20) lossPct = (s.packetsLost / total) * 100;
+        }
+      }
+    });
+
+    if (rtt == null && lossPct == null) return 'good';
+    if ((rtt != null && rtt > 400) || (lossPct != null && lossPct > 8)) return 'weak';
+    if ((rtt != null && rtt > 180) || (lossPct != null && lossPct > 2)) return 'good';
+    return 'excellent';
+  } catch {
+    return 'good';
+  }
+}
