@@ -10,6 +10,33 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet" />
     <link rel="icon" href="./logo.svg" type="image/svg+xml" />
+
+    <!-- Installable app: Chrome/Edge/Android use the manifest, iOS uses the
+         apple-* tags below. Without these, "Add to Home Screen" on an iPhone
+         produces a screenshot icon inside a Safari-chrome window instead of a
+         real full-screen app. -->
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/ios/apple-touch-icon-180.png" />
+    <link rel="apple-touch-icon" sizes="167x167" href="/ios/apple-touch-icon-167.png" />
+    <link rel="apple-touch-icon" sizes="152x152" href="/ios/apple-touch-icon-152.png" />
+    <link rel="apple-touch-icon" sizes="120x120" href="/ios/apple-touch-icon-120.png" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="AZOLVE" />
+    <meta name="application-name" content="AZOLVE CHAT" />
+    <meta name="format-detection" content="telephone=no" />
+
+    <!-- iOS launch images, so opening the installed app does not flash white. -->
+    <link rel="apple-touch-startup-image" href="/ios/splash-1290x2796.png" media="(device-width: 430px) and (device-height: 932px) and (-webkit-device-pixel-ratio: 3)" />
+    <link rel="apple-touch-startup-image" href="/ios/splash-1179x2556.png" media="(device-width: 393px) and (device-height: 852px) and (-webkit-device-pixel-ratio: 3)" />
+    <link rel="apple-touch-startup-image" href="/ios/splash-1284x2778.png" media="(device-width: 428px) and (device-height: 926px) and (-webkit-device-pixel-ratio: 3)" />
+    <link rel="apple-touch-startup-image" href="/ios/splash-1170x2532.png" media="(device-width: 390px) and (device-height: 844px) and (-webkit-device-pixel-ratio: 3)" />
+    <link rel="apple-touch-startup-image" href="/ios/splash-1125x2436.png" media="(device-width: 375px) and (device-height: 812px) and (-webkit-device-pixel-ratio: 3)" />
+    <link rel="apple-touch-startup-image" href="/ios/splash-1242x2688.png" media="(device-width: 414px) and (device-height: 896px) and (-webkit-device-pixel-ratio: 3)" />
+    <link rel="apple-touch-startup-image" href="/ios/splash-828x1792.png" media="(device-width: 414px) and (device-height: 896px) and (-webkit-device-pixel-ratio: 2)" />
+    <link rel="apple-touch-startup-image" href="/ios/splash-750x1334.png" media="(device-width: 375px) and (device-height: 667px) and (-webkit-device-pixel-ratio: 2)" />
+    <link rel="apple-touch-startup-image" href="/ios/splash-640x1136.png" media="(device-width: 320px) and (device-height: 568px) and (-webkit-device-pixel-ratio: 2)" />
     <style>
       /* never show the hosting badge inside the product */
       #ninja-badge, .ninja-badge { display: none !important; visibility: hidden !important; opacity: 0 !important; pointer-events: none !important; }
