@@ -5,6 +5,7 @@ import { requireAuth, isBlocked } from '../auth.js';
 import { translateMessage, translateManyForViewer, detectLanguage } from '../services/translate.js';
 import { deliverMessage, emitToConv, emitToUser } from '../realtime.js';
 import { task } from '../services/ai.js';
+import { areContacts, contactState } from './contacts.js';
 
 const r = Router();
 
@@ -60,6 +61,19 @@ r.post('/dm', requireAuth, (req, res) => {
   const target = get('SELECT * FROM users WHERE id = ?', userId);
   if (!target) return err(res, 404, 'User not found');
   if (isBlocked(req.user.id, userId)) return err(res, 403, 'You cannot message this user');
+
+  /* Talking requires an accepted contact request. A stranger can find you and
+     send one request, but cannot open a conversation until you accept. */
+  if (!areContacts(req.user.id, userId)) {
+    const state = contactState(req.user.id, userId);
+    return err(res, 403,
+      state === 'pending_out'
+        ? 'Your request is still waiting for them to accept.'
+        : state === 'pending_in'
+          ? 'They already asked to connect — accept their request to start chatting.'
+          : 'Send a contact request first. Once they accept, you can chat and call.',
+      { code: 'NOT_CONTACTS', contactState: state });
+  }
   const existing = get(`SELECT c.* FROM conversations c
     JOIN participants a ON a.conversation_id = c.id AND a.user_id = ?
     JOIN participants b ON b.conversation_id = c.id AND b.user_id = ?
@@ -139,6 +153,15 @@ r.post('/:id/messages', requireAuth, (req, res) => {
   const me = get('SELECT * FROM participants WHERE conversation_id = ? AND user_id = ?', conv.id, req.user.id);
   if (!me) return err(res, 403, 'Not a participant');
   if (me.locked) return err(res, 423, 'This chat is locked. Unlock it to send messages.');
+
+  /* Belt and braces: even if a DM row exists, a removed contact cannot keep
+     writing into it. Group chats are open to all their members. */
+  if (conv.type === 'dm') {
+    const other = get('SELECT user_id FROM participants WHERE conversation_id = ? AND user_id != ? LIMIT 1', conv.id, req.user.id);
+    if (other && !areContacts(req.user.id, other.user_id)) {
+      return err(res, 403, 'You are no longer contacts with this person.', { code: 'NOT_CONTACTS' });
+    }
+  }
   const { body = '', type = 'text', mediaUrl, mediaMeta, replyTo, clientId, scheduledFor, silent, location, contact } = req.body || {};
   if (typeof body !== 'string') return err(res, 400, 'Message body must be text');
   if (!body.trim() && !mediaUrl && type === 'text') return err(res, 400, 'Message cannot be empty');

@@ -1,48 +1,23 @@
-# AZOLVE CHAT — pre-team-testing audit + mobile builds
+# AZOLVE CHAT — Request Y: real login, logout, contact requests, persistence
 
-## 1. Audit the live deployment end to end
-- [x] Health, static assets, SPA fallback, security headers
-- [x] Auth: email OTP start/verify/resend, session, refresh, logout, rate limits
-- [x] Profile: read/update, avatar upload, privacy settings
-- [x] Chats: create conversation, send message, per-recipient translation, See Original
-- [x] Translation provider chain actually returns translations (27/27 languages)
-- [x] AI assistant: real provider response, no key leakage
-- [x] Moments: create, view, react
-- [x] Social feed: post, like, comment, save, follow
-- [x] Communities: create, join, post, poll
-- [x] Notifications: generate + read
-- [x] Calls: /api/rtc/config, socket signalling, call state machine
-- [x] Admin: RBAC enforcement, non-admin blocked
-- [x] Uploads: media upload + serve
-- [x] Error handling: bad input returns clean errors, no stack traces
-- [x] Fix every defect found (socket payload shape, JSON 500, message cap, /users/me, false caption claim)
-- [x] Re-run harness after fixes → 80 passed, 0 failed
-- [x] Verify the fixes are live in production (not just locally)
-- [x] Verify production OTP email actually delivers (Brevo event log = delivered)
-- [x] Verify Gemini + DeepL keys work
+## 1. Accounts survive and people can sign back in
+- [x] Persistence: encrypted SQLite snapshot (AES-256-GCM) to a managed Postgres blob, restore on boot, save on change + SIGTERM
+- [x] Auth screen: Sign in / Create account toggle, OTP sign-in for everyone, no forced re-registration
+- [x] Server: /auth/email/start reports isNew honestly; signup mode on existing account tells them to sign in
+- [x] Cooldown no longer blocks signing straight back in (only unused codes hold it)
 
-## 2. Mobile builds
-- [x] Verify Capacitor config points at the live URL
-- [x] Build signed-release Android APK, verify it installs
-- [x] Add Android splash + "Try again" screen for Render cold starts
-- [x] Produce iOS Xcode project (project.pbxproj, Info.plist, assets)
-- [x] Strip CocoaPods/Capacitor so the project opens with no dependency setup
-- [x] Remove dangling CAPBridgeViewController storyboard reference
-- [x] Validate pbxproj (balanced, no orphan UUIDs, AppDelegate in Sources)
-- [x] Verify app icon is 1024x1024 with no alpha
-- [x] Zip the iOS project for Mac use + write build instructions
-- [x] Document what works and what is credential-gated
+## 2. Logout everywhere
+- [x] Log out button on Profile page (with confirm)
+- [x] Keep Settings logout
 
-## 3. Deliver
-- [x] Write audit report with real test evidence
-- [x] Attach APK, iOS zip, report
+## 3. Contact requests gate
+- [x] DB: contact_requests + contacts tables
+- [x] API: request / respond / list / remove / directory
+- [x] Enforce on DM create, message send, call invite
+- [x] UI: Requests inbox, People directory, add-to-contacts on profile, contact-only new chat
+- [x] Socket: live request notification + badge
 
-## Session: production "network error" (registration flow)
-- [x] Reproduce: production API healthy, registration round trip returns correct server errors
-- [x] Root cause: Render free-tier cold start surfaced as "Network error — check your connection"
-- [x] Add fetchWithWakeUp() retry ladder (network throws + 502/503/504) and warmUp() health ping
-- [x] Add "Starting the server" banner driven by azolve:server-waking
-- [x] Build, commit, push, deploy to Render (7e28c37 -> live)
-- [x] Verify live bundle serves wake-up code; banner shows and clears
-- [x] Verify production registration: email/start -> six boxes -> auto-submit -> correct error; resend works
-- [x] Add GitHub Actions keep-alive (every 10 min) so the service never idles out
+## 4. Verify + ship
+- [x] Automated tests for the gate (54 assertions green: API 26, UI 13, calls 7, persistence 8)
+- [ ] Build, deploy, verify production
+- [ ] Rebuild APK + iOS

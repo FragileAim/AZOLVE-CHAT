@@ -24,6 +24,26 @@ function normPhone(s) {
   return v;
 }
 
+
+/* The client says whether the person pressed "Sign in" or "Create account".
+   Without it the old behaviour (create on demand) is kept, so older builds and
+   the API keep working. With it, we never silently create a second account for
+   an address that already has one, and never pretend an unknown address is a
+   sign-in. */
+function modeCheck(res, { mode, exists, channel, target }) {
+  if (mode === 'signin' && !exists) {
+    return err(res, 404,
+      `No AZOLVE CHAT account uses ${target}. Create one instead — it takes a minute.`,
+      { code: 'NO_ACCOUNT', channel });
+  }
+  if (mode === 'signup' && exists) {
+    return err(res, 409,
+      `${target} already has an account. Sign in instead — we will email you a code, no password needed.`,
+      { code: 'ACCOUNT_EXISTS', channel });
+  }
+  return null;
+}
+
 /* ------------------------------ OTP plumbing ------------------------------ */
 
 /**
@@ -81,7 +101,10 @@ async function issueOtp(user, target, purpose, channel = 'sms') {
  * @returns {number} 0 when allowed, >0 seconds to wait, -1 when the hourly cap is hit.
  */
 function tooSoon(target) {
-  const last = get('SELECT sent_at FROM otps WHERE target = ? ORDER BY sent_at DESC LIMIT 1', target);
+  /* Only an *unused* code holds the cooldown. Once someone has verified, they
+     have proven they own the address, so a fresh code can go out immediately —
+     that is what makes "sign out, sign back in" feel instant. */
+  const last = get('SELECT sent_at FROM otps WHERE target = ? AND used = 0 ORDER BY sent_at DESC LIMIT 1', target);
   if (last?.sent_at) {
     const wait = Math.ceil((last.sent_at + RESEND_COOLDOWN - now()) / 1000);
     if (wait > 0) return wait;
@@ -90,6 +113,14 @@ function tooSoon(target) {
   const n = get('SELECT COUNT(*) AS n FROM otps WHERE target = ? AND sent_at > ?', target, hourAgo);
   if ((n?.n || 0) >= MAX_PER_HOUR) return -1;
   return 0;
+}
+
+/* A code sent seconds ago is still valid. Telling someone to wait 30 seconds
+   reads as "broken" when they just signed out and came back, so hand back the
+   live code instead of a 429. */
+function liveOtp(target) {
+  return get(`SELECT * FROM otps WHERE target = ? AND used = 0 AND expires_at > ?
+              ORDER BY sent_at DESC LIMIT 1`, target, now());
 }
 
 function uniqueUsername(base) {
@@ -152,10 +183,29 @@ r.post('/phone/start', async (req, res) => {
 
   const wait = tooSoon(phone);
   if (wait === -1) return err(res, 429, 'Too many codes requested for this number. Try again in an hour.');
-  if (wait > 0) return err(res, 429, `Please wait ${wait}s before requesting another code.`, { retryAfter: wait });
 
   let user = get('SELECT * FROM users WHERE phone = ?', phone);
   const isNew = !user;
+  const blocked = modeCheck(res, { mode: req.body?.mode, exists: !!user, channel: 'sms', target: phone });
+  if (blocked) return blocked;
+
+  if (wait > 0) {
+    const live = liveOtp(phone);
+    if (live) {
+      return res.json({
+        userId: live.user_id,
+        phone,
+        isNew,
+        channel: 'sms',
+        provider: 'reused',
+        delivered: true,
+        reused: true,
+        deliveryCode: echoOtp() ? live.code : undefined,
+        message: 'Your code is still valid — check your messages.',
+      });
+    }
+    return err(res, 429, `Please wait ${wait}s before requesting another code.`, { retryAfter: wait });
+  }
   if (!user) user = newUserRow({ phone, displayName: req.body?.displayName, language: req.body?.language });
   if (user.status === 'suspended') return err(res, 403, 'This account is suspended. Contact support@azolve.io');
 
@@ -295,12 +345,33 @@ r.post('/email/start', async (req, res) => {
   if (!isEmail(raw)) return err(res, 400, 'Enter a valid email address, e.g. you@company.com');
   const email = raw;
 
-const wait = tooSoon(email);
+  const wait = tooSoon(email);
   if (wait === -1) return err(res, 429, 'Too many codes requested for this address. Try again in an hour.');
-  if (wait > 0) return err(res, 429, `Please wait ${wait}s before requesting another code.`, { retryAfter: wait });
 
   let user = get('SELECT * FROM users WHERE lower(email) = ?', email);
   const isNew = !user;
+  const blocked = modeCheck(res, { mode: req.body?.mode, exists: !!user, channel: 'email', target: email });
+  if (blocked) return blocked;
+
+  /* Still inside the resend window and the last code has not expired: reuse it
+     rather than making a returning user wait. */
+  if (wait > 0) {
+    const live = liveOtp(email);
+    if (live) {
+      return res.json({
+        userId: live.user_id,
+        email,
+        isNew,
+        channel: 'email',
+        provider: 'reused',
+        delivered: true,
+        reused: true,
+        deliveryCode: echoOtp() ? live.code : undefined,
+        message: 'Your code is still valid — check your inbox and spam folder.',
+      });
+    }
+    return err(res, 429, `Please wait ${wait}s before requesting another code.`, { retryAfter: wait });
+  }
   if (!user) user = newUserRow({ email, displayName: req.body?.displayName, language: req.body?.language });
   if (user.status === 'suspended') return err(res, 403, 'This account is suspended. Contact support@azolve.io');
 

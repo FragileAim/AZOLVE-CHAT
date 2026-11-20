@@ -461,3 +461,120 @@ p { letter-spacing: -.004em; }
 
 /* softer, more premium selection + caret */
 ::selection { background: color-mix(in srgb, var(--violet) 32%, transparent); }
+
+/* ==========================================================================
+   Request Y — sign-in switch, contact gate, people directory
+   ========================================================================== */
+
+/* ------------------------- auth: sign in / create ------------------------ */
+.auth-mode-switch {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 4px;
+  padding: 4px; margin-bottom: 22px;
+  background: var(--surface-2, var(--hover));
+  border: 1px solid var(--border);
+  border-radius: 14px;
+}
+.auth-mode-switch button {
+  padding: 10px 12px; border-radius: 10px;
+  font-size: 13.5px; font-weight: 700; letter-spacing: -.01em;
+  color: var(--text-3); transition: all .22s var(--ease-out, ease);
+}
+.auth-mode-switch button:hover { color: var(--text); }
+.auth-mode-switch button.active,
+.auth-mode-switch button.on,
+.auth-mode-switch button[aria-selected="true"] {
+  color: var(--text);
+  background: var(--surface);
+  box-shadow: 0 2px 10px rgba(8, 8, 20, .12), 0 0 0 1px var(--border);
+}
+
+/* ------------------------------ small buttons ---------------------------- */
+.btn.tiny {
+  padding: 6px 11px; font-size: 12px; font-weight: 700;
+  border-radius: 9px; gap: 5px; min-height: 0; line-height: 1.25;
+}
+.btn.tiny svg { flex: none; }
+.btn.ghost.danger-ghost { color: #e5484d; border-color: color-mix(in srgb, #e5484d 34%, transparent); }
+.btn.ghost.danger-ghost:hover { background: color-mix(in srgb, #e5484d 12%, transparent); }
+
+.row-end { display: flex; align-items: center; justify-content: flex-end; }
+
+/* ------------------------------ relationship ----------------------------- */
+.rel-pill {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 5px 10px; border-radius: 999px;
+  font-size: 11.5px; font-weight: 700; white-space: nowrap;
+  color: var(--text-3); background: var(--hover);
+  border: 1px solid var(--border);
+}
+.rel-pill.ok { color: color-mix(in srgb, #17b26a 88%, var(--text)); background: color-mix(in srgb, #17b26a 13%, transparent); border-color: color-mix(in srgb, #17b26a 28%, transparent); }
+.rel-pill.warm { color: color-mix(in srgb, var(--violet) 88%, var(--text)); background: color-mix(in srgb, var(--violet) 13%, transparent); border-color: color-mix(in srgb, var(--violet) 30%, transparent); }
+.rel-note {
+  font-size: 12.5px; font-style: normal; color: var(--text-3);
+  padding: 8px 2px 0; line-height: 1.45;
+}
+
+/* --------------------------- new chat people list ------------------------ */
+.user-pick-row {
+  display: flex; align-items: center; gap: 10px;
+  padding: 8px 10px; border-radius: 14px;
+  border: 1px solid transparent;
+  transition: background .18s ease, border-color .18s ease;
+}
+.user-pick-row:hover { background: var(--hover); border-color: var(--border); }
+.user-pick-row.on { background: color-mix(in srgb, var(--violet) 12%, transparent); border-color: color-mix(in srgb, var(--violet) 32%, transparent); }
+.upr-main {
+  flex: 1; min-width: 0; display: flex; align-items: center; gap: 11px;
+  text-align: left; padding: 0; background: none;
+}
+.upr-main:disabled { opacity: .55; }
+.user-pick-row .rel-pill, .user-pick-row .btn.tiny { flex: none; }
+
+/* ------------------------------ people page ------------------------------ */
+.people-page .page-head { align-items: flex-end; gap: 16px; flex-wrap: wrap; }
+.people-section { margin-top: 26px; }
+.ps-title { font-size: 13px; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; color: var(--text-3); margin-bottom: 12px; }
+.ps-title .muted { font-weight: 600; text-transform: none; letter-spacing: 0; }
+
+.people-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(268px, 100%), 1fr)); gap: 12px; }
+.person-card {
+  display: flex; align-items: center; gap: 10px;
+  min-width: 0; max-width: 100%; overflow: hidden;
+  padding: 12px 13px; border-radius: 16px;
+  background: var(--surface); border: 1px solid var(--border);
+  transition: transform .24s var(--ease-out, ease), box-shadow .24s ease, border-color .24s ease;
+}
+.person-card:hover { transform: translateY(-2px); box-shadow: var(--shadow-md); border-color: var(--border-strong); }
+.pc-main { flex: 1; min-width: 0; display: flex; align-items: center; gap: 11px; text-align: left; background: none; padding: 0; }
+.pc-main span { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.pc-main b { font-size: 14px; font-weight: 700; letter-spacing: -.01em; display: flex; align-items: center; gap: 5px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pc-main small { font-size: 11.5px; color: var(--text-3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pc-actions { display: flex; align-items: center; gap: 6px; flex: none; }
+
+/* ----------------------------- request rows ------------------------------ */
+.count-dot {
+  display: inline-grid; place-items: center; min-width: 20px; height: 20px;
+  padding: 0 6px; margin-left: 8px; border-radius: 999px;
+  font-size: 11px; font-weight: 800; color: #fff; background: var(--violet);
+}
+.req-list { display: flex; flex-direction: column; gap: 4px; }
+.req-row {
+  display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+  padding: 12px 4px; border-bottom: 1px solid var(--border);
+}
+.req-row:last-child { border-bottom: none; }
+.req-who { flex: 1; min-width: 0; display: flex; align-items: center; gap: 12px; text-align: left; background: none; padding: 0; }
+.req-who span { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.req-who b { font-size: 14px; font-weight: 700; display: flex; align-items: center; gap: 5px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.req-who small { font-size: 11.5px; color: var(--text-3); }
+.req-note { font-size: 12.5px; color: var(--text-2, var(--text-3)); line-height: 1.45; margin-top: 3px; }
+.req-actions { display: flex; align-items: center; gap: 7px; flex: none; flex-wrap: wrap; }
+
+.field textarea.input { min-height: 84px; resize: vertical; line-height: 1.5; padding-top: 10px; }
+
+@media (max-width: 620px) {
+  .people-grid { grid-template-columns: minmax(0, 1fr); }
+  .req-row { align-items: flex-start; }
+  .req-actions { width: 100%; justify-content: flex-end; }
+  .people-page .page-head { align-items: stretch; }
+}

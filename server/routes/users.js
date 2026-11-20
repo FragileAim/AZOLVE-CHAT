@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { get, run, all } from '../db.js';
 import { publicUser, err, now, parseJSON, id } from '../util.js';
 import { requireAuth, optionalAuth, isBlocked } from '../auth.js';
+import { contactState } from './contacts.js';
 
 const r = Router();
 
@@ -76,6 +77,7 @@ r.get('/:username', optionalAuth, (req, res) => {
       JOIN users u ON u.id = a.following_id WHERE a.follower_id = ? AND b.follower_id = ? LIMIT 6`, viewer, u.id).map(x => publicUser(x, viewer)) : [];
   res.json({
     user: publicUser(u, viewer), counts, isFollowing, followsYou, blocked, canView,
+    contactState: viewer ? contactState(viewer, u.id) : 'none',
     posts: posts.map(p => ({
       ...p,
       media: parseJSON(p.media, []),

@@ -120,26 +120,84 @@ function NewChatModal({ open, onClose }) {
   const { notify } = useApp();
   const [tab, setTab] = useState('dm');
   const [q, setQ] = useState('');
-  const [users, setUsers] = useState([]);
+  const [rows, setRows] = useState([]);
+  const [loading, setLoading] = useState(false);
   const [picked, setPicked] = useState([]);
   const [title, setTitle] = useState('');
   const [busy, setBusy] = useState(false);
+  const [pending, setPending] = useState({});
+  const [incoming, setIncoming] = useState({});
+
+  /* Everyone is discoverable. Contacts come first, then the rest of the
+     directory, each tagged with where you stand with them. */
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      if (q.trim()) {
+        const d = await API.directory(q, 60);
+        setRows(d.users || []);
+      } else {
+        const [c, d, rq] = await Promise.all([
+          API.contacts().catch(() => ({ contacts: [] })),
+          API.directory('', 60).catch(() => ({ users: [] })),
+          API.contactRequests().catch(() => ({ incoming: [], outgoing: [] })),
+        ]);
+        const seen = new Set();
+        const out = [];
+        for (const u of (c.contacts || [])) {
+          if (seen.has(u.id)) continue;
+          seen.add(u.id); out.push({ ...u, contactState: 'contact' });
+        }
+        for (const u of (d.users || [])) {
+          if (seen.has(u.id)) continue;
+          seen.add(u.id); out.push(u);
+        }
+        setRows(out);
+        const inc = {};
+        for (const r of (rq.incoming || [])) inc[r.user.id] = r.requestId;
+        setIncoming(inc);
+      }
+    } catch (e) { notify(e.message, 'err'); }
+    finally { setLoading(false); }
+  }, [q, notify]);
 
   useEffect(() => {
     if (!open) return;
-    (async () => {
-      try {
-        const d = q.trim() ? await API.searchUsers(q) : await API.suggestions();
-        setUsers(d.users || []);
-      } catch {}
-    })();
-  }, [q, open]);
+    const t = setTimeout(load, q.trim() ? 260 : 0);
+    return () => clearTimeout(t);
+  }, [open, load, q]);
 
   const startDm = async (u) => {
     setBusy(true);
     try { const d = await API.startDm(u.id); onClose(); navigate('chats', d.conversation.id); }
     catch (e) { notify(e.message, 'err'); }
     finally { setBusy(false); }
+  };
+
+  const sendRequest = async (u) => {
+    setPending(p => ({ ...p, [u.id]: true }));
+    try {
+      const d = await API.requestContact(u.id);
+      notify(d.message || `Request sent to ${u.displayName}.`, 'ok');
+      setRows(rs => rs.map(r => r.id === u.id ? { ...r, contactState: d.state || 'pending_out' } : r));
+    } catch (e) { notify(e.message, 'err'); }
+    finally { setPending(p => ({ ...p, [u.id]: false })); }
+  };
+
+  const acceptRequest = async (u) => {
+    setPending(p => ({ ...p, [u.id]: true }));
+    try {
+      let rid = incoming[u.id];
+      if (!rid) {
+        const d = await API.contactRequests();
+        rid = (d.incoming || []).find(x => x.user.id === u.id)?.requestId;
+      }
+      if (rid) await API.respondContact(rid, 'accept');
+      else await API.requestContact(u.id);
+      notify(`You and ${u.displayName} are now contacts.`, 'ok');
+      setRows(rs => rs.map(r => r.id === u.id ? { ...r, contactState: 'contact' } : r));
+    } catch (e) { notify(e.message, 'err'); }
+    finally { setPending(p => ({ ...p, [u.id]: false })); }
   };
 
   const createGroup = async () => {
@@ -171,24 +229,64 @@ function NewChatModal({ open, onClose }) {
       )}
       <div className="search-box" style={{ marginBottom: 10 }}>
         <Icon name="search" size={15} />
-        <input value={q} onChange={e => setQ(e.target.value)} placeholder="Search people by name or @username" />
+        <input value={q} onChange={e => setQ(e.target.value)} placeholder="Search everyone by name, @username or country" />
       </div>
       <div className="user-pick-list">
-        {users.length === 0 && <div className="hint" style={{ padding: 16 }}>No people found.</div>}
-        {users.map(u => {
+        {loading && rows.length === 0 && <div className="hint" style={{ padding: 16 }}>Looking for people…</div>}
+        {!loading && rows.length === 0 && <div className="hint" style={{ padding: 16 }}>No people found.</div>}
+        {rows.map(u => {
           const on = picked.some(p => p.id === u.id);
+          const state = u.contactState || 'none';
+          const isContact = state === 'contact';
+          const isBusy = busy || pending[u.id];
           return (
-            <button key={u.id} className={`user-pick ${on ? 'on' : ''}`} onClick={() => {
-              if (tab === 'dm') startDm(u);
-              else setPicked(x => on ? x.filter(y => y.id !== u.id) : [...x, u]);
-            }} disabled={busy}>
-              <Avatar user={u} size={38} showStatus online={u.online} />
-              <div className="up-main"><b>{u.displayName} {u.verified && <Verified size={12} />}</b><span>@{u.username} · {langOf(u.language).label}</span></div>
-              {tab === 'group' && <span className={`pick-check ${on ? 'on' : ''}`}>{on && <Icon name="check" size={12} stroke={3} />}</span>}
-              {tab === 'dm' && <Icon name="arrow" size={15} />}
-            </button>
+            <div key={u.id} className={`user-pick-row ${on ? 'on' : ''}`}>
+              <button className="upr-main" disabled={isBusy}
+                onClick={() => {
+                  if (tab === 'group') {
+                    if (isContact) setPicked(x => on ? x.filter(y => y.id !== u.id) : [...x, u]);
+                    else if (state === 'pending_in') acceptRequest(u);
+                    else if (state === 'none') sendRequest(u);
+                    else notify(state === 'pending_out' ? 'Request already sent — waiting for them.' : 'You cannot add this person.', 'err');
+                    return;
+                  }
+                  if (isContact) startDm(u);
+                  else if (state === 'pending_in') acceptRequest(u);
+                  else if (state === 'none') sendRequest(u);
+                  else if (state === 'pending_out') notify(`Request sent to ${u.displayName}. Waiting for them to accept.`, 'ok');
+                  else notify('You cannot message this account.', 'err');
+                }}>
+                <Avatar user={u} size={38} showStatus online={u.online} />
+                <div className="up-main">
+                  <b>{u.displayName} {u.verified && <Verified size={12} />}</b>
+                  <span>@{u.username} · {langOf(u.language).label}</span>
+                </div>
+              </button>
+              {tab === 'group' ? (
+                isContact
+                  ? <span className={`pick-check ${on ? 'on' : ''}`}>{on && <Icon name="check" size={12} stroke={3} />}</span>
+                  : state === 'pending_in'
+                    ? <button className="btn tiny primary" disabled={isBusy} onClick={() => acceptRequest(u)}>Accept</button>
+                    : state === 'none'
+                      ? <button className="btn tiny ghost" disabled={isBusy} onClick={() => sendRequest(u)}>Add</button>
+                      : <span className="rel-pill">{state === 'pending_out' ? 'Sent' : '—'}</span>
+              ) : isContact ? (
+                <span className="rel-pill ok"><Icon name="chat" size={12} /> Message</span>
+              ) : state === 'pending_in' ? (
+                <button className="btn tiny primary" disabled={isBusy} onClick={() => acceptRequest(u)}>Accept</button>
+              ) : state === 'pending_out' ? (
+                <span className="rel-pill">Request sent</span>
+              ) : state === 'none' ? (
+                <button className="btn tiny ghost" disabled={isBusy} onClick={() => sendRequest(u)}>Send request</button>
+              ) : (
+                <span className="rel-pill">Unavailable</span>
+              )}
+            </div>
           );
         })}
+      </div>
+      <div className="hint" style={{ padding: '12px 4px 0', fontSize: 12.5 }}>
+        Everyone on AZOLVE CHAT is visible here. You can message and call someone once they accept your request.
       </div>
       {tab === 'group' && (
         <button className="btn primary block" style={{ marginTop: 14 }} disabled={busy} onClick={createGroup}>

@@ -101,7 +101,7 @@ function ReportModal({ user, onClose }) {
 }
 
 export default function Profile() {
-  const { user: me, route, notify, refreshMe } = useApp();
+  const { user: me, route, notify, refreshMe, logout } = useApp();
   const username = route.param || me.username;
   const [data, setData] = useState(null);
   const [tab, setTab] = useState('posts');
@@ -119,6 +119,7 @@ export default function Profile() {
   if (data.error) return <div className="page"><Empty icon="warning" title="Profile unavailable" text={data.error} /></div>;
 
   const { user, counts, isFollowing, followsYou, blocked, canView, posts, moments, mutual } = data;
+  const relation = data.contactState || 'none';
   const isMe = user.id === me.id;
 
   const follow = async () => {
@@ -137,6 +138,33 @@ export default function Profile() {
   const message = async () => {
     try { const r = await API.startDm(user.id); navigate('chats', r.conversation.id); }
     catch (e) { notify(e.message, 'err'); }
+  };
+
+  /* Connection flow. Nothing opens until both sides agree. */
+  const askContact = async () => {
+    setBusy(true);
+    try {
+      const r = await API.requestContact(user.id);
+      notify(r.message || 'Request sent', 'ok');
+      load();
+    } catch (e) { notify(e.message, 'err'); }
+    finally { setBusy(false); }
+  };
+  const acceptContact = async () => {
+    setBusy(true);
+    try {
+      const r = await API.contactRequests();
+      const mine = r.incoming.find(x => x.user.id === user.id);
+      if (!mine) { notify('That request is no longer available.', 'err'); load(); return; }
+      await API.respondContact(mine.requestId, 'accept');
+      notify(`You and ${user.displayName} are now contacts.`, 'ok');
+      load();
+    } catch (e) { notify(e.message, 'err'); }
+    finally { setBusy(false); }
+  };
+  const doLogout = async () => {
+    if (!confirm('Log out of AZOLVE CHAT on this device?')) return;
+    await logout();
   };
 
   return (
@@ -161,11 +189,34 @@ export default function Profile() {
               <>
                 <button className="btn primary" onClick={() => setEditing(true)}><Icon name="edit" size={16} /> Edit profile</button>
                 <button className="btn ghost" onClick={() => navigate('settings')}><Icon name="settings" size={16} /> Settings</button>
+                <button className="btn ghost danger-ghost" onClick={doLogout}><Icon name="logout" size={16} /> Log out</button>
               </>
+            ) : relation === 'contact' ? (
+              <>
+                <button className="btn primary" onClick={message}><Icon name="chat" size={16} /> Message</button>
+                <button className="btn ghost" onClick={() => navigate('calls')}><Icon name="phone" size={16} /> Call</button>
+                <button className={`btn ghost ${isFollowing ? '' : 'subtle'}`} onClick={follow} disabled={busy}>{isFollowing ? 'Following' : 'Follow'}</button>
+                <button className="icon-btn" onClick={block} title="Block"><Icon name="lock" size={17} /></button>
+                <button className="icon-btn" onClick={() => setReporting(true)} title="Report"><Icon name="warning" size={17} /></button>
+              </>
+            ) : relation === 'pending_out' ? (
+              <>
+                <button className="btn ghost" disabled><Icon name="clock" size={16} /> Request sent</button>
+                <span className="rel-note">Waiting for {user.displayName.split(' ')[0]} to accept.</span>
+              </>
+            ) : relation === 'pending_in' ? (
+              <>
+                <button className="btn primary" onClick={acceptContact} disabled={busy}><Icon name="check" size={16} /> Accept request</button>
+                <span className="rel-note">{user.displayName.split(' ')[0]} wants to connect with you.</span>
+              </>
+            ) : relation === 'blocked' ? (
+              <span className="rel-note">You cannot interact with this account.</span>
             ) : (
               <>
-                <button className={`btn ${isFollowing ? 'ghost' : 'primary'}`} onClick={follow} disabled={busy}>{isFollowing ? 'Following' : 'Follow'}</button>
-                <button className="btn ghost" onClick={message}><Icon name="chat" size={16} /> Message</button>
+                <button className="btn primary" onClick={askContact} disabled={busy}>
+                  <Icon name="plus" size={16} /> {busy ? 'Sending…' : 'Add contact'}
+                </button>
+                <button className={`btn ghost ${isFollowing ? '' : 'subtle'}`} onClick={follow} disabled={busy}>{isFollowing ? 'Following' : 'Follow'}</button>
                 <button className="icon-btn" onClick={block} title="Block"><Icon name="lock" size={17} /></button>
                 <button className="icon-btn" onClick={() => setReporting(true)} title="Report"><Icon name="warning" size={17} /></button>
               </>

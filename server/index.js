@@ -12,7 +12,10 @@ import socialRoutes from './routes/social.js';
 import communityRoutes from './routes/communities.js';
 import aiRoutes from './routes/ai.js';
 import adminRoutes from './routes/admin.js';
+import contactRoutes from './routes/contacts.js';
 import { seedIfEmpty } from './seed.js';
+import { db } from './db.js';
+import { startSnapshotLoop, saveSnapshot, snapshotEnabled, status as persistStatus } from './services/persist.js';
 
 const app = express();
 const server = http.createServer(app);
@@ -74,6 +77,7 @@ app.use('/api/social', socialRoutes);
 app.use('/api/communities', communityRoutes);
 app.use('/api/ai', aiRoutes);
 app.use('/api/admin', adminRoutes);
+app.use('/api/contacts', contactRoutes);
 
 app.use('/api', (req, res) => res.status(404).json({ error: `Unknown endpoint ${req.method} ${req.originalUrl}` }));
 /* Every error used to become a 500, including a malformed JSON body — which is
@@ -110,6 +114,19 @@ process.on('uncaughtException', (e) => console.error('[uncaughtException]', (e &
 
 initRealtime(server);
 seedIfEmpty();
+
+/* Keep an encrypted copy of the database off-box so a restart on a diskless
+   host does not wipe every account. */
+startSnapshotLoop(db);
+if (snapshotEnabled()) saveSnapshot(db, { force: true }).catch(() => {});
+
+/* Lets us confirm from outside that backups are actually landing, instead of
+   hoping a log line was seen. */
+app.get('/api/health/persist', (req, res) => res.json({
+  ok: !!persistStatus.backend,
+  ...persistStatus,
+  users: (() => { try { return db.prepare('SELECT COUNT(*) AS n FROM users').get().n; } catch { return null; } })(),
+}));
 
 setInterval(() => { processScheduled().catch(() => {}); }, 20000);
 

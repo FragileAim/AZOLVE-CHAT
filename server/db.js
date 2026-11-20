@@ -1,12 +1,39 @@
 import { DatabaseSync } from 'node:sqlite';
 import fs from 'node:fs';
 import path from 'node:path';
+import { restoreSnapshot } from './services/persist.js';
 
 const DATA_DIR = process.env.DATA_DIR || path.join(process.cwd(), 'data');
 fs.mkdirSync(DATA_DIR, { recursive: true });
 fs.mkdirSync(path.join(DATA_DIR, 'uploads'), { recursive: true });
 
-export const db = new DatabaseSync(path.join(DATA_DIR, 'azolve.db'));
+const DB_PATH = path.join(DATA_DIR, 'azolve.db');
+
+/* On a host without a persistent disk the container starts empty after every
+   deploy. Pull the last snapshot before opening the file so people keep their
+   accounts, chats and contacts. A local database that already holds users is
+   always considered newer and is never overwritten. */
+function holdsUsers(file) {
+  try {
+    if (!fs.existsSync(file)) return false;
+    const probe = new DatabaseSync(file, { readOnly: true });
+    try {
+      const row = probe.prepare('SELECT COUNT(*) AS n FROM users').get();
+      return (row?.n || 0) > 0;
+    } finally { probe.close(); }
+  } catch { return false; }
+}
+
+if (!holdsUsers(DB_PATH)) {
+  const r = await restoreSnapshot(DB_PATH);
+  if (r.restored) {
+    console.log(`[db] restored ${Math.round(r.bytes / 1024)} KB snapshot from ${process.env.SNAPSHOT_REPO}`);
+  } else if (r.reason && r.reason !== 'not-configured' && r.reason !== 'no-snapshot-yet') {
+    console.warn('[db] snapshot restore skipped:', r.reason);
+  }
+}
+
+export const db = new DatabaseSync(DB_PATH);
 db.exec('PRAGMA journal_mode = WAL; PRAGMA foreign_keys = ON;');
 
 const SCHEMA = `
@@ -101,6 +128,16 @@ CREATE TABLE IF NOT EXISTS calls (
   status TEXT, started_at INTEGER, ended_at INTEGER, duration INTEGER DEFAULT 0, participants TEXT DEFAULT '[]'
 );
 CREATE TABLE IF NOT EXISTS blocks (blocker_id TEXT, blocked_id TEXT, at INTEGER, PRIMARY KEY (blocker_id, blocked_id));
+CREATE TABLE IF NOT EXISTS contact_requests (
+  id TEXT PRIMARY KEY, from_id TEXT, to_id TEXT, note TEXT, status TEXT DEFAULT 'pending',
+  created_at INTEGER, responded_at INTEGER
+);
+CREATE INDEX IF NOT EXISTS idx_creq_to ON contact_requests(to_id, status);
+CREATE INDEX IF NOT EXISTS idx_creq_from ON contact_requests(from_id, status);
+CREATE TABLE IF NOT EXISTS contacts (
+  owner_id TEXT, peer_id TEXT, created_at INTEGER, source TEXT DEFAULT 'request',
+  PRIMARY KEY (owner_id, peer_id)
+);
 CREATE TABLE IF NOT EXISTS reports (
   id TEXT PRIMARY KEY, reporter_id TEXT, target_type TEXT, target_id TEXT, reason TEXT,
   details TEXT, status TEXT DEFAULT 'open', created_at INTEGER
@@ -133,6 +170,23 @@ for (const [table, column, type] of migrations) {
   }
 }
 
+
+/* Anyone who already had a direct conversation is, in effect, already connected.
+   Backfill the contacts table from existing DMs so the new request gate does not
+   lock people out of chats they were already having. Runs once — the INSERT OR
+   IGNORE makes it a no-op afterwards. */
+try {
+  db.exec(`
+    INSERT OR IGNORE INTO contacts (owner_id, peer_id, created_at, source)
+    SELECT p1.user_id, p2.user_id, COALESCE(c.created_at, 0), 'backfill'
+    FROM conversations c
+    JOIN participants p1 ON p1.conversation_id = c.id
+    JOIN participants p2 ON p2.conversation_id = c.id AND p2.user_id != p1.user_id
+    WHERE c.type = 'dm';
+  `);
+} catch (e) {
+  console.warn('[db] contact backfill skipped:', e.message);
+}
 
 export const all = (sql, ...params) => db.prepare(sql).all(...params.map(p => p === undefined ? null : p));
 export const get = (sql, ...params) => db.prepare(sql).get(...params.map(p => p === undefined ? null : p));

@@ -204,9 +204,14 @@ export function Skeleton({ w = '100%', h = 14, r = 8, style }) {
 export function Seg({ options, value, onChange }) {
   return (
     <div className="seg">
-      {options.map(o => (
-        <button key={o.value} className={value === o.value ? 'active' : ''} onClick={() => onChange(o.value)}>{o.label}</button>
-      ))}
+      {options.map(o => {
+        /* Callers have always passed { id, label }; older ones passed { value }.
+           Accept both so a toggle can never silently do nothing. */
+        const key = o.value !== undefined ? o.value : o.id;
+        return (
+          <button key={key} className={value === key ? 'active' : ''} onClick={() => onChange(key)}>{o.label}</button>
+        );
+      })}
     </div>
   );
 }

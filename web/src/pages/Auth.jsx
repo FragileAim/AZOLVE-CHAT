@@ -31,6 +31,9 @@ const CODES = [
 export default function Auth() {
   const { login, notify } = useApp();
   const [step, setStep] = useState('welcome');
+  /* 'signin' or 'create'. Drives the copy and is sent to the server so an
+     existing address is never silently turned into a second account. */
+  const [mode, setMode] = useState('signin');
   const [busy, setBusy] = useState(false);
   const [form, setForm] = useState({ identifier: '', password: '', displayName: '', code: '', newPassword: '' });
   const [cc, setCc] = useState('+91');
@@ -62,6 +65,7 @@ export default function Auth() {
   const startPhone = () => run(async () => {
     const d = await API.phoneStart({
       phone,
+      mode,
       displayName: form.displayName || undefined,
     });
     setPending({
@@ -98,10 +102,27 @@ export default function Auth() {
   /* ------------------------------ email flow ------------------------------ */
 
   const startEmail = () => run(async () => {
-    const d = await API.emailStart({
-      email: emailAddr.trim(),
-      displayName: form.displayName || undefined,
-    });
+    let d;
+    try {
+      d = await API.emailStart({
+        email: emailAddr.trim(),
+        mode,
+        displayName: form.displayName || undefined,
+      });
+    } catch (e) {
+      /* Point them at the right door instead of leaving them stuck. */
+      if (e.code === 'ACCOUNT_EXISTS') {
+        setMode('signin');
+        notify('You already have an account — press “Email me a code” to sign in.', 'err');
+        return;
+      }
+      if (e.code === 'NO_ACCOUNT') {
+        setMode('create');
+        notify('No account with that email yet — switch to Create account.', 'err');
+        return;
+      }
+      throw e;
+    }
     setPending({
       userId: d.userId,
       email: d.email,
@@ -230,17 +251,78 @@ export default function Auth() {
           {step === 'welcome' && (
             <>
               <div className="auth-mobile-logo"><Logo size={40} withWord /></div>
-              <h2>Welcome to AZOLVE</h2>
-              <p className="sub">The world's conversation, in your language.</p>
-              <button className="btn primary block lg" onClick={() => { setError(''); setStep('email'); }}>
-                <Icon name="mail" size={17} /> Continue with email
+
+              <div className="auth-mode-switch" role="tablist" aria-label="Sign in or create an account">
+                <button
+                  role="tab" aria-selected={mode === 'signin'}
+                  className={mode === 'signin' ? 'on' : ''}
+                  onClick={() => { setError(''); setMode('signin'); }}
+                >Sign in</button>
+                <button
+                  role="tab" aria-selected={mode === 'create'}
+                  className={mode === 'create' ? 'on' : ''}
+                  onClick={() => { setError(''); setMode('create'); }}
+                >Create account</button>
+              </div>
+
+              <h2>{mode === 'signin' ? 'Welcome back' : 'Create your account'}</h2>
+              <p className="sub">
+                {mode === 'signin'
+                  ? 'Enter the email you registered with. We will send a 6-digit code — no password to remember, and everything comes back exactly as you left it.'
+                  : 'One minute to set up. Your chats, contacts and calls stay with your account for good.'}
+              </p>
+
+              {mode === 'create' && (
+                <label className="field"><span>Your name</span>
+                  <input className="input" value={form.displayName} onChange={set('displayName')} placeholder="Ada Lovelace" autoComplete="name" />
+                </label>
+              )}
+
+              <label className="field"><span>Email address</span>
+                <input
+                  className="input"
+                  type="email"
+                  value={emailAddr}
+                  onChange={e => setEmailAddr(e.target.value)}
+                  placeholder="you@company.com"
+                  autoComplete="email"
+                  inputMode="email"
+                  autoFocus
+                  onKeyDown={e => e.key === 'Enter' && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailAddr.trim()) && startEmail()}
+                />
+              </label>
+
+              {otpInfo && !otpInfo.emailDelivery && (
+                <div className="otp-hint">
+                  <Icon name="info" size={14} />
+                  <span>
+                    Mail delivery is not configured on this server (provider: <b>{otpInfo.emailProvider}</b>).
+                    Your code will appear in the server log.
+                  </span>
+                </div>
+              )}
+              {error && <div className="form-error"><Icon name="warning" size={15} />{error}</div>}
+
+              <button
+                className="btn primary block lg"
+                disabled={busy || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailAddr.trim())}
+                onClick={startEmail}
+              >
+                {busy
+                  ? 'Sending code…'
+                  : mode === 'signin' ? 'Email me a code' : 'Create account & email my code'}
               </button>
+
               <button className="btn block lg" style={{ marginTop: 10 }} onClick={() => { setError(''); setStep('phone'); }}>
-                <Icon name="smartphone" size={17} /> Continue with phone number
+                <Icon name="smartphone" size={17} /> {mode === 'signin' ? 'Sign in with a phone number' : 'Use a phone number instead'}
               </button>
-              <button className="btn block lg" style={{ marginTop: 10 }} onClick={() => setStep('login')}>
-                I already have an account
-              </button>
+
+              {mode === 'signin' && (
+                <p className="auth-switch">
+                  Prefer your password?{' '}
+                  <button className="link-btn" onClick={() => { setError(''); setStep('login'); }}>Sign in with password</button>
+                </p>
+              )}
 
               <div className="divider"><span>or continue with</span></div>
               <div className="oauth-row">
@@ -249,8 +331,8 @@ export default function Auth() {
               </div>
 
               <p className="auth-fine">
-                We verify every account with a one-time code. Email is the default channel;
-                phone verification becomes available once our SMS gateway clears DLT approval.
+                We verify every account with a one-time code, so there is no password to lose.
+                Email is the default channel; phone verification becomes available once our SMS gateway clears DLT approval.
               </p>
             </>
           )}
@@ -304,12 +386,18 @@ export default function Auth() {
           {step === 'phone' && (
             <>
               <button className="back-link" onClick={() => setStep('welcome')}><Icon name="back" size={15} /> Back</button>
-              <h2>Your phone number</h2>
-              <p className="sub">We'll text you a 6-digit code to confirm it's you.</p>
+              <h2>{mode === 'signin' ? 'Sign in with your phone' : 'Your phone number'}</h2>
+              <p className="sub">
+                {mode === 'signin'
+                  ? 'We will text a 6-digit code to the number on your account.'
+                  : "We'll text you a 6-digit code to confirm it's you."}
+              </p>
 
-              <label className="field"><span>Your name <em>(optional)</em></span>
-                <input className="input" value={form.displayName} onChange={set('displayName')} placeholder="Ada Lovelace" autoComplete="name" />
-              </label>
+              {mode === 'create' && (
+                <label className="field"><span>Your name</span>
+                  <input className="input" value={form.displayName} onChange={set('displayName')} placeholder="Ada Lovelace" autoComplete="name" />
+                </label>
+              )}
 
               <label className="field"><span>Phone number</span>
                 <div className="phone-row">
@@ -335,15 +423,15 @@ export default function Auth() {
               {error && <div className="form-error"><Icon name="warning" size={15} />{error}</div>}
 
               <button className="btn primary block lg" disabled={busy || digits.replace(/\D/g, '').length < 6} onClick={startPhone}>
-                {busy ? 'Sending code…' : 'Send my code'}
+                {busy ? 'Sending code…' : mode === 'signin' ? 'Text me a code' : 'Create account & text my code'}
               </button>
-              <p className="auth-switch">Prefer email and password? <button className="link-btn" onClick={() => setStep('signup')}>Use email instead</button></p>
+              <p className="auth-switch">Prefer email? <button className="link-btn" onClick={() => { setError(''); setStep('welcome'); }}>Use my email address</button></p>
             </>
           )}
 
           {step === 'phoneotp' && pending && (
             <>
-              <button className="back-link" onClick={() => setStep(pending.channel === 'email' ? 'email' : 'phone')}><Icon name="back" size={15} /> Back</button>
+              <button className="back-link" onClick={() => setStep(pending.channel === 'email' ? 'welcome' : 'phone')}><Icon name="back" size={15} /> Back</button>
               <h2>Enter your code</h2>
               <p className="sub">
                 We sent a 6-digit code to <b>{pending.channel === 'email' ? pending.email : pending.phone}</b>.

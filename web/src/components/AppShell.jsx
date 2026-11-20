@@ -7,6 +7,7 @@ import Home from '../pages/Home.jsx';
 import Chats from '../pages/Chats.jsx';
 import Moments from '../pages/Moments.jsx';
 import Explore from '../pages/Explore.jsx';
+import People from '../pages/People.jsx';
 import AI from '../pages/AI.jsx';
 import Calls from '../pages/Calls.jsx';
 import Communities from '../pages/Communities.jsx';
@@ -19,6 +20,7 @@ const NAV = [
   { id: 'home', label: 'Home', icon: 'home' },
   { id: 'chats', label: 'Chats', icon: 'chat' },
   { id: 'moments', label: 'Moments', icon: 'eye' },
+  { id: 'people', label: 'People', icon: 'users' },
   { id: 'explore', label: 'Explore', icon: 'explore' },
   { id: 'ai', label: 'AZOLVE AI', icon: 'sparkles' },
   { id: 'calls', label: 'Calls', icon: 'phone' },
@@ -28,6 +30,7 @@ const NAV = [
 const MOBILE = [
   { id: 'home', label: 'Home', icon: 'home' },
   { id: 'chats', label: 'Chats', icon: 'chat' },
+  { id: 'people', label: 'People', icon: 'users' },
   { id: 'explore', label: 'Explore', icon: 'explore' },
   { id: 'ai', label: 'AI', icon: 'sparkles' },
   { id: 'profile', label: 'You', icon: 'user' },
@@ -37,16 +40,28 @@ export default function AppShell() {
   const { user, route, theme, setTheme } = useApp();
   const [unread, setUnread] = useState(0);
   const [notifs, setNotifs] = useState(0);
+  const [reqCount, setReqCount] = useState(0);
 
   const loadBadges = async () => {
     try {
-      const [c, n] = await Promise.all([API.chats(), API.notifications()]);
+      const [c, n, rq] = await Promise.all([
+        API.chats(), API.notifications(), API.contactRequests().catch(() => ({ incoming: [] })),
+      ]);
       setUnread(c.conversations.reduce((s, x) => s + (x.unread || 0), 0));
       setNotifs((n.notifications || []).filter(x => !x.read).length);
+      setReqCount((rq.incoming || []).length);
     } catch {}
   };
 
   useEffect(() => { loadBadges(); }, [route.page, route.param]);
+
+  /* Pages that change request state (accept, cancel, send) ask for a badge
+     refresh instead of waiting for a navigation. */
+  useEffect(() => {
+    const h = () => loadBadges();
+    window.addEventListener('azolve:badges', h);
+    return () => window.removeEventListener('azolve:badges', h);
+  }, []);
 
   useEffect(() => {
     const s = getSocket();
@@ -55,7 +70,12 @@ export default function AppShell() {
     const onNotif = () => loadBadges();
     s.on('message:new', onMsg);
     s.on('notification:new', onNotif);
-    return () => { s.off('message:new', onMsg); s.off('notification:new', onNotif); };
+    s.on('contact:request', onNotif);
+    s.on('contact:accepted', onNotif);
+    return () => {
+      s.off('message:new', onMsg); s.off('notification:new', onNotif);
+      s.off('contact:request', onNotif); s.off('contact:accepted', onNotif);
+    };
   }, [user?.id]);
 
   const page = route.page;
@@ -65,6 +85,7 @@ export default function AppShell() {
   switch (page) {
     case 'chats': content = <Chats />; break;
     case 'moments': content = <Moments />; break;
+    case 'people': content = <People />; break;
     case 'explore': content = <Explore />; break;
     case 'ai': content = <AI />; break;
     case 'calls': content = <Calls />; break;
@@ -90,6 +111,8 @@ export default function AppShell() {
               <span className="rail-ic">
                 <Icon name={n.icon} size={21} />
                 {n.id === 'chats' && unread > 0 && <i className="rail-badge">{unread > 9 ? '9+' : unread}</i>}
+              {n.id === 'people' && reqCount > 0 && <i className="rail-badge">{reqCount > 9 ? '9+' : reqCount}</i>}
+                {n.id === 'people' && reqCount > 0 && <i className="rail-badge">{reqCount > 9 ? '9+' : reqCount}</i>}
               </span>
               <span className="rail-label">{n.label}</span>
             </button>
@@ -126,6 +149,7 @@ export default function AppShell() {
             <span className="mn-ic">
               <Icon name={n.id === 'profile' ? 'user' : n.icon} size={22} />
               {n.id === 'chats' && unread > 0 && <i className="rail-badge">{unread > 9 ? '9+' : unread}</i>}
+              {n.id === 'people' && reqCount > 0 && <i className="rail-badge">{reqCount > 9 ? '9+' : reqCount}</i>}
             </span>
             <span>{n.label}</span>
           </button>

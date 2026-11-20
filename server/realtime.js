@@ -4,6 +4,10 @@ import { get, run, all } from './db.js';
 import { now, parseJSON } from './util.js';
 import { translateMessage } from './services/translate.js';
 
+/* Local copy of the contact check so realtime does not import the route module
+   (which imports this one back). One indexed lookup. */
+const areContacts = (a, b) => !!get('SELECT 1 FROM contacts WHERE owner_id = ? AND peer_id = ?', a, b);
+
 const SECRET = process.env.JWT_SECRET || 'dev-only-secret-change-me';
 let io = null;
 const online = new Map(); // userId -> Set(socketId)
@@ -175,6 +179,15 @@ export function initRealtime(httpServer) {
     socket.on('call:invite', ({ to, callId, type, conversationId }) => {
       if (!to || !callId) return;
       const caller = get('SELECT * FROM users WHERE id = ?', uid);
+
+      /* Calling is a contact-only action, same as messaging. */
+      if (!areContacts(uid, to)) {
+        emitToUser(uid, 'call:not-contact', {
+          callId, to,
+          peer: { id: to, displayName: get('SELECT display_name FROM users WHERE id = ?', to)?.display_name },
+        });
+        return;
+      }
 
       // Already in a call? Tell the caller instead of ringing into the void.
       let busyWith = callOf(to);
