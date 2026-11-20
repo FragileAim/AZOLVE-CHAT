@@ -77,14 +77,29 @@ APP_URL=https://your-app.onrender.com bash scripts/build-android.sh   # live bui
 
 Output: `mobile/android/app/build/outputs/apk/debug/app-debug.apk`
 
-### Play Store release (when you're ready)
+### Signed release APK
+
+The release key lives at `mobile/android/keystore/azolve-release-2026.jks`, and its
+password is written down in `mobile/android/keystore/CREDENTIALS.txt` — back both
+files up. Android identifies an app by its signing key, so losing them means you
+can never update an already-installed app.
 
 ```bash
-keytool -genkeypair -v -keystore azolve-release.keystore -alias azolve \
-  -keyalg RSA -keysize 2048 -validity 10000
-# then in app/build.gradle add a `release` signingConfig using that keystore
-./gradlew bundleRelease      # → app-release.aab for the Play Console
+export JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64
+cd mobile/android
+gradle assembleRelease -PappUrl=https://azolve-chat.onrender.com \
+  -Pandroid.injected.signing.store.file=$PWD/keystore/azolve-release-2026.jks \
+  -Pandroid.injected.signing.store.password='AzolveChat2026!' \
+  -Pandroid.injected.signing.key.alias=azolve \
+  -Pandroid.injected.signing.key.password='AzolveChat2026!'
+# → app/build/outputs/apk/release/app-release.apk
 ```
+
+> **v1.0.0 → v1.0.1:** v1.0.0 was signed with an older key whose password was
+> never recorded. Anyone who installed v1.0.0 must uninstall it once before
+> installing v1.0.1. Every update after v1.0.1 installs over the top normally.
+
+For the Play Console, `gradle bundleRelease` produces `app-release.aab` instead.
 
 ---
 
