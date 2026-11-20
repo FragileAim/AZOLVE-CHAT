@@ -36,3 +36,13 @@
 ## 3. Deliver
 - [x] Write audit report with real test evidence
 - [x] Attach APK, iOS zip, report
+
+## Session: production "network error" (registration flow)
+- [x] Reproduce: production API healthy, registration round trip returns correct server errors
+- [x] Root cause: Render free-tier cold start surfaced as "Network error — check your connection"
+- [x] Add fetchWithWakeUp() retry ladder (network throws + 502/503/504) and warmUp() health ping
+- [x] Add "Starting the server" banner driven by azolve:server-waking
+- [x] Build, commit, push, deploy to Render (7e28c37 -> live)
+- [x] Verify live bundle serves wake-up code; banner shows and clears
+- [x] Verify production registration: email/start -> six boxes -> auto-submit -> correct error; resend works
+- [x] Add GitHub Actions keep-alive (every 10 min) so the service never idles out
