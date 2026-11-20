@@ -41,6 +41,14 @@ app.use('/api', (req, res, next) => {
 
 app.get('/api/health', (req, res) => res.json({ ok: true, service: 'azolve-chat', version: '1.0.0', time: Date.now() }));
 
+/* Lets us confirm from outside that backups are actually landing, instead of
+   hoping a log line was seen. Must be declared before the /api catch-all. */
+app.get('/api/health/persist', (req, res) => res.json({
+  ok: !!persistStatus.backend,
+  ...persistStatus,
+  users: (() => { try { return db.prepare('SELECT COUNT(*) AS n FROM users').get().n; } catch { return null; } })(),
+}));
+
 /* ---------------------------------------------------------------------------
    WebRTC ICE configuration
    STUN alone only works when both peers can be reached directly. Behind

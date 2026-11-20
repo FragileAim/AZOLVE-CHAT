@@ -1,7 +1,7 @@
 import { DatabaseSync } from 'node:sqlite';
 import fs from 'node:fs';
 import path from 'node:path';
-import { restoreSnapshot } from './services/persist.js';
+import { restoreSnapshot, backend } from './services/persist.js';
 
 const DATA_DIR = process.env.DATA_DIR || path.join(process.cwd(), 'data');
 fs.mkdirSync(DATA_DIR, { recursive: true });
@@ -27,7 +27,7 @@ function holdsUsers(file) {
 if (!holdsUsers(DB_PATH)) {
   const r = await restoreSnapshot(DB_PATH);
   if (r.restored) {
-    console.log(`[db] restored ${Math.round(r.bytes / 1024)} KB snapshot from ${process.env.SNAPSHOT_REPO}`);
+    console.log(`[db] restored ${Math.round(r.bytes / 1024)} KB snapshot from ${backend()}`);
   } else if (r.reason && r.reason !== 'not-configured' && r.reason !== 'no-snapshot-yet') {
     console.warn('[db] snapshot restore skipped:', r.reason);
   }
