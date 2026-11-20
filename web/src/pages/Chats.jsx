@@ -7,6 +7,7 @@ import { timeAgo, clock, dayLabel, groupByDay, isRTL, bytes } from '../lib/utils
 import { LANGS, langOf } from '../lib/i18n.js';
 import Hear, { SpeakingBars } from '../components/Hear.jsx';
 import { useSpeech, speechSupported, resolveVoice } from '../lib/speech.js';
+import { useCall } from '../components/CallHost.jsx';
 
 /* ============================== list ===================================== */
 export default function Chats() {
@@ -203,6 +204,7 @@ const QUICK_EMOJI = ['❤️', '😂', '👍', '🔥', '🙏', '😮'];
 
 function ChatView({ id }) {
   const { user, notify } = useApp();
+  const { placeCall } = useCall();
   const [conv, setConv] = useState(null);
   const [messages, setMessages] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -394,6 +396,16 @@ function ChatView({ id }) {
   const groups = useMemo(() => groupByDay(messages), [messages]);
   const others = conv?.participants.filter(p => p.id !== me.id) || [];
   const title = conv?.title || 'Conversation';
+
+  /* Calling from a chat should call this person, not open the calls list. */
+  const callPeer = (kind) => {
+    const target = conv?.other || others[0];
+    if (!target?.id) {
+      notify('This conversation has no one to call yet.', 'err');
+      return;
+    }
+    placeCall({ ...target, conversationId: id }, kind);
+  };
   const subtitle = conv?.type === 'dm'
     ? (conv.other?.online ? 'Online now' : conv.other?.lastSeen ? `Last seen ${timeAgo(conv.other.lastSeen)}` : 'Offline')
     : `${conv?.participants.length || 0} members`;
@@ -412,8 +424,8 @@ function ChatView({ id }) {
         </div>
         <div className="chat-head-actions">
           <button className="icon-btn" title="Search in chat" onClick={() => setSearchOpen(true)}><Icon name="search" size={18} /></button>
-          <button className="icon-btn" title="Voice call" onClick={() => navigate('calls')}><Icon name="phone" size={18} /></button>
-          <button className="icon-btn" title="Video call" onClick={() => navigate('calls')}><Icon name="video" size={18} /></button>
+          <button className="icon-btn" title="Voice call" onClick={() => callPeer('audio')}><Icon name="phone" size={18} /></button>
+          <button className="icon-btn" title="Video call" onClick={() => callPeer('video')}><Icon name="video" size={18} /></button>
           <button className="icon-btn" title="Chat settings" onClick={() => setSettingsOpen(true)}><Icon name="more" size={19} /></button>
         </div>
       </header>

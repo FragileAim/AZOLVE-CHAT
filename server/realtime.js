@@ -177,9 +177,27 @@ export function initRealtime(httpServer) {
       const caller = get('SELECT * FROM users WHERE id = ?', uid);
 
       // Already in a call? Tell the caller instead of ringing into the void.
-      const busyWith = callOf(to);
+      let busyWith = callOf(to);
+      /* A call record can outlive the client that created it (tab killed,
+         phone asleep, network dropped before the end event). Left alone it
+         would block every future call to that person, which looks exactly
+         like "calling does nothing". Anything that never reached 'active'
+         and is older than the ring window is treated as dead. */
+      if (busyWith && busyWith.state !== 'ended' && busyWith.state !== 'active'
+          && Date.now() - busyWith.startedAt > RING_TIMEOUT + 15000) {
+        finishCall(busyWith.callId, 'missed', { reason: 'stale' });
+        busyWith = null;
+      }
       if (busyWith && busyWith.state !== 'ended') {
         emitToUser(uid, 'call:busy', {
+          callId, to,
+          peer: { id: to, displayName: get('SELECT display_name FROM users WHERE id = ?', to)?.display_name },
+        });
+        return;
+      }
+      // Nobody is holding a socket for them, so ringing would just be silence.
+      if (!isOnline(to)) {
+        emitToUser(uid, 'call:unavailable', {
           callId, to,
           peer: { id: to, displayName: get('SELECT display_name FROM users WHERE id = ?', to)?.display_name },
         });

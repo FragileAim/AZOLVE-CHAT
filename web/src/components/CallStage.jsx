@@ -240,6 +240,10 @@ function CallStageInner({ call, onClose, onRedial }) {
     const onMissed = () => { stopRing(); blip('end'); setEndReason('missed'); setPhase('ended'); };
     const onBusy = () => { stopRing(); blip('end'); setEndReason('busy'); setPhase('ended'); };
 
+    /* The server tells us up front when the other person has no live socket,
+       so the caller is not left listening to a ring that nobody hears. */
+    const onUnavailable = () => { stopRing(); blip('end'); setEndReason('offline'); setPhase('ended'); };
+
     const onRinging = ({ ringTimeout }) => {
       const secs = Math.round((ringTimeout || 45000) / 1000);
       setRingLeft(secs);
@@ -287,6 +291,7 @@ function CallStageInner({ call, onClose, onRedial }) {
     s.on('call:ended', onEnded);
     s.on('call:missed', onMissed);
     s.on('call:busy', onBusy);
+    s.on('call:unavailable', onUnavailable);
     s.on('call:ringing', onRinging);
     s.on('call:toggle', onToggle);
     s.on('call:ice-restart', onIceRestart);
@@ -298,6 +303,7 @@ function CallStageInner({ call, onClose, onRedial }) {
       s.off('call:ended', onEnded);
       s.off('call:missed', onMissed);
       s.off('call:busy', onBusy);
+      s.off('call:unavailable', onUnavailable);
       s.off('call:ringing', onRinging);
       s.off('call:toggle', onToggle);
       s.off('call:ice-restart', onIceRestart);
@@ -483,6 +489,7 @@ function CallStageInner({ call, onClose, onRedial }) {
 
   const endedText =
     endReason === 'busy' ? 'They are on another call' :
+    endReason === 'offline' ? 'They are not online right now' :
     endReason === 'missed' ? 'No answer' :
     endReason === 'declined' ? 'Call declined' :
     seconds > 0 ? `Call ended · ${fmtDur(seconds)}` : 'Call ended';

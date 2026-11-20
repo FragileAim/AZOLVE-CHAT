@@ -1,0 +1,142 @@
+/* ===========================================================================
+   AZOLVE CHAT — phone layout fixes
+   Loaded last so it wins over the desktop rules without editing them.
+   Everything here is scoped to <=860px, which is the width at which the rail
+   is replaced by the floating bottom bar.
+   =========================================================================== */
+
+@media (max-width: 860px) {
+  /* ---------------------------- app frame -------------------------------- */
+  html, body { height: 100%; -webkit-text-size-adjust: 100%; }
+
+  .app {
+    height: 100dvh;
+    min-height: 0;
+    overflow: hidden;
+  }
+  .main {
+    height: 100%;
+    min-height: 0;
+    overflow: hidden;
+  }
+  .main > .page-wrap { height: 100%; min-height: 0; }
+  .page-wrap > .page { min-height: 0; }
+
+  /* the bottom bar is a floating pill: keep content clear of it */
+  .page {
+    padding: 16px 14px calc(96px + env(safe-area-inset-bottom, 0px));
+  }
+
+  /* ------------------------- chats: one column --------------------------- */
+  /* The desktop layout is a two-column grid. On a phone it stayed a grid, so
+     the list and the "no conversation selected" panel each took a row and the
+     chat only ever opened in the bottom half of the screen. One row, one
+     column, and the empty panel is hidden on phones. */
+  .chats-layout {
+    display: grid;
+    grid-template-columns: 1fr;
+    grid-template-rows: 1fr;
+    height: 100%;
+    min-height: 0;
+    overflow: hidden;
+  }
+  .chats-layout > .chat-empty { display: none; }
+
+  .chat-list-pane {
+    height: 100%;
+    min-height: 0;
+    border-right: 0;
+  }
+  /* opening a conversation replaces the list instead of stacking under it */
+  .chats-layout.has-active > .chat-list-pane { display: none; }
+  .chats-layout.has-active > .chat-pane { display: flex; }
+
+  .clp-head { padding: 14px 16px 8px; gap: 10px; }
+  .clp-title h1 { font-size: 24px; letter-spacing: -.03em; }
+  .clp-body { padding: 2px 8px 12px; }
+  /* clear the floating bottom bar so the last chat and the New button stay
+     reachable */
+  .clp-new { margin: 0 8px calc(86px + env(safe-area-inset-bottom, 0px)); }
+
+  .chat-pane { height: 100%; min-height: 0; }
+  .chat-head { padding: 9px 12px; gap: 9px; }
+  .chat-head .who { min-width: 0; }
+  .chat-head .who .n { font-size: 14.5px; }
+  .chat-head .who .s { font-size: 11px; }
+  .chat-head-actions { gap: 0; }
+  .chat-scroll { padding: 14px 12px 8px; }
+
+  /* With a conversation open the floating bar would sit on top of the message
+     box, so it steps aside — the same thing WhatsApp and iMessage do. */
+  .chat-composer { padding: 10px 12px calc(84px + env(safe-area-inset-bottom, 0px)); }
+  body:has(.chats-layout.has-active) .mobile-nav { display: none; }
+  body:has(.chats-layout.has-active) .chat-composer {
+    padding-bottom: calc(10px + env(safe-area-inset-bottom, 0px));
+  }
+
+  /* ------------------------------ AI page -------------------------------- */
+  /* The composer was below the fold because the layout was sized with
+     100vh - 150px inside a padded scroller. Fill the frame instead. */
+  .ai-page {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    padding: 14px 12px calc(84px + env(safe-area-inset-bottom, 0px));
+  }
+  .ai-page .page-head { flex: none; margin-bottom: 10px; }
+  .ai-layout {
+    flex: 1 1 auto;
+    min-height: 0;
+    height: auto;
+    grid-template-columns: 1fr;
+  }
+  .ai-main { height: 100%; min-height: 0; }
+  .ai-chat-scroll { padding: 16px 14px; }
+  .ai-hello { padding: 12px 4px; }
+  .ai-hello h2 { font-size: 19px; }
+  .quick-grid { grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 16px; }
+
+  /* --------------------------- tab strips -------------------------------- */
+  /* Segmented controls are wider than a phone and were being clipped with no
+     way to reach the last tab. Let them scroll sideways instead. */
+  .seg-tabs,
+  .settings-nav,
+  .filter-row,
+  .chip-row {
+    width: 100%;
+    max-width: 100%;
+    overflow-x: auto;
+    overflow-y: hidden;
+    flex-wrap: nowrap;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+  .seg-tabs::-webkit-scrollbar,
+  .settings-nav::-webkit-scrollbar,
+  .filter-row::-webkit-scrollbar,
+  .chip-row::-webkit-scrollbar { display: none; }
+  .seg-tabs button { flex: none; }
+  .seg-tabs { border-radius: 16px; }
+  .seg-tabs button { height: 32px; padding: 0 13px; font-size: 12.5px; }
+
+  /* --------------------------- touch targets ----------------------------- */
+  .icon-btn { min-width: 38px; min-height: 38px; }
+  .chat-head-actions .icon-btn { min-width: 36px; min-height: 36px; }
+
+  /* ----------------------------- typography ------------------------------ */
+  .page-head h1 { font-size: 23px; }
+  .page-head p { font-size: 12.5px; }
+  .card { border-radius: 18px; }
+
+  /* long unbroken strings (URLs, ids) must not widen the page */
+  .bubble, .msg-body, .n, .s { overflow-wrap: anywhere; }
+}
+
+/* very small phones */
+@media (max-width: 380px) {
+  .page { padding-left: 11px; padding-right: 11px; }
+  .chat-head { padding: 8px 10px; gap: 7px; }
+  .chat-head-actions .icon-btn { min-width: 32px; min-height: 32px; }
+  .quick-grid { grid-template-columns: 1fr; }
+  .clp-title h1 { font-size: 22px; }
+}

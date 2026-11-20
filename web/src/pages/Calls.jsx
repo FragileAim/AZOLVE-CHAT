@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useApp } from '../App.jsx';
 import { Icon, Avatar, Modal, Empty, Skeleton } from '../components/UI.jsx';
-import CallStage from '../components/CallStage.jsx';
+import { useCall } from '../components/CallHost.jsx';
 import { API } from '../lib/api.js';
 import { getSocket } from '../lib/socket.js';
 import { timeAgo } from '../lib/utils.js';
@@ -32,7 +32,7 @@ export default function Calls() {
   const [contacts, setContacts] = useState(null);
   const [query, setQuery] = useState('');
   const [type, setType] = useState('audio');
-  const [active, setActive] = useState(null);
+  const { placeCall, previewIncoming } = useCall();
   const [filter, setFilter] = useState('all');
   const [starting, setStarting] = useState(null);
 
@@ -48,20 +48,20 @@ export default function Calls() {
 
   useEffect(() => { load(); }, []);
 
+  /* Incoming calls are handled globally by CallHost so they ring on any page.
+     Here we only need to refresh the history when a call's state changes. */
   useEffect(() => {
     const s = getSocket();
     if (!s) return;
-    const onIncoming = (p) => {
-      setActive({
-        callId: p.callId,
-        peer: p.from,
-        type: p.type,
-        incoming: true,
-        conversationId: p.conversationId,
-      });
+    const refresh = () => load();
+    s.on('call:state', refresh);
+    s.on('call:ended', refresh);
+    s.on('call:missed', refresh);
+    return () => {
+      s.off('call:state', refresh);
+      s.off('call:ended', refresh);
+      s.off('call:missed', refresh);
     };
-    s.on('call:incoming', onIncoming);
-    return () => s.off('call:incoming', onIncoming);
   }, []);
 
   const openPicker = async (kind) => {
@@ -87,14 +87,7 @@ export default function Calls() {
     setPicking(false);
     setStarting(peer.id);
     try {
-      const r = await API.logCall({ calleeId: peer.id, type: callType, status: 'ringing' });
-      setActive({ callId: r.callId, peer, type: callType, incoming: false });
-      getSocket()?.emit('call:invite', {
-        to: peer.id,
-        callId: r.callId,
-        type: callType,
-        from: { id: user.id, displayName: user.displayName, avatar: user.avatar, language: user.language },
-      });
+      await placeCall(peer, callType);
       load();
     } catch (e) {
       notify(e.message, 'err');
@@ -141,7 +134,7 @@ export default function Calls() {
               title="Preview the incoming-call screen (preview build only)"
               onClick={() => {
                 const p = (contacts && contacts[0]) || { id: 'preview-peer', displayName: 'Priya Sharma', language: 'hi', avatar: null };
-                setActive({ callId: 'preview-incoming', peer: p, type: 'video', incoming: true });
+                previewIncoming(p);
               }}
             >
               <Icon name="phone" size={16} /> Preview incoming
@@ -286,18 +279,6 @@ export default function Calls() {
         </Modal>
       )}
 
-      {active && (
-        <CallStage
-          call={active}
-          onClose={() => { setActive(null); load(); }}
-          onRedial={() => {
-            const peer = active.peer;
-            const kind = active.type;
-            setActive(null);
-            if (peer?.id) startCall(peer, kind);
-          }}
-        />
-      )}
     </div>
   );
 }

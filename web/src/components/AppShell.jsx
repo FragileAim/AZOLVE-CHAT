@@ -13,6 +13,7 @@ import Communities from '../pages/Communities.jsx';
 import Profile from '../pages/Profile.jsx';
 import Settings from '../pages/Settings.jsx';
 import Admin from '../pages/Admin.jsx';
+import CallHost from './CallHost.jsx';
 
 const NAV = [
   { id: 'home', label: 'Home', icon: 'home' },
@@ -75,6 +76,7 @@ export default function AppShell() {
   }
 
   return (
+    <CallHost>
     <div className="app">
       <aside className="rail">
         <button className="rail-logo" onClick={() => navigate('home')} aria-label="AZOLVE CHAT home">
@@ -130,5 +132,6 @@ export default function AppShell() {
         ))}
       </nav>
     </div>
+    </CallHost>
   );
 }

@@ -39,6 +39,25 @@ function tone(freq, start, dur, gain = 0.05, type = 'sine') {
   osc.stop(c.currentTime + start + dur + 0.05);
 }
 
+/**
+ * Mobile Safari and Chrome only allow an AudioContext to start from a user
+ * gesture. Creating it lazily inside the socket handler is therefore too late
+ * and the ring would be silent, so the app calls this on the first tap/key.
+ */
+export function unlockAudio() {
+  const c = audioCtx();
+  if (!c) return;
+  if (c.state === 'suspended') c.resume().catch(() => {});
+  // A silent blip forces iOS to actually start the graph.
+  try {
+    const b = c.createBuffer(1, 1, 22050);
+    const src = c.createBufferSource();
+    src.buffer = b;
+    src.connect(c.destination);
+    src.start(0);
+  } catch { /* older WebViews */ }
+}
+
 /** Looping ring tone. `mode` = 'in' (incoming, brighter) | 'out' (dial tone). */
 export function startRing(mode = 'in') {
   stopRing();

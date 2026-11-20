@@ -4,6 +4,7 @@ import App from './App.jsx';
 import './styles.css';
 import './styles-v2.css';
 import './styles-v3.css';
+import './styles-mobile.css';
 
 const DEMO = import.meta.env.VITE_DEMO === '1';
 
