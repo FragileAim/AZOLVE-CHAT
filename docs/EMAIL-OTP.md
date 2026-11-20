@@ -55,6 +55,12 @@ Notes on entering these:
   not proxied, or verification fails.
 - The DKIM value is long; paste it as a single line with no line breaks.
 
+**GoDaddy-specific click-by-click steps are in `docs/DNS-RESEND-GODADDY.md`** —
+`azolve.io` is registered at GoDaddy, and I confirmed from outside that none of
+the four records exist yet. The existing root SPF record
+(`v=spf1 include:secureserver.net -all`) does **not** conflict and must be left
+alone.
+
 Then press **Verify** at https://resend.com/domains. Propagation is usually
 minutes, occasionally up to an hour.
 
