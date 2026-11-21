@@ -70,16 +70,33 @@ r.get('/requests', requireAuth, (req, res) => {
  * This is the "see everyone" directory — the gate is on talking, not on being
  * discoverable.
  */
+/* Category chips on the People screen. There is no separate "interests" column,
+   so a category matches the words people actually put in their bio, name or
+   username. That keeps the filter honest: it never invents a match. */
+const CATEGORY_WORDS = {
+  music: ['music', 'musician', 'singer', 'song', 'guitar', 'piano', 'dj', 'band', 'producer', 'संगीत', 'música', 'musique'],
+  travel: ['travel', 'traveller', 'traveler', 'backpack', 'wanderlust', 'flight', 'nomad', 'trip', 'यात्रा', 'viaje', 'voyage'],
+  food: ['food', 'foodie', 'chef', 'cook', 'recipe', 'baking', 'coffee', 'restaurant', 'खाना', 'comida', 'cuisine'],
+  gaming: ['game', 'gamer', 'gaming', 'esports', 'streamer', 'playstation', 'xbox', 'nintendo', 'गेम', 'juegos', 'jeu'],
+};
+
 r.get('/directory', requireAuth, (req, res) => {
   const q = String(req.query.q || '').trim().toLowerCase();
   const limit = Math.min(60, Math.max(1, Number(req.query.limit) || 40));
   const like = `%${q}%`;
+  const tag = String(req.query.tag || '').trim().toLowerCase();
+  const words = CATEGORY_WORDS[tag] || null;
+  const tagSql = words
+    ? ` AND (${words.map(() => `lower(display_name) LIKE ? OR lower(username) LIKE ? OR lower(bio) LIKE ?`).join(' OR ')})`
+    : '';
+  const tagArgs = words ? words.flatMap(w => [`%${w}%`, `%${w}%`, `%${w}%`]) : [];
+
   const rows = q
     ? all(`SELECT * FROM users WHERE status = 'active' AND id != ?
-           AND (lower(display_name) LIKE ? OR lower(username) LIKE ? OR lower(bio) LIKE ? OR lower(country) LIKE ?)
-           ORDER BY lower(display_name) LIMIT ?`, req.user.id, like, like, like, like, limit)
-    : all(`SELECT * FROM users WHERE status = 'active' AND id != ?
-           ORDER BY (last_seen IS NULL), last_seen DESC LIMIT ?`, req.user.id, limit);
+           AND (lower(display_name) LIKE ? OR lower(username) LIKE ? OR lower(bio) LIKE ? OR lower(country) LIKE ?)${tagSql}
+           ORDER BY lower(display_name) LIMIT ?`, req.user.id, like, like, like, like, ...tagArgs, limit)
+    : all(`SELECT * FROM users WHERE status = 'active' AND id != ?${tagSql}
+           ORDER BY (last_seen IS NULL), last_seen DESC LIMIT ?`, req.user.id, ...tagArgs, limit);
 
   const contacts = new Set(all('SELECT peer_id FROM contacts WHERE owner_id = ?', req.user.id).map(x => x.peer_id));
   const outReq = new Set(all(`SELECT to_id FROM contact_requests WHERE from_id = ? AND status = 'pending'`, req.user.id).map(x => x.to_id));

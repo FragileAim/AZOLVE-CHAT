@@ -129,10 +129,13 @@ function MomentViewer({ groups, start, onClose, onChanged }) {
   const [paused, setPaused] = useState(false);
   const [viewersOpen, setViewersOpen] = useState(false);
   const [viewerList, setViewerList] = useState(null);
+  const [showOriginal, setShowOriginal] = useState(false);
   const timer = useRef(null);
 
   const group = groups[gi];
   const moment = group?.moments[mi];
+
+  useEffect(() => { setShowOriginal(false); }, [gi, mi]);
 
   const next = () => {
     if (!group) return onClose();
@@ -230,10 +233,19 @@ function MomentViewer({ groups, start, onClose, onChanged }) {
         <div className="ux-story-music"><Icon name="music" size={14} /><span>{moment.music}</span></div>
       )}
 
-      {(moment.caption || moment.text) && (
+      {(moment.displayCaption || moment.caption || moment.text) && (
         <div className="ux-story-cap">
-          <p>{moment.caption || moment.text}</p>
-          <div className="ux-story-tr"><Icon name="translate" size={13} /><span>Translated from {langOf(group.user.language || 'en').native}</span></div>
+          <p>{showOriginal ? (moment.originalCaption || moment.originalText || moment.caption || moment.text) : (moment.displayCaption || moment.caption || moment.text)}</p>
+          {moment.translated && (
+            <button type="button" className="ux-story-tr" onClick={() => setShowOriginal(v => !v)}>
+              <Icon name="translate" size={13} />
+              <span>
+                {showOriginal
+                  ? `See translation (${langOf(user.language || 'en').native})`
+                  : `Translated from ${langOf(moment.srcLang || group.user.language || 'en').native}`}
+              </span>
+            </button>
+          )}
           {moment.location && <div className="ux-story-loc"><Icon name="map" size={12} /> {moment.location}</div>}
         </div>
       )}

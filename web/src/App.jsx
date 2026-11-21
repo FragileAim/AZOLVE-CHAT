@@ -9,7 +9,12 @@ import Splash from './components/Splash.jsx';
 import DevicePreview from './components/DevicePreview.jsx';
 
 const DEMO = import.meta.env.VITE_DEMO === '1';
-const FRAME = new URLSearchParams(location.search).get('frame') === '1';
+const QS = new URLSearchParams(location.search);
+const FRAME = QS.get('frame') === '1';
+/* The phone-frame preview is a demo affordance for wide screens only. It used to
+   render on real phones too, which put the app inside an iframe where every tap
+   changed the iframe's hash instead of the page's — so nothing navigated. */
+const PREVIEW = QS.get('preview') === '1';
 
 export const AppCtx = createContext(null);
 export const useApp = () => useContext(AppCtx);
@@ -37,7 +42,7 @@ export default function App() {
      user explicitly picks it in Settings. */
   const [themePref, setThemePref] = useState(() => localStorage.getItem('azolve.theme') || 'light');
   const [systemDark, setSystemDark] = useState(prefersDark);
-  const [device, setDevice] = useState(() => localStorage.getItem('azolve.device') || 'desktop');
+  const [device, setDevice] = useState(() => (PREVIEW ? (localStorage.getItem('azolve.device') || 'mobile') : 'desktop'));
   const [toast, setToast] = useState(null);
   const [waking, setWaking] = useState(null);
   /* Set when the first request of the session fails for a reason that is not
@@ -203,7 +208,7 @@ export default function App() {
     );
   }
 
-  if (device === 'mobile' && !FRAME) {
+  if (PREVIEW && device === 'mobile' && !FRAME) {
     return (
       <AppCtx.Provider value={value}>
         <DevicePreview
@@ -240,7 +245,7 @@ export default function App() {
           <span className="demo-dot" /> Preview mode · demo data
         </div>
       )}
-      {!FRAME && (
+      {PREVIEW && !FRAME && (
         <button className="device-toggle" onClick={() => setDevice('mobile')} title="See the app in a phone frame">
           <span className="dt-ic" aria-hidden>▢</span>
           <span>Mobile view</span>

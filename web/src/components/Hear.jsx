@@ -46,6 +46,12 @@ export default function Hear({
       onUnavailable?.(`No speech voices are installed on this device, so ${language.native} cannot be spoken here.`);
       return;
     }
+    /* Voices load asynchronously. Speaking before they are ready used to do
+       nothing at all, which felt like a dead button. */
+    if (!ready) {
+      onUnavailable?.('Speech voices are still loading \u2014 try again in a moment.');
+      return;
+    }
     sp.toggle({ text, lang, id, rate });
   };
 

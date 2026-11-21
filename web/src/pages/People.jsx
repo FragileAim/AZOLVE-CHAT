@@ -40,6 +40,9 @@ export default function People() {
   const { user, notify } = useApp();
   const [tab, setTab] = useState('everyone');
   const [cat, setCat] = useState('for-you');
+  /* Read inside loadPeople without making it a dependency, so switching a
+     category refetches once instead of rebuilding the callback every render. */
+  const catRef = useRef('for-you');
   const [q, setQ] = useState('');
   const [people, setPeople] = useState(null);
   const [reqs, setReqs] = useState({ incoming: [], outgoing: [] });
@@ -50,7 +53,7 @@ export default function People() {
 
   const loadPeople = useCallback(async (query) => {
     try {
-      const d = await API.directory(query || '', 60);
+      const d = await API.directory(query || '', 60, catRef.current);
       setPeople(d.users || []);
     } catch (e) { notify(e.message, 'err'); setPeople([]); }
   }, [notify]);
@@ -60,6 +63,13 @@ export default function People() {
   }, []);
 
   useEffect(() => { loadPeople(''); loadReqs(); }, [loadPeople, loadReqs]);
+
+  /* Switching category really refetches — the chips used to only move the
+     highlight and leave the list untouched. */
+  useEffect(() => {
+    catRef.current = cat;
+    loadPeople(q.trim());
+  }, [cat]); // eslint-disable-line react-hooks/exhaustive-deps
 
   /* Search is debounced so typing does not hammer the API. */
   useEffect(() => {

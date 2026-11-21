@@ -138,7 +138,7 @@ export const API = {
   updateMe: (b) => api('/users/me', { method: 'PATCH', body: b }),
   contacts: () => api('/contacts'),
   contactRequests: () => api('/contacts/requests'),
-  directory: (q = '', limit = 40) => api(`/contacts/directory?q=${encodeURIComponent(q)}&limit=${limit}`),
+  directory: (q = '', limit = 40, tag = '') => api(`/contacts/directory?q=${encodeURIComponent(q)}&limit=${limit}${tag && tag !== 'for-you' ? `&tag=${encodeURIComponent(tag)}` : ''}`),
   contactState: (userId) => api(`/contacts/state/${userId}`),
   requestContact: (userId, note) => api('/contacts/request', { method: 'POST', body: { userId, note } }),
   respondContact: (requestId, action) => api('/contacts/respond', { method: 'POST', body: { requestId, action } }),

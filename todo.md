@@ -37,8 +37,8 @@ export's exact measurements.
 - [x] 0 console errors, nav present on all screens
 
 ## Ship v1.1.1
-- [ ] Bump versionCode 12 / 1.1.1 + iOS 12 / 1.1.1
-- [ ] Build dist + dist-demo, copy to Android assets + iOS public
-- [ ] Build APK against https://azolve-chat.onrender.com
-- [ ] Commit + push main, verify Render redeploy
-- [ ] Deliver APK + before/after screenshots
+- [x] Bump versionCode 12 / 1.1.1 + iOS 12 / 1.1.1
+- [x] Build dist, copy to Android assets + iOS public
+- [x] Build APK against https://azolve-chat.onrender.com (1.4 MB)
+- [x] Commit + push main (cd821cc), Render deploy dep-dc0uhm60tb live
+- [x] Deliver APK + screenshots

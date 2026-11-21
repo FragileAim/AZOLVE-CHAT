@@ -8,7 +8,7 @@
  */
 import { translateText, detectLanguage } from './translate.js';
 
-const TIMEOUT = 30000;
+const TIMEOUT = 8000;
 async function jfetch(url, opts = {}) {
   const ctrl = new AbortController();
   const t = setTimeout(() => ctrl.abort(), TIMEOUT);
@@ -58,7 +58,7 @@ async function llm(messages, { maxTokens = 900, temperature = 0.6 } = {}) {
   }
   if (process.env.GEMINI_API_KEY) {
     // Google retires model names often, so we try a chain and cache whichever answered.
-    const chain = [geminiModel, process.env.GEMINI_MODEL, ...GEMINI_MODELS].filter(Boolean);
+    const chain = [geminiModel, process.env.GEMINI_MODEL, ...GEMINI_MODELS].filter(Boolean).slice(0, 3);
     const payload = JSON.stringify({
       contents: messages.filter(m => m.role !== 'system')
         .map(m => ({ role: m.role === 'assistant' ? 'model' : 'user', parts: [{ text: m.content }] })),
@@ -157,10 +157,22 @@ const CAPTION_TEMPLATES = [
   (k) => `Where ${k[0] || 'the day'} meets ${k[1] || 'good energy'} 🌍`,
 ];
 
+/* A caption has to describe what the person actually wrote. When no language
+   model is reachable we build it from their own words instead of swapping in an
+   unrelated English template \u2014 that substitution is what made people see a
+   caption with nothing to do with their post. */
+function localCaption(text, lang = 'en') {
+  const clean = String(text || '').replace(/\s+/g, ' ').trim();
+  if (!clean) return '';
+  const first = sentences(clean)[0] || clean;
+  const body = first.length > 140 ? first.slice(0, 137).trimEnd() + '\u2026' : first;
+  return `${body} \u2728`;
+}
+
 function localAnswer(prompt) {
   const p = prompt.toLowerCase();
   if (/^(hi|hello|hey|namaste|salam|hola)\b/.test(p)) return "Hello! I'm AZOLVE AI. I can draft messages, translate, summarise chats, write captions and explain anything you paste in. What are we working on?";
-  if (/caption/.test(p)) return CAPTION_TEMPLATES[0](keywords(prompt));
+  if (/caption/.test(p)) return localCaption(prompt.replace(/^.*?caption(\s+(for|about|of))?\s*[:\-\u2013]?\s*/i, ''), 'en');
   if (/hashtag/.test(p)) return keywords(prompt, 8).map(k => `#${k}`).join(' ');
   if (/summar/.test(p)) {
     const body = prompt.replace(/^\s*(please\s+)?summar\w*\s*(this|that|the)?\s*(conversation|thread|chat|text|message)?\s*[:\-–]?\s*/i, '').trim();
@@ -190,7 +202,7 @@ export async function task({ kind, text, lang = 'en', targetLang, tone }) {
   const prompts = {
     summarize: `Summarise this conversation with 3-5 bullet points, then one line "Action items:".\n\n${text}`,
     rewrite: `Rewrite the following message in a ${tone || 'friendly'} tone. Return only the rewritten message.\n\n${text}`,
-    caption: `Write 3 short social-media captions (with emoji) for this post idea. Return as a numbered list.\n\n${text}`,
+    caption: `Write ONE short social-media caption (max 12 words, with one emoji) for this post idea. Reply with the caption only, in language code ${lang}. Do not add a list, quotes or numbering.\n\n${text}`,
     hashtags: `Suggest 10 relevant hashtags for this post. Return them space separated, nothing else.\n\n${text}`,
     explain: `Explain what this message means and how I should reply. Be brief.\n\n${text}`,
     improve: `Improve clarity and grammar, keep the meaning and language. Return only the improved text.\n\n${text}`,
@@ -211,7 +223,7 @@ export async function task({ kind, text, lang = 'en', targetLang, tone }) {
   const local = {
     summarize: () => localSummary(text, 4),
     rewrite: () => localRewrite(text, tone),
-    caption: () => CAPTION_TEMPLATES.slice(0, 3).map((f, i) => `${i + 1}. ${f(keywords(text))}`).join('\n'),
+    caption: () => localCaption(text, lang),
     hashtags: () => keywords(text, 10).map(k => `#${k}`).join(' '),
     explain: () => `This message is about ${keywords(text, 3).join(', ') || 'a general update'}. A good reply acknowledges it and asks one clarifying question.`,
     improve: () => localRewrite(text, 'professional'),

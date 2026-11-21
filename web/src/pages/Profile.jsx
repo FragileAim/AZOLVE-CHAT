@@ -171,9 +171,16 @@ export default function Profile() {
   const shareProfile = async () => {
     const url = `${location.origin}/#/profile/${user.username}`;
     try {
-      if (navigator.share) await navigator.share({ title: user.displayName, url });
-      else { await navigator.clipboard.writeText(url); notify('Profile link copied', 'ok'); }
-    } catch { /* person dismissed the share sheet */ }
+      if (navigator.share) { await navigator.share({ title: user.displayName, url }); return; }
+    } catch { return; /* person dismissed the share sheet */ }
+    try {
+      await navigator.clipboard.writeText(url);
+      notify('Profile link copied', 'ok');
+    } catch {
+      /* Clipboard needs a secure context and permission. Never fail silently —
+         show the link so it can still be copied by hand. */
+      notify(`Copy this link: ${url}`, 'ok');
+    }
   };
 
   return (

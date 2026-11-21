@@ -150,7 +150,7 @@ r.post('/posts/:id/comments', requireAuth, (req, res) => {
 });
 
 /* ------------------------------- MOMENTS ---------------------------------- */
-r.get('/moments', requireAuth, (req, res) => {
+r.get('/moments', requireAuth, async (req, res) => {
   const rows = all('SELECT * FROM moments WHERE expires_at > ? ORDER BY created_at ASC', now());
   const byUser = new Map();
   for (const m of rows) {
@@ -163,10 +163,31 @@ r.get('/moments', requireAuth, (req, res) => {
     const viewed = !!get('SELECT 1 FROM moment_views WHERE moment_id = ? AND user_id = ?', m.id, req.user.id);
     byUser.get(m.user_id).push({ ...m, viewed, hideFrom: undefined });
   }
-  const groups = [...byUser.entries()].map(([userId, moments]) => ({
-    user: publicUser(get('SELECT * FROM users WHERE id = ?', userId), req.user.id), moments,
+  /* Every caption is rendered in the *viewer's* language, the same way feed
+     posts are. Without this the viewer saw the author's original text while the
+     UI still said "translated", which is exactly the mismatch people reported. */
+  const viewerLang = req.user.language || 'en';
+  const localizeMoment = async (m) => {
+    const src = m.caption || m.text || '';
+    if (!src) return { ...m, translated: false };
+    const srcLang = detectLanguage(src);
+    if (srcLang === viewerLang) return { ...m, translated: false, srcLang };
+    const t = await translateText(src, srcLang, viewerLang);
+    return {
+      ...m,
+      displayCaption: t.text,
+      translated: !!t.translated && t.text !== src,
+      srcLang,
+      originalCaption: m.caption || null,
+      originalText: m.text || null,
+    };
+  };
+  const groups = await Promise.all([...byUser.entries()].map(async ([userId, moments]) => ({
+    user: publicUser(get('SELECT * FROM users WHERE id = ?', userId), req.user.id),
+    moments: await Promise.all(moments.map(localizeMoment)),
     allViewed: moments.every(m => m.viewed),
-  })).sort((a, b) => (a.allViewed - b.allViewed) || (b.moments.at(-1).created_at - a.moments.at(-1).created_at));
+  })));
+  groups.sort((a, b) => (a.allViewed - b.allViewed) || (b.moments.at(-1).created_at - a.moments.at(-1).created_at));
   res.json({ groups });
 });
 

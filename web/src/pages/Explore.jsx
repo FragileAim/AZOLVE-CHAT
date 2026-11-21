@@ -283,7 +283,11 @@ export default function Explore() {
     catch { setSearchResults([]); }
   };
 
-  const posts = view === 'reels' ? explore : feed;
+  /* For you = discovery (everything public). Following = only the people you
+     follow. Reels = the subset of that with photo or video. Before this the
+     three tabs all rendered the same list, so tapping one did nothing visible. */
+  const base = view === 'following' ? feed : explore;
+  const posts = view === 'reels' ? base.filter(p => (p.media || []).length > 0) : base;
 
   return (
     <div className="ux-screen">
