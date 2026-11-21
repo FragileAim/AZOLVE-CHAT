@@ -15,6 +15,7 @@ import android.webkit.PermissionRequest;
 import android.webkit.ValueCallback;
 import android.webkit.WebChromeClient;
 import android.webkit.WebResourceRequest;
+import android.webkit.WebResourceResponse;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
@@ -25,8 +26,13 @@ import android.widget.TextView;
 
 import android.app.Activity;
 
+import java.io.ByteArrayInputStream;
+import java.io.IOException;
+import java.io.InputStream;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * AZOLVE CHAT — native Android shell.
@@ -37,8 +43,22 @@ import java.util.List;
  */
 public class MainActivity extends Activity {
 
-    /** Bundled, fully offline build (VITE_DEMO=1) used when no live server is configured. */
-    private static final String LOCAL_URL = "file:///android_asset/www/index.html";
+    /**
+     * Bundled, fully offline build (VITE_DEMO=1) used when no live server is configured.
+     *
+     * It is served from a virtual https origin rather than file://. Vite emits ES
+     * modules, and a WebView refuses to load a module (or its stylesheet) from a
+     * file:// page — "blocked by CORS policy: Cross origin requests are only
+     * supported for protocol schemes: http, https…". That left the app showing
+     * only the static "AZOLVE CHAT" splash forever: the page finished loading, so
+     * the native splash was dismissed, but the bundle never executed.
+     */
+    private static final String ASSET_HOST = "appassets.androidplatform.net";
+    private static final String LOCAL_URL = "https://" + ASSET_HOST + "/index.html";
+    /** Everything the bundled build needs lives under assets/www. */
+    private static final String ASSET_ROOT = "www";
+    /** How long to wait for the React root to fill before admitting failure. */
+    private static final long RENDER_WATCHDOG_MS = 15000;
     /**
      * Live server URL injected at build time:
      *   ./gradlew assembleDebug -PappUrl=https://your-app.onrender.com
@@ -81,7 +101,7 @@ public class MainActivity extends Activity {
         s.setBuiltInZoomControls(false);
         s.setMixedContentMode(WebSettings.MIXED_CONTENT_COMPATIBILITY_MODE);
         s.setCacheMode(WebSettings.LOAD_DEFAULT);
-        s.setUserAgentString(s.getUserAgentString() + " AzolveChatApp/1.0.0");
+        s.setUserAgentString(s.getUserAgentString() + " AzolveChatApp/1.1.4");
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             s.setSafeBrowsingEnabled(true);
         }
@@ -108,6 +128,21 @@ public class MainActivity extends Activity {
             public void onPageFinished(WebView view, String url) {
                 firstLoadDone = true;
                 if (splash != null) splash.setVisibility(View.GONE);
+                watchForBlankApp();
+            }
+
+            /**
+             * Serves the bundled build over https so the module graph is same-origin.
+             * Returning null lets the request go to the network untouched, which is
+             * what the live-server mode needs.
+             */
+            @Override
+            public WebResourceResponse shouldInterceptRequest(WebView view, WebResourceRequest request) {
+                Uri uri = request.getUrl();
+                if (uri == null || !ASSET_HOST.equals(uri.getHost())) return null;
+                String path = uri.getPath();
+                if (path == null || path.isEmpty() || "/".equals(path)) path = "/index.html";
+                return assetResponse(path);
             }
 
             @Override
@@ -195,6 +230,77 @@ public class MainActivity extends Activity {
         }
     }
 
+    /**
+     * Read a file out of assets/www and answer with the right MIME type. A wrong
+     * type here is fatal for module scripts — WebView refuses to execute a module
+     * unless it is served as JavaScript.
+     */
+    private WebResourceResponse assetResponse(String path) {
+        Map<String, String> headers = new HashMap<>();
+        headers.put("Access-Control-Allow-Origin", "*");
+        headers.put("Cache-Control", "no-cache");
+
+        String rel = ASSET_ROOT + path;
+        InputStream in = null;
+        try {
+            in = getAssets().open(rel);
+        } catch (IOException missing) {
+            /* Unknown path with no extension is an app route (hash routing means
+               this is rare) — hand back index.html so the app can render it. */
+            if (!path.contains(".")) {
+                try {
+                    in = getAssets().open(ASSET_ROOT + "/index.html");
+                    return new WebResourceResponse("text/html", "utf-8", 200, "OK", headers, in);
+                } catch (IOException ignored) { /* fall through to 404 */ }
+            }
+            return new WebResourceResponse("text/plain", "utf-8", 404, "Not Found", headers,
+                    new ByteArrayInputStream(new byte[0]));
+        }
+        return new WebResourceResponse(mimeFor(path), "utf-8", 200, "OK", headers, in);
+    }
+
+    private String mimeFor(String path) {
+        String p = path.toLowerCase();
+        if (p.endsWith(".html") || p.endsWith(".htm")) return "text/html";
+        if (p.endsWith(".js") || p.endsWith(".mjs")) return "text/javascript";
+        if (p.endsWith(".css")) return "text/css";
+        if (p.endsWith(".json")) return "application/json";
+        if (p.endsWith(".webmanifest") || p.endsWith(".manifest")) return "application/manifest+json";
+        if (p.endsWith(".svg")) return "image/svg+xml";
+        if (p.endsWith(".png")) return "image/png";
+        if (p.endsWith(".jpg") || p.endsWith(".jpeg")) return "image/jpeg";
+        if (p.endsWith(".webp")) return "image/webp";
+        if (p.endsWith(".gif")) return "image/gif";
+        if (p.endsWith(".ico")) return "image/x-icon";
+        if (p.endsWith(".woff2")) return "font/woff2";
+        if (p.endsWith(".woff")) return "font/woff";
+        if (p.endsWith(".ttf")) return "font/ttf";
+        if (p.endsWith(".mp3")) return "audio/mpeg";
+        if (p.endsWith(".mp4")) return "video/mp4";
+        if (p.endsWith(".wasm")) return "application/wasm";
+        return "application/octet-stream";
+    }
+
+    /**
+     * A page that "finishes loading" but renders nothing used to look identical to
+     * a slow start: splash gone, blank screen, no way forward. Check that the React
+     * root actually has content, and if it does not, say so and offer a retry.
+     */
+    private void watchForBlankApp() {
+        web.postDelayed(() -> {
+            if (errorBox != null && errorBox.getVisibility() == View.VISIBLE) return;
+            web.evaluateJavascript(
+                    "(function(){var r=document.getElementById('root');return r?r.childElementCount:0;})()",
+                    value -> {
+                        int count = 0;
+                        try { count = Integer.parseInt(value.replaceAll("[^0-9]", "")); } catch (Exception ignored) { }
+                        if (count > 0) return;
+                        if (splash != null) splash.setVisibility(View.GONE);
+                        if (errorBox != null) errorBox.setVisibility(View.VISIBLE);
+                    });
+        }, RENDER_WATCHDOG_MS);
+    }
+
     /** Branded first-paint screen: the mark, the wordmark and a spinner. */
     private View buildSplash() {
         FrameLayout box = new FrameLayout(this);
@@ -248,7 +354,7 @@ public class MainActivity extends Activity {
         col.setPadding(pad, 0, pad, 0);
 
         TextView msg = new TextView(this);
-        msg.setText("Could not reach AZOLVE CHAT.\n\nThe server may be waking up — this can take up to a minute on the free tier.");
+        msg.setText("AZOLVE CHAT could not start.\n\nThe server may be waking up — on the free tier that can take up to a minute. Check your connection and try again.");
         msg.setTextColor(0xFFE8E8F0);
         msg.setTextSize(15f);
         msg.setGravity(Gravity.CENTER);

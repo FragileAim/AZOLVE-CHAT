@@ -15,6 +15,10 @@ echo "==> 2/4  Copying bundle into the Android assets"
 rm -rf "$ROOT/mobile/android/app/src/main/assets/www"
 mkdir -p "$ROOT/mobile/android/app/src/main/assets/www"
 cp -r "$ROOT/web/dist-demo/." "$ROOT/mobile/android/app/src/main/assets/www/"
+# Capacitor's own copy of the web bundle is dead weight: the launcher is
+# io.azolve.chat.MainActivity, which reads assets/www. Leaving it in shipped two
+# copies of the app and made the APK 1.2 MB larger than it needed to be.
+rm -rf "$ROOT/mobile/android/app/src/main/assets/public"
 
 echo "==> 3/4  Gradle"
 cd "$ROOT/mobile/android"
