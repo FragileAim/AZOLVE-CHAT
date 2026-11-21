@@ -21,3 +21,7 @@ mobile/ios/App/DerivedData/
 # Deliverables
 dist/*.apk
 dist/*.zip
+
+# Local dev database + audit screenshots
+.devdata/
+.screenshots/

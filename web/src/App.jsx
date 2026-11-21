@@ -33,7 +33,9 @@ export default function App() {
   const [booting, setBooting] = useState(true);
   const [needsOnboarding, setNeedsOnboarding] = useState(false);
   const [route, setRoute] = useState(readHash());
-  const [themePref, setThemePref] = useState(() => localStorage.getItem('azolve.theme') || 'dark');
+  /* Bright is the default. 'system' still respects the OS preference when the
+     user explicitly picks it in Settings. */
+  const [themePref, setThemePref] = useState(() => localStorage.getItem('azolve.theme') || 'light');
   const [systemDark, setSystemDark] = useState(prefersDark);
   const [device, setDevice] = useState(() => localStorage.getItem('azolve.device') || 'desktop');
   const [toast, setToast] = useState(null);
