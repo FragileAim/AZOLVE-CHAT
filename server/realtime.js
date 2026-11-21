@@ -3,6 +3,7 @@ import jwt from 'jsonwebtoken';
 import { get, run, all } from './db.js';
 import { now, parseJSON } from './util.js';
 import { translateMessage } from './services/translate.js';
+import { translateTranscript } from './services/speech.js';
 import { sendToUser, callPayload } from './services/push.js';
 
 /* Local copy of the contact check so realtime does not import the route module
@@ -22,6 +23,8 @@ const online = new Map(); // userId -> Set(socketId)
 const RING_TIMEOUT = Number(process.env.CALL_RING_TIMEOUT_MS || 45000);
 const calls = new Map(); // callId -> call record
 const userCall = new Map(); // userId -> callId
+/* short-lived translation cache for live speech: callId+langs+phrase -> result */
+const speechCache = new Map();
 
 function callOf(userId) {
   const id = userCall.get(userId);
@@ -261,7 +264,7 @@ export function initRealtime(httpServer) {
         });
     });
 
-    socket.on('call:accept', ({ to, callId }) => {
+    socket.on('call:accept', ({ to, callId, simulated }) => {
       const call = calls.get(callId);
       if (call) {
         clearTimeout(call.timer);
@@ -269,7 +272,10 @@ export function initRealtime(httpServer) {
         call.answeredAt = Date.now();
         setCallState(call, 'connecting');
       }
-      emitToUser(to, 'call:accepted', { callId, by: uid });
+      /* `simulated` is only ever set by the built-in preview call, where there
+         is no real peer to negotiate with. Never trust it from a real client
+         for anything except skipping the peer connection. */
+      emitToUser(to, 'call:accepted', { callId, by: uid, simulated: simulated === true });
     });
 
     socket.on('call:decline', ({ to, callId }) => {
@@ -315,6 +321,42 @@ export function initRealtime(httpServer) {
 
     socket.on('call:caption', ({ to, callId, text, lang }) => {
       emitToUser(to, 'call:caption', { callId, from: uid, text, lang });
+    });
+
+    /* ---- live call translation ------------------------------------------
+       The speaker's device sends what it heard. We translate it into the
+       listener's own language before it ever reaches them, so the caption the
+       other person sees is already in their language. The sender gets an ack
+       with the same translation so both sides show the identical line.
+
+       A tiny per-call cache keeps repeated short phrases ("ok", "yes", "one
+       minute") from hitting the provider over and over on a long call.
+    --------------------------------------------------------------------- */
+    socket.on('call:speech', async ({ to, callId, text, lang }, ack) => {
+      const clean = String(text || '').trim().slice(0, 600);
+      if (!clean) return;
+      const peer = get('SELECT language FROM users WHERE id = ?', to);
+      const target = (peer?.language || 'en').slice(0, 8);
+      const src = String(lang || 'en').slice(0, 8);
+      const key = `${callId}:${src}:${target}:${clean.toLowerCase()}`;
+
+      let out = speechCache.get(key);
+      if (!out) {
+        const t = await translateTranscript(clean, src, target);
+        out = { source: t.source || clean, translated: t.translated || clean, srcLang: t.srcLang || src, targetLang: target, engine: t.engine };
+        if (speechCache.size > 400) speechCache.clear();
+        speechCache.set(key, out);
+      }
+
+      const payload = {
+        callId, from: uid, source: out.source, text: out.translated,
+        srcLang: out.srcLang, lang: out.targetLang, engine: out.engine,
+        at: now(),
+      };
+      emitToUser(to, 'call:caption', payload);
+      // ack goes back to the speaker so their own transcript panel stays in sync
+      try { ack?.({ ok: true, ...payload, mine: true }); } catch { /* no ack handler */ }
+      emitToUser(uid, 'call:caption:ack', payload);
     });
 
     // Mirror mute / camera state so the other side can show "Muted".

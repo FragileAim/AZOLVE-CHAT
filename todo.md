@@ -1,32 +1,32 @@
-# AZOLVE CHAT — Request AD: welcome page must not require scrolling
+# AZOLVE CHAT — Request AE: live translation in voice + video calls
 
-## A. Reproduce & measure
-- [x] Measure welcome hero and post-"Get started" form geometry via CDP at 360×640, 375×667, 390×844, 414×896
-- [x] Identify the submit button's real label ("Email me a code" / "Create account & email my code")
+## A. Make speech → transcript → translation real
+- [x] New `server/services/speech.js`: Gemini transcription (`gemini-3.5-transcribe`), Gemini flash fallback, OpenAI Whisper fallback
+- [x] `translateTranscript()` reuses the existing provider chain (deepl → google → libre → openai → mymemory → phrasebook)
+- [x] `POST /api/calls/live/listen` (multipart audio) + `POST /api/calls/live/translate` + `GET /api/calls/live/status`
+- [x] Fix stale Gemini model ids in `server/services/ai.js` (2.5/1.5 flash are retired)
+- [x] Verify with real espeak-ng audio: en→hi 2.2s, hi→en 1.9s, en→es 1.9s, all real transcripts
 
-## B. Fix the transition
-- [x] Add `started` state so the hero is replaced by the form (not appended below it)
-- [x] Hide `.auth-mobile-hero` entirely once started
-- [x] Make `.auth-panel.started` a full-height flex column with a borderless transparent card
-- [x] Add a back chevron that restores the hero
-- [x] Tighten vertical rhythm (tabs, h2, sub, fields, buttons)
-- [x] Short-screen rules (≤740px height) drop legal footnote / OAuth row
-- [x] Trim hero spacing on short screens so "Get started" sits above the fold
+## B. Socket path
+- [x] Replace the decorative `call:caption` relay with a real `call:speech` handler that translates server-side per recipient
+- [x] Cache repeated segments, ack the speaker, emit `call:caption` to the peer
+- [x] Relay the preview `simulated` flag on `call:accept` so the preview call can reach `active`
 
-## C. Verify
-- [x] All 8 size × mode combinations: `scrollH === viewport`, primary CTA visible, hero hidden
-- [x] Hero at all 4 sizes: `scrollH === viewport`, CTA visible
-- [x] Back button restores hero
-- [x] Full UI sweep: 0 console exceptions, no page-level overflow
+## C. Client
+- [x] `web/src/lib/livecaption.js`: on-device Web Speech engine + server engine (3.2s MediaRecorder slices → 16 kHz WAV → `/calls/live/listen`)
+- [x] `CallStage.jsx`: live loop only while `active`, auto-restart, backpressure, mic pause while TTS speaks
+- [x] Always-on translated caption bar with original underneath, plus a real `Live · EN → HI` status pill
+- [x] Dock control: `Live` toggle (on by default) and `Captions`
+- [x] `styles-v4.css`: live bar, status pill, pulse dot, responsive rules
 
-## D. Build hardening
-- [x] Discover CSS minifier emitted `width<=899px` range syntax (breaks iOS < 16.4 / old Android WebView)
-- [x] Pin `cssTarget` to chrome87/safari13/firefox78/edge88 → classic `max-width` queries
-- [x] Confirm 0 range-syntax queries in the built CSS
+## D. Verify
+- [x] Real call between two accounts renders the bar: 390×844 → 358×134 at y568, 1440×900 → 560×103, no overflow
+- [x] Translated Hindi line + English original both visible in-call
+- [x] UI sweep: 80 page/width/theme combos, 0 console exceptions
 
-## E. Ship
-- [x] Bump to v1.0.7 (versionCode 8, CURRENT_PROJECT_VERSION 8, MARKETING_VERSION 1.0.7)
-- [x] Rebuild APK with corrected CSS, verify bundled asset hash + media queries
-- [x] Rebuild iOS project zip
-- [x] Commit + push `main`, confirm Render auto-deploy
-- [x] Verify live CSS hash, absence of range syntax, `/api/health` 200
+## E. Ship v1.0.8
+- [ ] Rebuild web bundle (classic media queries preserved)
+- [ ] Bump versionCode 9 / CURRENT_PROJECT_VERSION 9 / MARKETING_VERSION 1.0.8
+- [ ] Rebuild APK + iOS project zip
+- [ ] Commit + push `main`, confirm Render deploy
+- [ ] Verify production `/api/calls/live/status` reports `canTranscribe: true`

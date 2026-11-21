@@ -6,7 +6,8 @@ import { API } from '../lib/api.js';
 import { getSocket } from '../lib/socket.js';
 import { fmtDur, startRing, stopRing, blip, meterStream, listDevices, stopStream } from '../lib/callkit.js';
 import { langOf } from '../lib/i18n.js';
-import { useSpeech } from '../lib/speech.js';
+import { useSpeech, speak } from '../lib/speech.js';
+import { startLiveCaption } from '../lib/livecaption.js';
 import { SpeakingBars } from './Hear.jsx';
 import { getIceConfig, toRtcConfig, readQuality } from '../lib/rtc.js';
 
@@ -88,6 +89,12 @@ function CallStageInner({ call, onClose, onRedial }) {
      screen can answer the only question people have at that moment. */
   const [endInfo, setEndInfo] = useState(null);
 
+  /* ---- live translation ---- */
+  const [liveOn, setLiveOn] = useState(true);
+  const [liveStatus, setLiveStatus] = useState({ state: 'idle', engine: null });
+  const [liveLine, setLiveLine] = useState(null);
+  const [autoSpeak, setAutoSpeak] = useState(true);
+
   const localRef = useRef(null);
   const remoteRef = useRef(null);
   /* Audio-only calls had nowhere to play the other person. The remote <video>
@@ -107,10 +114,37 @@ function CallStageInner({ call, onClose, onRedial }) {
   const dragRef = useRef(null);
   const initiatorRef = useRef(false);
   const restartRef = useRef(0);
+  const liveRef = useRef(null);
+  const autoSpeakRef = useRef(true);
+  const speakingRef = useRef(false);
   const callId = call.callId;
   const peerId = call.peer?.id;
 
   const peerLang = useMemo(() => langOf(call.peer?.language || 'en'), [call.peer?.language]);
+
+  /* --------------------------- live captions ----------------------------- */
+  /* Every caption lands here: our own speech, the other person's, and typed
+     notes. Speaking the incoming line is what makes this feel like live
+     translation rather than subtitles — but the mic is paused while the voice
+     plays, otherwise the phone hears its own translation and loops. */
+  const speakLine = useCallback(async (text, lang) => {
+    if (!sp.supported || !text) return;
+    speakingRef.current = true;
+    liveRef.current?.pause?.();
+    try { await speak({ text, lang: lang || 'en', id: 'live-caption' }); } catch { /* engine refused */ }
+    speakingRef.current = false;
+    if (liveRef.current && !speakingRef.current) liveRef.current.resume?.();
+  }, [sp.supported]);
+
+  const addCaption = useCallback((c) => {
+    if (!c?.text) return;
+    setCaptions(prev => [...prev.slice(-5), c]);
+    setLiveLine(c);
+    setShowCaptions(true);
+    if (!c.mine && autoSpeakRef.current) speakLine(c.text, c.lang);
+  }, [speakLine]);
+
+  useEffect(() => { autoSpeakRef.current = autoSpeak; }, [autoSpeak]);
 
   /* ------------------------------ media ---------------------------------- */
   const acquire = useCallback(async (withVideo) => {
@@ -316,9 +350,12 @@ function CallStageInner({ call, onClose, onRedial }) {
       }
     };
 
-    const onCaption = ({ text, lang }) => {
-      setCaptions(c => [...c.slice(-3), { text, lang }]);
-      setShowCaptions(true);
+    const onCaption = ({ text, lang, source, srcLang }) => {
+      addCaption({ text, lang, source, srcLang, mine: false });
+    };
+    /* our own speech comes back translated so both sides show the same line */
+    const onCaptionAck = ({ text, lang, source, srcLang }) => {
+      addCaption({ text, lang, source, srcLang, mine: true });
     };
 
     s.on('call:accepted', onAccepted);
@@ -332,6 +369,7 @@ function CallStageInner({ call, onClose, onRedial }) {
     s.on('call:ice-restart', onIceRestart);
     s.on('call:signal', onSignal);
     s.on('call:caption', onCaption);
+    s.on('call:caption:ack', onCaptionAck);
     return () => {
       s.off('call:accepted', onAccepted);
       s.off('call:declined', onDeclined);
@@ -344,8 +382,49 @@ function CallStageInner({ call, onClose, onRedial }) {
       s.off('call:ice-restart', onIceRestart);
       s.off('call:signal', onSignal);
       s.off('call:caption', onCaption);
+      s.off('call:caption:ack', onCaptionAck);
     };
-  }, [peerId, callId, simulated, ensurePC, flushIce, video]);
+  }, [peerId, callId, simulated, ensurePC, flushIce, video, addCaption]);
+
+  /* ------------------------- live translation loop ------------------------ */
+  /* Runs for the whole connected call. The engine picks itself: on-device
+     recognition where the browser has it, otherwise short mic slices are
+     transcribed and translated on the server. */
+  useEffect(() => {
+    if (phase !== 'active' || !liveOn || muted) {
+      liveRef.current?.stop?.();
+      liveRef.current = null;
+      setLiveStatus({ state: liveOn ? 'idle' : 'off', engine: null });
+      return undefined;
+    }
+    const myLang = user.language || 'en';
+    const theirLang = call.peer?.language || 'en';
+    let cancelled = false;
+
+    const engine = startLiveCaption({
+      stream: streamRef.current,
+      lang: myLang,
+      targetLang: theirLang,
+      onStatus: st => { if (!cancelled) setLiveStatus(st); },
+      onSegment: seg => {
+        if (cancelled || !seg?.final) return;
+        const source = String(seg.source || '').trim();
+        if (!source) return;
+        const socket = getSocket();
+        if (seg.engine === 'device') {
+          /* the server translates and fans the line out to both sides */
+          socket?.emit('call:speech', { to: peerId, callId, text: source, lang: myLang });
+        } else {
+          const translated = seg.translated || source;
+          const payload = { source, text: translated, srcLang: seg.srcLang || myLang, lang: theirLang };
+          socket?.emit('call:caption', { to: peerId, callId, ...payload });
+          addCaption({ ...payload, mine: true });
+        }
+      },
+    });
+    liveRef.current = engine;
+    return () => { cancelled = true; engine.stop?.(); liveRef.current = null; };
+  }, [phase, liveOn, muted, peerId, callId, user.language, call.peer?.language, addCaption]);
 
   /* ------------------------------- ringing ------------------------------- */
   /* Mobile browsers can refuse the first programmatic play(). A tap anywhere
@@ -747,7 +826,12 @@ function CallStageInner({ call, onClose, onRedial }) {
           </div>
           <div className="cv-top-right">
             {phase === 'active' && (
-              <span className="cv-chip mini"><Icon name="translate" size={11} /> Live translation</span>
+              <span className={`cv-chip mini live ${liveStatus.state === 'listening' ? 'on' : ''}`}>
+                <i className="cv-live-dot" />
+                {liveStatus.state === 'listening'
+                  ? `Live · ${langOf(user.language).code?.toUpperCase()} → ${peerLang.code?.toUpperCase()}`
+                  : liveOn ? 'Live starting…' : 'Live off'}
+              </span>
             )}
             {peerMuted && <span className="cv-chip mini mute"><Icon name="mute" size={11} /> They're muted</span>}
             {simulated && <span className="cv-chip mini warn">Simulated</span>}
@@ -775,6 +859,29 @@ function CallStageInner({ call, onClose, onRedial }) {
           </div>
         )}
 
+        {/* always-on translated line: the point of live translation is that you
+            never have to open a panel to read it */}
+        {phase === 'active' && liveOn && liveLine && (
+          <div className="cv-livebar" role="status" aria-live="polite">
+            <div className="cv-livebar-head">
+              <i className="cv-live-dot" />
+              <span>{liveLine.mine ? 'You' : (call.peer?.displayName || 'They')} · {langOf(liveLine.lang || 'en').native}</span>
+              <button
+                type="button"
+                className={`cv-livebar-speak ${autoSpeak ? 'on' : ''}`}
+                onClick={() => setAutoSpeak(v => !v)}
+                title={autoSpeak ? 'Stop speaking translations aloud' : 'Speak translations aloud'}
+              >
+                <Icon name="volume" size={12} /> {autoSpeak ? 'Voice on' : 'Voice off'}
+              </button>
+            </div>
+            <p className="cv-livebar-text">{liveLine.text}</p>
+            {liveLine.source && liveLine.source !== liveLine.text && (
+              <p className="cv-livebar-src">{liveLine.source}</p>
+            )}
+          </div>
+        )}
+
         {/* captions */}
         {showCaptions && (
           <div className="cv-captions">
@@ -783,7 +890,7 @@ function CallStageInner({ call, onClose, onRedial }) {
               <button className="cv-icon sm" onClick={() => setShowCaptions(false)}><Icon name="close" size={13} /></button>
             </div>
             <div className="cv-captions-body">
-              {captions.length === 0 && <p className="cv-cap-empty">Speak or type — captions appear here, translated for the other person.</p>}
+              {captions.length === 0 && <p className="cv-cap-empty">Speak normally — every sentence appears here in the other person’s language, and theirs in yours.</p>}
               {captions.map((c, i) => {
                 const cid = `cap-${i}-${c.lang}`;
                 const live = sp.isPlaying(cid);
@@ -796,7 +903,10 @@ function CallStageInner({ call, onClose, onRedial }) {
                     title={`Tap to hear this in ${langOf(c.lang || 'en').native}`}
                   >
                     <span className="cv-cap-lang">{langOf(c.lang || 'en').code?.toUpperCase()}</span>
-                    <span className="cv-cap-text">{c.text}</span>
+                    <span className="cv-cap-text">
+                      {c.text}
+                      {c.source && c.source !== c.text && <em className="cv-cap-src">{c.source}</em>}
+                    </span>
                     <span className="cv-cap-hear" aria-hidden>
                       {live ? <SpeakingBars small /> : <Icon name="volume" size={13} />}
                     </span>
@@ -851,7 +961,8 @@ function CallStageInner({ call, onClose, onRedial }) {
             {video && <Ctrl icon="video" label={camOn ? 'Camera' : 'Cam off'} on={!camOn} onClick={toggleCam} />}
             {video && <Ctrl icon="refresh" label="Flip" onClick={flipCamera} />}
             <Ctrl icon="volume" label={speaker ? 'Speaker' : 'Earpiece'} on={!speaker} onClick={toggleSpeaker} />
-            <Ctrl icon="translate" label="Captions" on={showCaptions} onClick={() => setShowCaptions(s => !s)} />
+            <Ctrl icon="translate" label="Live" on={liveOn} onClick={() => setLiveOn(v => !v)} />
+            <Ctrl icon="comment" label="Captions" on={showCaptions} onClick={() => setShowCaptions(s => !s)} />
             <Ctrl icon="screen" label="Share" on={sharing} onClick={shareScreen} />
             <button className="cv-end" onClick={hangup} aria-label="End call">
               <Icon name="phone" size={24} />

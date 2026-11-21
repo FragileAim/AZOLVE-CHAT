@@ -33,7 +33,7 @@ export const engineName = () =>
   : 'local-heuristic';
 
 // Tried in order until one answers. Google retires model ids regularly.
-const GEMINI_MODELS = ['gemini-3.6-flash', 'gemini-flash-latest', 'gemini-2.5-flash', 'gemini-1.5-flash'];
+const GEMINI_MODELS = ['gemini-3.8-flash', 'gemini-3.7-flash', 'gemini-3.6-flash', 'gemini-3.5-flash', 'gemini-flash-latest', 'gemini-2.5-flash'];
 let geminiModel = null;
 
 const SYSTEM = `You are AZOLVE AI, the assistant built into AZOLVE CHAT by AZOLVE INFOTECH.

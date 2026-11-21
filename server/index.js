@@ -14,6 +14,7 @@ import aiRoutes from './routes/ai.js';
 import adminRoutes from './routes/admin.js';
 import contactRoutes from './routes/contacts.js';
 import pushRoutes from './routes/push.js';
+import callRoutes from './routes/calls.js';
 import { seedIfEmpty } from './seed.js';
 import { db } from './db.js';
 import { startSnapshotLoop, saveSnapshot, snapshotEnabled, bindDb, status as persistStatus } from './services/persist.js';
@@ -88,6 +89,7 @@ app.use('/api/ai', aiRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/contacts', contactRoutes);
 app.use('/api/push', pushRoutes);
+app.use('/api/calls', callRoutes);
 
 app.use('/api', (req, res) => res.status(404).json({ error: `Unknown endpoint ${req.method} ${req.originalUrl}` }));
 /* Every error used to become a 500, including a malformed JSON body — which is
