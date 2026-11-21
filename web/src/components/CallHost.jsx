@@ -118,6 +118,59 @@ export default function CallHost({ children }) {
     };
   }, [notify, user?.id]);
 
+  /* -------------------------------------------------------------------------
+     Answering from the notification
+     A push notification is handled by the service worker, not by this page, so
+     there are two ways the answer can arrive: the worker opened the app with
+     ?answer=<callId>, or a tab was already open and the worker posted a message
+     to it. Both end up here, and both start the call immediately because the
+     person already pressed Accept.
+  ------------------------------------------------------------------------- */
+  useEffect(() => {
+    if (!user?.id) return;
+
+    const join = (p) => {
+      if (!p?.callId || activeRef.current) return;
+      const peerId = p.from?.id || p.peerId;
+      if (!peerId) return;
+      setActive({
+        callId: p.callId,
+        peer: {
+          id: peerId,
+          displayName: p.from?.displayName || 'Contact',
+          avatar: p.from?.avatar || null,
+          language: p.from?.language || 'en',
+        },
+        type: p.type || 'audio',
+        incoming: true,
+        autoAccept: true,
+        conversationId: p.conversationId || null,
+      });
+    };
+
+    const q = new URLSearchParams(window.location.search);
+    const answer = q.get('answer');
+    if (answer) {
+      join({
+        callId: answer,
+        type: q.get('type') || 'audio',
+        from: { id: q.get('peer'), displayName: q.get('name') || 'Contact' },
+      });
+      /* Strip the parameters so a page refresh does not try to rejoin a call
+         that is already over. */
+      const url = new URL(window.location.href);
+      ['answer', 'peer', 'type', 'name'].forEach((k) => url.searchParams.delete(k));
+      window.history.replaceState({}, '', url.pathname + url.search + url.hash);
+    }
+
+    const onMsg = (e) => {
+      if (e.data?.type === 'azolve:answer') join(e.data.payload);
+    };
+    const sw = navigator.serviceWorker;
+    sw?.addEventListener('message', onMsg);
+    return () => sw?.removeEventListener('message', onMsg);
+  }, [user?.id]);
+
   const close = useCallback(() => setActive(null), []);
 
   /* Preview builds have no server; this lets the Calls page demonstrate the

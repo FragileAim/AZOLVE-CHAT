@@ -3,6 +3,7 @@ import jwt from 'jsonwebtoken';
 import { get, run, all } from './db.js';
 import { now, parseJSON } from './util.js';
 import { translateMessage } from './services/translate.js';
+import { sendToUser, callPayload } from './services/push.js';
 
 /* Local copy of the contact check so realtime does not import the route module
    (which imports this one back). One indexed lookup. */
@@ -43,22 +44,36 @@ function setCallState(call, state, extra = {}) {
   return payload;
 }
 
-function finishCall(callId, state, extra = {}) {
+export function finishCall(callId, state, extra = {}) {
   const call = calls.get(callId);
   if (!call) return null;
   clearTimeout(call.timer);
   calls.delete(callId);
   userCall.delete(call.callerId);
   userCall.delete(call.calleeId);
-  const payload = setCallState(call, state, extra);
+
+  /* Duration is measured from the moment the call was answered, not from the
+     moment it started ringing. A 40 second ring that nobody picks up is not a
+     40 second conversation. */
+  const duration = extra.duration != null
+    ? extra.duration
+    : (call.answeredAt ? Math.max(0, Math.round((Date.now() - call.answeredAt) / 1000)) : 0);
+  const endedBy = extra.endedBy || null;
+  const reason = extra.reason || null;
+  const byName = endedBy
+    ? (get('SELECT display_name FROM users WHERE id = ?', endedBy)?.display_name || null)
+    : null;
+
+  const payload = setCallState(call, state, { ...extra, duration, endedBy, endedReason: reason, endedByName: byName });
   try {
-    run('UPDATE calls SET status = ? WHERE id = ?', state, callId);
+    run('UPDATE calls SET status = ?, ended_at = ?, duration = ?, ended_by = ?, ended_reason = ?, answered_at = ? WHERE id = ?',
+      state, now(), duration, endedBy, reason, call.answeredAt || null, callId);
   } catch { /* call row may not exist yet — signalling still works */ }
   return payload;
 }
 
 function registerCall({ callId, callerId, calleeId, type, conversationId }) {
-  const call = { callId, callerId, calleeId, type, conversationId, state: 'ringing', startedAt: Date.now() };
+  const call = { callId, callerId, calleeId, type, conversationId, state: 'ringing', startedAt: Date.now(), answeredAt: null };
   calls.set(callId, call);
   userCall.set(callerId, callId);
   userCall.set(calleeId, callId);
@@ -66,8 +81,8 @@ function registerCall({ callId, callerId, calleeId, type, conversationId }) {
     const c = calls.get(callId);
     if (!c || c.state !== 'ringing') return;
     finishCall(callId, 'missed', { reason: 'no-answer' });
-    emitToUser(c.callerId, 'call:missed', { callId });
-    emitToUser(c.calleeId, 'call:missed', { callId });
+    emitToUser(c.callerId, 'call:missed', { callId, reason: 'no-answer' });
+    emitToUser(c.calleeId, 'call:missed', { callId, reason: 'no-answer' });
   }, RING_TIMEOUT);
   if (call.timer.unref) call.timer.unref();
   return call;
@@ -208,24 +223,42 @@ export function initRealtime(httpServer) {
         });
         return;
       }
-      // Nobody is holding a socket for them, so ringing would just be silence.
-      if (!isOnline(to)) {
-        emitToUser(uid, 'call:unavailable', {
-          callId, to,
-          peer: { id: to, displayName: get('SELECT display_name FROM users WHERE id = ?', to)?.display_name },
-        });
-        return;
-      }
       const mine = callOf(uid);
       if (mine) finishCall(mine.callId, 'ended', { reason: 'replaced' });
 
+      /* Register first, in both cases. The call has to exist on the server even
+         when the other person only ever sees a notification, otherwise tapping
+         Decline on the notification has nothing to decline and the caller keeps
+         ringing until the timeout. */
       registerCall({ callId, callerId: uid, calleeId: to, type, conversationId });
-      emitToUser(to, 'call:incoming', {
-        callId, type, conversationId,
-        from: { id: uid, displayName: caller?.display_name, avatar: caller?.avatar, language: caller?.language },
-        ringTimeout: RING_TIMEOUT,
-      });
+
+      const from = { id: uid, displayName: caller?.display_name, avatar: caller?.avatar, language: caller?.language };
       emitToUser(uid, 'call:ringing', { callId, ringTimeout: RING_TIMEOUT });
+
+      if (isOnline(to)) {
+        emitToUser(to, 'call:incoming', { callId, type, conversationId, from, ringTimeout: RING_TIMEOUT });
+        return;
+      }
+
+      /* No socket means the app is closed or asleep, so an in-app ring would be
+         silence. Push is the only way to reach them, and it carries Accept and
+         Decline actions so the call can be answered without opening the app. */
+      sendToUser(to, callPayload({ callId, from, type, conversationId, toUserId: to }))
+        .then((sent) => {
+          if (sent > 0) return;
+          /* Nothing was delivered: no registered device, or every endpoint is
+             dead. Say so instead of letting the caller listen to a ring that
+             nobody can hear. */
+          finishCall(callId, 'missed', { reason: 'peer-offline' });
+          emitToUser(uid, 'call:unavailable', {
+            callId, to,
+            peer: { id: to, displayName: get('SELECT display_name FROM users WHERE id = ?', to)?.display_name },
+          });
+        })
+        .catch(() => {
+          finishCall(callId, 'missed', { reason: 'peer-offline' });
+          emitToUser(uid, 'call:unavailable', { callId, to, peer: { id: to, displayName: get('SELECT display_name FROM users WHERE id = ?', to)?.display_name } });
+        });
     });
 
     socket.on('call:accept', ({ to, callId }) => {
@@ -233,21 +266,40 @@ export function initRealtime(httpServer) {
       if (call) {
         clearTimeout(call.timer);
         call.state = 'connecting';
+        call.answeredAt = Date.now();
         setCallState(call, 'connecting');
       }
       emitToUser(to, 'call:accepted', { callId, by: uid });
     });
 
     socket.on('call:decline', ({ to, callId }) => {
-      finishCall(callId, 'declined');
-      emitToUser(to, 'call:declined', { callId, by: uid });
+      const call = calls.get(callId);
+      const byName = get('SELECT display_name FROM users WHERE id = ?', uid)?.display_name || null;
+      finishCall(callId, 'declined', { endedBy: uid, reason: 'declined' });
+      emitToUser(to, 'call:declined', { callId, by: uid, byName, reason: 'declined' });
+      /* The caller may have closed the tab already; nothing else records this. */
+      if (!call) {
+        try {
+          run('UPDATE calls SET status = ?, ended_at = ?, duration = 0, ended_by = ?, ended_reason = ? WHERE id = ?',
+            'declined', now(), uid, 'declined', callId);
+        } catch { /* no row */ }
+      }
     });
 
     socket.on('call:end', ({ to, callId }) => {
       const call = calls.get(callId);
-      const duration = call ? Math.round((Date.now() - call.startedAt) / 1000) : 0;
-      finishCall(callId, 'completed', { duration });
-      emitToUser(to, 'call:ended', { callId, by: uid, duration });
+      const byName = get('SELECT display_name FROM users WHERE id = ?', uid)?.display_name || null;
+      const payload = finishCall(callId, 'completed', { endedBy: uid, reason: 'hangup' });
+      const duration = payload?.duration || 0;
+      emitToUser(to, 'call:ended', { callId, by: uid, byName, duration, reason: 'hangup' });
+      /* The call may already have been torn down by a disconnect; make sure the
+         log still records who hung up. */
+      if (!call) {
+        try {
+          run('UPDATE calls SET status = ?, ended_at = ?, duration = ?, ended_by = ?, ended_reason = ? WHERE id = ?',
+            'completed', now(), duration, uid, 'hangup', callId);
+        } catch { /* no row */ }
+      }
     });
 
     // Media is live — mark the call active so a late invite reports busy.
@@ -292,10 +344,14 @@ export function initRealtime(httpServer) {
           const call = callOf(uid);
           if (call) {
             const peer = call.callerId === uid ? call.calleeId : call.callerId;
-            const state = call.state === 'ringing' ? 'missed' : 'ended';
-            finishCall(call.callId, state, { reason: 'peer-offline' });
+            const state = call.state === 'ringing' ? 'missed' : 'completed';
+            const payload = finishCall(call.callId, state, { reason: 'peer-offline', endedBy: uid });
             emitToUser(peer, state === 'missed' ? 'call:missed' : 'call:ended', {
-              callId: call.callId, reason: 'peer-offline',
+              callId: call.callId,
+              reason: 'peer-offline',
+              by: uid,
+              byName: get('SELECT display_name FROM users WHERE id = ?', uid)?.display_name || null,
+              duration: payload?.duration || 0,
             });
           }
         }

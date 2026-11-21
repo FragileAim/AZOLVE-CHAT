@@ -145,6 +145,14 @@ CREATE TABLE IF NOT EXISTS reports (
 CREATE TABLE IF NOT EXISTS ai_messages (
   id TEXT PRIMARY KEY, user_id TEXT, thread_id TEXT, role TEXT, content TEXT, created_at INTEGER
 );
+CREATE TABLE IF NOT EXISTS app_settings (
+  key TEXT PRIMARY KEY, value TEXT
+);
+CREATE TABLE IF NOT EXISTS push_subscriptions (
+  id TEXT PRIMARY KEY, user_id TEXT, endpoint TEXT UNIQUE, p256dh TEXT, auth TEXT,
+  ua TEXT, created_at INTEGER, last_ok INTEGER, fails INTEGER DEFAULT 0
+);
+CREATE INDEX IF NOT EXISTS idx_push_user ON push_subscriptions(user_id);
 CREATE TABLE IF NOT EXISTS audit_log (
   id TEXT PRIMARY KEY, actor_id TEXT, action TEXT, target TEXT, meta TEXT, created_at INTEGER
 );
@@ -160,6 +168,12 @@ const migrations = [
   ['otps', 'channel', "TEXT DEFAULT 'sms'"],
   ['sessions', 'prev_hash', 'TEXT'],
   ['sessions', 'prev_at', 'INTEGER'],
+  /* Who ended a call, and why. Without these a call log can only say
+     "completed" — it cannot answer the question people actually ask, which is
+     "did they hang up on me or did my signal drop?". */
+  ['calls', 'ended_by', 'TEXT'],
+  ['calls', 'ended_reason', 'TEXT'],
+  ['calls', 'answered_at', 'INTEGER'],
 ];
 for (const [table, column, type] of migrations) {
   try {

@@ -1,6 +1,7 @@
 import jwt from 'jsonwebtoken';
 import { get, run } from './db.js';
 import { id, now, sha, err } from './util.js';
+import { requestSave } from './services/persist.js';
 
 const SECRET = process.env.JWT_SECRET || 'dev-only-secret-change-me';
 export const ACCESS_TTL = '30d';
@@ -16,6 +17,9 @@ export function createSession(userId, req) {
   run('INSERT INTO sessions (id, user_id, token_hash, device, ip, created_at, last_active) VALUES (?,?,?,?,?,?,?)',
     sid, userId, sha(raw), device, req.ip || '', now(), now());
   const user = get('SELECT * FROM users WHERE id = ?', userId);
+  /* A new session is exactly the moment where losing the database would force
+     someone to register again. Back it up now rather than up to 60s later. */
+  requestSave();
   return { token: issueToken(user, sid), refreshToken: raw, sessionId: sid };
 }
 
@@ -37,6 +41,7 @@ export function rotateSession(raw, req) {
     const user = get('SELECT * FROM users WHERE id = ?', prev.user_id);
     if (!user) return null;
     run('UPDATE sessions SET last_active = ? WHERE id = ?', now(), prev.id);
+    requestSave();
     return { token: issueToken(user, prev.id), refreshToken: raw };
   }
   const user = get('SELECT * FROM users WHERE id = ?', s.user_id);
@@ -44,6 +49,7 @@ export function rotateSession(raw, req) {
   const next = id('rt_');
   run('UPDATE sessions SET prev_hash = ?, prev_at = ?, token_hash = ?, last_active = ? WHERE id = ?',
     s.token_hash, now(), sha(next), now(), s.id);
+  requestSave();
   return { token: issueToken(user, s.id), refreshToken: next };
 }
 

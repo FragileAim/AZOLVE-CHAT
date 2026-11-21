@@ -40,6 +40,12 @@ export default function App() {
   const [device, setDevice] = useState(() => localStorage.getItem('azolve.device') || 'desktop');
   const [toast, setToast] = useState(null);
   const [waking, setWaking] = useState(null);
+  /* Set when the first request of the session fails for a reason that is not
+     "you are signed out" — a sleeping host, a dead network. Showing the login
+     screen in that case is what made the app feel like it logged people out
+     every time they came back. */
+  const [bootError, setBootError] = useState(null);
+  const [bootTry, setBootTry] = useState(0);
 
   const theme = themePref === 'system' ? (systemDark ? 'dark' : 'light') : themePref;
 
@@ -89,7 +95,17 @@ export default function App() {
     warmUp();
     (async () => {
       if (getToken()) {
-        try { await refreshMe(); } catch { clearSession(); }
+        try {
+          await refreshMe();
+          setBootError(null);
+        } catch (e) {
+          /* Only a real rejection signs you out. A 502 while the free host
+             wakes up, or a dropped mobile connection, must never cost you your
+             session — that was the "it logs me out every time" bug. */
+          const rejected = e?.status === 401 || e?.code === 'session_revoked' || e?.code === 'session_missing';
+          if (rejected) clearSession();
+          else setBootError(e);
+        }
       }
       // keep the splash on screen long enough to feel intentional
       const elapsed = performance.now() - started;
@@ -97,7 +113,7 @@ export default function App() {
       const wait = Math.max(0, target - elapsed);
       setTimeout(() => setBooting(false), wait);
     })();
-  }, [refreshMe]);
+  }, [refreshMe, bootTry]);
 
   useEffect(() => {
     if (user) connectSocket();
@@ -158,6 +174,34 @@ export default function App() {
   };
 
   if (booting) return <Splash />;
+
+  /* The server could not be reached but we still hold a session. Offer a retry
+     instead of dumping a signed-in person on the login screen. */
+  if (bootError && !user && getToken()) {
+    return (
+      <div className="boot-retry">
+        <div className="boot-retry-card">
+          <div className="boot-retry-ic" aria-hidden>!</div>
+          <h2>Can’t reach AZOLVE right now</h2>
+          <p>
+            You are still signed in on this device. The server did not answer —
+            it may be waking up, or your connection dropped.
+          </p>
+          <div className="boot-retry-actions">
+            <button
+              className="btn primary"
+              onClick={() => { setBootError(null); setBooting(true); setBootTry((n) => n + 1); }}
+            >
+              Try again
+            </button>
+            <button className="btn ghost" onClick={() => { clearSession(); setBootError(null); }}>
+              Sign out instead
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   if (device === 'mobile' && !FRAME) {
     return (

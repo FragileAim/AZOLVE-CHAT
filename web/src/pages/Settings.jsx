@@ -6,6 +6,7 @@ import { LANGS, langOf } from '../lib/i18n.js';
 import { timeAgo } from '../lib/utils.js';
 import { resolveVoice, whenVoicesReady, speak, stopSpeech, speechSupported } from '../lib/speech.js';
 import { SpeakingBars } from '../components/Hear.jsx';
+import * as Push from '../lib/push.js';
 
 const SECTIONS = [
   { id: 'account', label: 'Account', icon: 'user' },
@@ -114,6 +115,114 @@ function VoicePanel({ notify }) {
             “Approximate” means the language has no installed voice, so the closest available
             voice reads it. AZOLVE tells you this instead of pretending the language is supported.
           </p>
+        </>
+      )}
+    </div>
+  );
+}
+
+
+/* ---------------------------------------------------------------------------
+   PushPanel
+   The switch here is not cosmetic: turning it on really asks the browser for
+   permission, creates a push subscription, and stores it on the server so a
+   call can ring this device while the app is closed. Every failure is reported
+   in plain words instead of silently flipping back.
+--------------------------------------------------------------------------- */
+function PushPanel({ notify }) {
+  const [supported, setSupported] = useState(true);
+  const [on, setOn] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [ready, setReady] = useState(true);
+  const [note, setNote] = useState('');
+
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      const ok = Push.isSupported();
+      if (!alive) return;
+      setSupported(ok);
+      if (!ok) return;
+      const st = await Push.status();
+      const sub = await Push.isSubscribed();
+      if (!alive) return;
+      setReady(st.ready !== false);
+      setOn(!!sub && st.subscribed !== false);
+    })();
+    return () => { alive = false; };
+  }, []);
+
+  const toggle = async () => {
+    setBusy(true);
+    setNote('');
+    if (on) {
+      const r = await Push.unsubscribe();
+      if (r.ok) { setOn(false); notify?.('Call notifications turned off for this device', 'ok'); }
+      else notify?.(r.reason || 'Could not turn notifications off', 'err');
+    } else {
+      const r = await Push.subscribe();
+      if (r.ok) { setOn(true); notify?.('This device will now ring even when AZOLVE is closed', 'ok'); }
+      else { setNote(r.reason || 'Could not turn on notifications'); notify?.(r.reason || 'Could not turn on notifications', 'err'); }
+    }
+    setBusy(false);
+  };
+
+  const test = async () => {
+    setBusy(true);
+    const r = await Push.sendTest();
+    setBusy(false);
+    if (r.ok) notify?.('Test notification sent \u2014 check your notification shade', 'ok');
+    else notify?.('Nothing was delivered. Make sure notifications are allowed for this site.', 'err');
+  };
+
+  return (
+    <div className="card stack">
+      <h2>Call notifications</h2>
+      <p className="muted small">
+        When this is on, an incoming call rings this device even if AZOLVE CHAT is closed,
+        with Accept and Decline buttons on the notification.
+      </p>
+
+      {!supported && (
+        <div className="info-box warn">
+          <Icon name="warning" size={16} />
+          <div>
+            <b>This browser cannot do it</b>
+            <p className="muted small">
+              Background notifications need a browser with the Push API. On iPhone, open AZOLVE
+              in Safari, tap Share, then Add to Home Screen and enable this from there.
+              The Android APK rings while it is open or in the background; ringing a fully
+              closed native app needs Firebase Cloud Messaging, which is not connected yet.
+            </p>
+          </div>
+        </div>
+      )}
+
+      {supported && !ready && (
+        <div className="info-box warn">
+          <Icon name="warning" size={16} />
+          <div>
+            <b>The server has not finished setting up notifications</b>
+            <p className="muted small">Try again in a minute.</p>
+          </div>
+        </div>
+      )}
+
+      {supported && (
+        <>
+          <Switch on={on} label={busy ? 'Working\u2026' : 'Ring this device when the app is closed'} onChange={toggle} />
+          {note && <p className="muted small">{note}</p>}
+          {on && (
+            <div className="data-row">
+              <div>
+                <b>Test it now</b>
+                <p className="muted small">Sends one notification to this device so you can see exactly how a call will look.</p>
+              </div>
+              <button className="btn ghost" disabled={busy} onClick={test}>
+                <Icon name="bell" size={16} /> Send test
+              </button>
+            </div>
+          )}
         </>
       )}
     </div>
@@ -358,12 +467,15 @@ export default function Settings() {
           {sec === 'voice' && <VoicePanel notify={notify} />}
 
           {sec === 'notifications' && (
-            <div className="card stack">
-              <h2>Notifications</h2>
-              <Switch on={prefs.notifications?.messages !== false} label="New messages" onChange={v => savePrefs({ ...prefs, notifications: { ...prefs.notifications, messages: v } })} />
-              <Switch on={prefs.notifications?.social !== false} label="Likes, comments and follows" onChange={v => savePrefs({ ...prefs, notifications: { ...prefs.notifications, social: v } })} />
-              <Switch on={prefs.notifications?.calls !== false} label="Incoming calls" onChange={v => savePrefs({ ...prefs, notifications: { ...prefs.notifications, calls: v } })} />
-            </div>
+            <>
+              <PushPanel notify={notify} />
+              <div className="card stack">
+                <h2>In-app notifications</h2>
+                <Switch on={prefs.notifications?.messages !== false} label="New messages" onChange={v => savePrefs({ ...prefs, notifications: { ...prefs.notifications, messages: v } })} />
+                <Switch on={prefs.notifications?.social !== false} label="Likes, comments and follows" onChange={v => savePrefs({ ...prefs, notifications: { ...prefs.notifications, social: v } })} />
+                <Switch on={prefs.notifications?.calls !== false} label="Incoming calls" onChange={v => savePrefs({ ...prefs, notifications: { ...prefs.notifications, calls: v } })} />
+              </div>
+            </>
           )}
 
           {sec === 'data' && (

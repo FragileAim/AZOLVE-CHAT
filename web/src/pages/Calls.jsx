@@ -20,9 +20,28 @@ const FILTERS = [
 function statusMeta(c) {
   if (c.status === 'missed') return { label: 'Missed', cls: 'missed', icon: 'phone' };
   if (c.status === 'declined') return { label: 'Declined', cls: 'declined', icon: 'close' };
-  if (c.status === 'completed') return { label: c.duration ? fmtDur(c.duration) : 'Completed', cls: 'ok', icon: 'check' };
+  if (c.status === 'completed' || c.status === 'ended') {
+    return { label: c.duration ? fmtDur(c.duration) : 'Completed', cls: 'ok', icon: 'check' };
+  }
   if (c.status === 'ringing') return { label: 'Ringing', cls: 'live', icon: 'phone' };
   return { label: c.status || 'Call', cls: '', icon: 'phone' };
+}
+
+/* Who ended it, said plainly. The call log is where people go to settle "did
+   they hang up on me?", so it has to answer that. */
+function endLabel(c, meId) {
+  const first = (c.display_name || 'They').split(' ')[0];
+  const byMe = c.ended_by && c.ended_by === meId;
+  if (c.status === 'missed') {
+    return c.ended_reason === 'peer-offline' ? 'Caller lost connection' : 'No answer';
+  }
+  if (c.status === 'declined') return byMe ? 'You declined' : `${first} declined`;
+  if (c.status === 'completed' || c.status === 'ended') {
+    if (c.ended_reason === 'peer-offline') return byMe ? 'Your connection dropped' : `${first} lost connection`;
+    if (!c.ended_by) return 'Ended';
+    return byMe ? 'You ended the call' : `${first} ended the call`;
+  }
+  return '';
 }
 
 export default function Calls() {
@@ -216,6 +235,11 @@ export default function Calls() {
                     <Icon name={outgoing ? 'arrow' : 'back'} size={12} />
                     {outgoing ? 'Outgoing' : 'Incoming'} · {c.type === 'video' ? 'Video' : 'Audio'} · {timeAgo(c.started_at)}
                   </small>
+                  {endLabel(c, user.id) && (
+                    <small className={`cv-row-who ${c.ended_by === user.id ? 'me' : ''}`}>
+                      {endLabel(c, user.id)}
+                    </small>
+                  )}
                 </div>
                 <div className="cv-row-actions">
                   <button

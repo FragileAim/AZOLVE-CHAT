@@ -13,9 +13,10 @@ import communityRoutes from './routes/communities.js';
 import aiRoutes from './routes/ai.js';
 import adminRoutes from './routes/admin.js';
 import contactRoutes from './routes/contacts.js';
+import pushRoutes from './routes/push.js';
 import { seedIfEmpty } from './seed.js';
 import { db } from './db.js';
-import { startSnapshotLoop, saveSnapshot, snapshotEnabled, status as persistStatus } from './services/persist.js';
+import { startSnapshotLoop, saveSnapshot, snapshotEnabled, bindDb, status as persistStatus } from './services/persist.js';
 
 const app = express();
 const server = http.createServer(app);
@@ -86,6 +87,7 @@ app.use('/api/communities', communityRoutes);
 app.use('/api/ai', aiRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/contacts', contactRoutes);
+app.use('/api/push', pushRoutes);
 
 app.use('/api', (req, res) => res.status(404).json({ error: `Unknown endpoint ${req.method} ${req.originalUrl}` }));
 /* Every error used to become a 500, including a malformed JSON body — which is
@@ -125,6 +127,7 @@ seedIfEmpty();
 
 /* Keep an encrypted copy of the database off-box so a restart on a diskless
    host does not wipe every account. */
+bindDb(db);
 startSnapshotLoop(db);
 if (snapshotEnabled()) {
   /* Establish a baseline only when the restore actually succeeded, or when

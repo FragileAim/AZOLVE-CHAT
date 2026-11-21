@@ -84,11 +84,21 @@ function CallStageInner({ call, onClose, onRedial }) {
   const [reconnecting, setReconnecting] = useState(false);
   const [peerMuted, setPeerMuted] = useState(false);
   const [ringLeft, setRingLeft] = useState(0);
-  const [endReason, setEndReason] = useState(null);
+  /* Who ended the call, why, and how long it ran. Kept together so the ended
+     screen can answer the only question people have at that moment. */
+  const [endInfo, setEndInfo] = useState(null);
 
   const localRef = useRef(null);
   const remoteRef = useRef(null);
+  /* Audio-only calls had nowhere to play the other person. The remote <video>
+     element is only rendered for video calls, so on a voice call `ontrack`
+     attached the stream to a null ref and the call was silent in both
+     directions even though the peer connection was healthy. This element is
+     always mounted, so there is always a sink for remote audio. */
+  const remoteAudioRef = useRef(null);
+  const remoteStreamRef = useRef(null);
   const pcRef = useRef(null);
+  const pcPromiseRef = useRef(null);
   const streamRef = useRef(null);
   const timerRef = useRef(null);
   const pendingIce = useRef([]);
@@ -130,7 +140,13 @@ function CallStageInner({ call, onClose, onRedial }) {
   /* --------------------------- peer connection --------------------------- */
   const ensurePC = useCallback(async (initiator) => {
     if (pcRef.current) return pcRef.current;
+    /* accept() and the first inbound offer can both land within a few
+       milliseconds. Without this lock each would build its own
+       RTCPeerConnection, the offer would be applied to the one that is not
+       sending media, and the call would connect with no audio. */
+    if (pcPromiseRef.current) return pcPromiseRef.current;
 
+    pcPromiseRef.current = (async () => {
     // Ask the server which STUN/TURN servers to use, then build the peer.
     const cfg = await getIceConfig();
     setTurnReady(!!cfg.hasTurn);
@@ -144,11 +160,16 @@ function CallStageInner({ call, onClose, onRedial }) {
       }
     };
     pc.ontrack = (e) => {
-      const [stream] = e.streams;
-      if (remoteRef.current && stream) {
-        remoteRef.current.srcObject = stream;
-        remoteRef.current.play?.().catch(() => {});
-      }
+      const stream = e.streams[0] || new MediaStream([e.track]);
+      remoteStreamRef.current = stream;
+      /* Play into whichever sinks exist. The audio element is always present;
+         the video element only exists on a video call. */
+      const sinks = [remoteAudioRef.current, remoteRef.current].filter(Boolean);
+      sinks.forEach((el) => {
+        if (el.srcObject !== stream) el.srcObject = stream;
+        const p = el.play?.();
+        if (p && p.catch) p.catch(() => { /* retried on the next gesture below */ });
+      });
       setPhase('active');
       getSocket()?.emit('call:connected', { to: peerId, callId });
     };
@@ -174,6 +195,8 @@ function CallStageInner({ call, onClose, onRedial }) {
       getSocket()?.emit('call:signal', { to: peerId, callId, signal: offer });
     }
     return pc;
+    })().finally(() => { pcPromiseRef.current = null; });
+    return pcPromiseRef.current;
   }, [peerId, callId, video, acquire]); // eslint-disable-line react-hooks/exhaustive-deps
 
   /* Recover from a network switch instead of dropping the call. The caller
@@ -235,14 +258,26 @@ function CallStageInner({ call, onClose, onRedial }) {
       await ensurePC(true);
     };
 
-    const onDeclined = () => { stopRing(); blip('end'); setEndReason('declined'); setPhase('ended'); };
-    const onEnded = () => { stopRing(); blip('end'); setPhase('ended'); };
-    const onMissed = () => { stopRing(); blip('end'); setEndReason('missed'); setPhase('ended'); };
-    const onBusy = () => { stopRing(); blip('end'); setEndReason('busy'); setPhase('ended'); };
+    const onDeclined = (p) => {
+      stopRing(); blip('end');
+      setEndInfo({ reason: 'declined', by: p?.by || null, byName: p?.byName || null, duration: 0 });
+      setPhase('ended');
+    };
+    const onEnded = (p) => {
+      stopRing(); blip('end');
+      setEndInfo({ reason: p?.reason || 'hangup', by: p?.by || null, byName: p?.byName || null, duration: p?.duration ?? null });
+      setPhase('ended');
+    };
+    const onMissed = (p) => {
+      stopRing(); blip('end');
+      setEndInfo({ reason: p?.reason || 'no-answer', by: null, byName: null, duration: 0 });
+      setPhase('ended');
+    };
+    const onBusy = () => { stopRing(); blip('end'); setEndInfo({ reason: 'busy' }); setPhase('ended'); };
 
     /* The server tells us up front when the other person has no live socket,
        so the caller is not left listening to a ring that nobody hears. */
-    const onUnavailable = () => { stopRing(); blip('end'); setEndReason('offline'); setPhase('ended'); };
+    const onUnavailable = () => { stopRing(); blip('end'); setEndInfo({ reason: 'offline' }); setPhase('ended'); };
 
     const onRinging = ({ ringTimeout }) => {
       const secs = Math.round((ringTimeout || 45000) / 1000);
@@ -313,6 +348,22 @@ function CallStageInner({ call, onClose, onRedial }) {
   }, [peerId, callId, simulated, ensurePC, flushIce, video]);
 
   /* ------------------------------- ringing ------------------------------- */
+  /* Mobile browsers can refuse the first programmatic play(). A tap anywhere
+     on the call screen retries it, so the audio never stays stuck silent. */
+  useEffect(() => {
+    const retry = () => {
+      const el = remoteAudioRef.current;
+      if (!el || !remoteStreamRef.current || !el.paused) return;
+      el.play?.().catch(() => {});
+    };
+    window.addEventListener('pointerdown', retry);
+    window.addEventListener('touchstart', retry, { passive: true });
+    return () => {
+      window.removeEventListener('pointerdown', retry);
+      window.removeEventListener('touchstart', retry);
+    };
+  }, []);
+
   useEffect(() => {
     if (phase === 'ringing') startRing('out');
     else if (phase === 'incoming') startRing('in');
@@ -356,6 +407,8 @@ function CallStageInner({ call, onClose, onRedial }) {
     streamRef.current = null;
     try { pcRef.current?.close(); } catch {}
     pcRef.current = null;
+    pcPromiseRef.current = null;
+    remoteStreamRef.current = null;
   }, []);
 
   useEffect(() => () => cleanup(), [cleanup]);
@@ -370,23 +423,42 @@ function CallStageInner({ call, onClose, onRedial }) {
     await ensurePC(false);
   };
 
+  /* Arriving from an Accept tap on a notification: the person already said yes,
+     so join the call instead of showing them a second Accept button. */
+  const autoRef = useRef(false);
+  useEffect(() => {
+    if (!call.autoAccept || !call.incoming || autoRef.current) return;
+    autoRef.current = true;
+    accept();
+  }, [call.autoAccept, call.incoming, accept]);
+
   const decline = () => {
     stopRing();
-    getSocket()?.emit('call:decline', { to: peerId, callId });
-    API.updateCall(callId, { status: 'declined', duration: 0 }).catch(() => {});
+    const s = getSocket();
+    s?.emit('call:decline', { to: peerId, callId });
+    /* The server records the decline. Only write it ourselves if there is no
+       socket, otherwise two writers race and the log can end up naming the
+       wrong person as the one who ended it. */
+    if (!s?.connected) API.updateCall(callId, { status: 'declined', duration: 0, reason: 'declined' }).catch(() => {});
+    setEndInfo({ reason: 'declined', by: user?.id, byName: 'You', duration: 0 });
     cleanup();
     setPhase('ended');
   };
 
   const hangup = () => {
     stopRing();
-    getSocket()?.emit('call:end', { to: peerId, callId });
-    API.updateCall(callId, {
-      status: phase === 'active' ? 'completed' : (phase === 'ringing' ? 'missed' : 'declined'),
-      duration: seconds,
-    }).catch(() => {});
+    const s = getSocket();
+    s?.emit('call:end', { to: peerId, callId });
+    if (!s?.connected) {
+      API.updateCall(callId, {
+        status: phase === 'active' ? 'completed' : (phase === 'ringing' ? 'missed' : 'declined'),
+        duration: seconds,
+        reason: 'hangup',
+      }).catch(() => {});
+    }
     cleanup();
     blip('end');
+    setEndInfo({ reason: 'hangup', by: user?.id, byName: 'You', duration: seconds });
     setPhase('ended');
   };
 
@@ -439,6 +511,26 @@ function CallStageInner({ call, onClose, onRedial }) {
     }
   };
 
+  /* Output routing. setSinkId is the only web API that can move a live stream
+     between speaker and earpiece, and it is not on every browser — so when it
+     is missing we say so instead of showing a button that does nothing. */
+  const toggleSpeaker = async () => {
+    const el = remoteAudioRef.current;
+    const next = !speaker;
+    if (!el || typeof el.setSinkId !== 'function') {
+      notify('Use your phone’s volume buttons to switch output on this device', 'err');
+      return;
+    }
+    try {
+      const outs = (await navigator.mediaDevices.enumerateDevices()).filter(d => d.kind === 'audiooutput');
+      const target = next ? (outs.find(d => d.deviceId !== 'default') || outs[0]) : outs.find(d => d.deviceId === 'default');
+      await el.setSinkId(target?.deviceId || 'default');
+      setSpeaker(next);
+    } catch {
+      notify('This device does not allow switching the audio output', 'err');
+    }
+  };
+
   const sendCaption = async () => {
     const text = captionDraft.trim();
     if (!text) return;
@@ -487,12 +579,24 @@ function CallStageInner({ call, onClose, onRedial }) {
     connecting: 'Negotiating',
   }[quality] || 'Good';
 
-  const endedText =
-    endReason === 'busy' ? 'They are on another call' :
-    endReason === 'offline' ? 'They are not online right now' :
-    endReason === 'missed' ? 'No answer' :
-    endReason === 'declined' ? 'Call declined' :
-    seconds > 0 ? `Call ended · ${fmtDur(seconds)}` : 'Call ended';
+  /* Plain sentences, written from the point of view of the person reading
+     them. This is the whole point of recording ended_by. */
+  const peerFirst = (call.peer?.displayName || 'They').split(' ')[0];
+  const endReason = endInfo?.reason || null;
+  const iEnded = !!(endInfo?.by && user?.id && endInfo.by === user.id);
+  const endDuration = endInfo?.duration != null ? endInfo.duration : seconds;
+  const endedText = (() => {
+    if (endReason === 'busy') return `${peerFirst} is on another call`;
+    if (endReason === 'offline') return `${peerFirst} is not online right now`;
+    if (endReason === 'no-answer') return 'No answer';
+    if (endReason === 'declined') return iEnded ? 'You declined this call' : `${peerFirst} declined the call`;
+    if (endReason === 'peer-offline') return iEnded ? 'Your connection dropped' : `${peerFirst} lost connection`;
+    if (endDuration > 0) {
+      const who = iEnded ? 'You ended the call' : `${peerFirst} ended the call`;
+      return `${who} \u00b7 ${fmtDur(endDuration)}`;
+    }
+    return iEnded ? 'You ended the call' : `${peerFirst} ended the call`;
+  })();
 
   /* ------------------------------ ended card ----------------------------- */
   if (phase === 'ended') {
@@ -503,6 +607,11 @@ function CallStageInner({ call, onClose, onRedial }) {
           <Avatar user={call.peer} size={96} ring />
           <h2>{call.peer?.displayName || 'Call'}</h2>
           <p className="cv-ended-status">{endedText}</p>
+          <p className="cv-ended-meta">
+            {video ? 'Video' : 'Audio'} call
+            {endDuration > 0 ? ` \u00b7 ${fmtDur(endDuration)}` : ''}
+            {endInfo?.byName && !iEnded ? ` \u00b7 ended by ${endInfo.byName}` : ''}
+          </p>
           <div className="cv-ended-actions">
             <button className="cv-ended-btn ghost" onClick={onClose}>Close</button>
             <button className="cv-ended-btn primary" onClick={onRedial || onClose}>
@@ -567,6 +676,9 @@ function CallStageInner({ call, onClose, onRedial }) {
 
   return (
     <div className={`cv-root ${minimized ? 'is-min' : ''}`}>
+      {/* The single sink for the other person's voice. It stays mounted for the
+          whole call, including audio-only calls where no <video> exists. */}
+      <audio ref={remoteAudioRef} autoPlay playsInline className="cv-remote-audio" />
       <div className={`cv-stage ${video ? 'is-video' : 'is-audio'} ${sharing ? 'is-sharing' : ''}`} ref={stageRef}>
         {/* backdrop */}
         {!video && (
@@ -738,7 +850,7 @@ function CallStageInner({ call, onClose, onRedial }) {
             <Ctrl icon={muted ? 'mute' : 'mic'} label={muted ? 'Unmute' : 'Mute'} on={muted} onClick={toggleMute} />
             {video && <Ctrl icon="video" label={camOn ? 'Camera' : 'Cam off'} on={!camOn} onClick={toggleCam} />}
             {video && <Ctrl icon="refresh" label="Flip" onClick={flipCamera} />}
-            <Ctrl icon="volume" label={speaker ? 'Speaker' : 'Earpiece'} on={!speaker} onClick={() => setSpeaker(s => !s)} />
+            <Ctrl icon="volume" label={speaker ? 'Speaker' : 'Earpiece'} on={!speaker} onClick={toggleSpeaker} />
             <Ctrl icon="translate" label="Captions" on={showCaptions} onClick={() => setShowCaptions(s => !s)} />
             <Ctrl icon="screen" label="Share" on={sharing} onClick={shareScreen} />
             <button className="cv-end" onClick={hangup} aria-label="End call">

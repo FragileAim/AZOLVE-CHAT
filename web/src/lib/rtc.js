@@ -36,9 +36,23 @@ export async function getIceConfig() {
   return inflight;
 }
 
+/* Never hand the browser a TURN server without credentials: the constructor
+   throws and the whole call dies before a single packet is sent. Filtering here
+   means a bad server response can only ever downgrade us to STUN, not break
+   calling outright. */
+function sanitiseIceServers(list) {
+  return (Array.isArray(list) ? list : []).filter((s) => {
+    if (!s || !s.urls) return false;
+    const urls = Array.isArray(s.urls) ? s.urls : [s.urls];
+    const needsCreds = urls.some((u) => /^turns?:/i.test(String(u)));
+    return !needsCreds || Boolean(s.username && s.credential);
+  });
+}
+
 export function toRtcConfig(cfg) {
+  const iceServers = sanitiseIceServers(cfg?.iceServers);
   return {
-    iceServers: cfg.iceServers,
+    iceServers: iceServers.length ? iceServers : FALLBACK.iceServers,
     iceTransportPolicy: cfg.iceTransportPolicy || 'all',
     bundlePolicy: 'max-bundle',
     rtcpMuxPolicy: 'require',

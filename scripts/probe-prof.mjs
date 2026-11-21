@@ -1,0 +1,30 @@
+import { spawn } from 'node:child_process';
+import WebSocket from 'ws';
+const CHROME='/root/.cache/ms-playwright/chromium_headless_shell-1217/chrome-headless-shell-linux64/chrome-headless-shell';
+const PORT=9377; const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+const chrome=spawn(CHROME,[`--remote-debugging-port=${PORT}`,'--no-sandbox','--disable-gpu','--hide-scrollbars','--user-data-dir=/tmp/cdp-prof2','about:blank'],{stdio:'ignore'});
+async function bws(){for(let i=0;i<80;i++){try{const r=await fetch(`http://127.0.0.1:${PORT}/json/version`);const j=await r.json();if(j.webSocketDebuggerUrl)return j.webSocketDebuggerUrl;}catch{}await sleep(250);}throw new Error('no chrome');}
+const ws=new WebSocket(await bws(),{maxPayload:64*1024*1024});await new Promise(r=>ws.on('open',r));
+let id=0;const w=new Map();ws.on('message',raw=>{const m=JSON.parse(raw.toString());if(m.id&&w.has(m.id)){w.get(m.id)(m);w.delete(m.id);}});
+const bsend=(method,params={},sessionId)=>new Promise(res=>{const i=++id;w.set(i,res);ws.send(JSON.stringify({id:i,method,params,sessionId}));});
+const t=await bsend('Target.createTarget',{url:'about:blank'});
+const at=await bsend('Target.attachToTarget',{targetId:t.result.targetId,flatten:true});
+const sid=at.result.sessionId;const send=(m,p={})=>bsend(m,p,sid);
+await send('Page.enable');await send('Runtime.enable');
+const ev=async(e)=>{const r=await send('Runtime.evaluate',{expression:e,awaitPromise:true,returnByValue:true});if(r.result?.exceptionDetails)throw new Error(JSON.stringify(r.result.exceptionDetails).slice(0,300));return r.result?.result?.value;};
+await send('Page.navigate',{url:'http://localhost:4500'});await sleep(1500);
+const stamp=Date.now().toString().slice(-7);
+const me=await ev(`(async()=>{const post=(p,b)=>fetch(p,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(b)}).then(r=>r.json());
+const s=await post('/api/auth/email/start',{email:'pp.${stamp}@azolve.io',displayName:'Aarav Mehta'});
+const v=await post('/api/auth/email/verify',{userId:s.userId,code:s.deliveryCode});
+const h={'content-type':'application/json',authorization:'Bearer '+v.token};
+await fetch('/api/users/me',{method:'PATCH',headers:h,body:JSON.stringify({username:'pp_${stamp}',country:'IN',bio:'Building AZOLVE. Coffee, code and long calls across four time zones.',mood:'Focused',cover:'https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=1200&q=70',avatar:'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=300&q=70'})});
+localStorage.setItem('azolve.token',v.token);localStorage.setItem('azolve.refresh',v.refreshToken);return v.user.id;})()`);
+await send('Emulation.setDeviceMetricsOverride',{width:390,height:844,deviceScaleFactor:2,mobile:true});
+await ev(`location.hash='#/profile'`);
+for(let i=0;i<20;i++){const ok=await ev(`!!document.querySelector('.profile-hero')`);if(ok)break;await sleep(400);}
+console.log('hash',await ev('location.hash'),'hasHero',await ev(`!!document.querySelector('.profile-hero')`),'body',(await ev('document.body.innerText')).slice(0,120));
+console.log(JSON.stringify(await ev(`(()=>{const h=document.querySelector('.profile-hero');const cs=getComputedStyle(h);
+const kids=[...h.children].map(c=>({cls:c.className,tag:c.tagName,y:Math.round(c.getBoundingClientRect().y),h:Math.round(c.getBoundingClientRect().height),mt:getComputedStyle(c).marginTop,pos:getComputedStyle(c).position}));
+return {heroRect:{y:Math.round(h.getBoundingClientRect().y),h:Math.round(h.getBoundingClientRect().height)},scrollH:h.scrollHeight,clientH:h.clientHeight,display:cs.display,overflow:cs.overflow,position:cs.position,height:cs.height,kids};})()`),null,2));
+chrome.kill();

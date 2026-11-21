@@ -150,12 +150,15 @@ export async function iceServers() {
     source = 'static';
   }
 
-  const entry = { urls };
+  /* A TURN entry without a username/credential is worse than no TURN entry at
+     all: the browser throws InvalidAccessError inside the RTCPeerConnection
+     constructor, so the call never even starts. Only advertise TURN when we
+     actually minted credentials; otherwise stay on STUN and say so. */
   if (creds) {
-    entry.username = creds.username;
-    entry.credential = creds.credential;
+    servers.push({ urls, username: creds.username, credential: creds.credential });
+  } else {
+    console.warn('[turn] TURN URLs are configured but no credentials could be minted — serving STUN only so calls still connect');
   }
-  servers.push(entry);
 
   return { servers, turn: !!creds, source };
 }

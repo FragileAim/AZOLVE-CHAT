@@ -105,9 +105,15 @@ r.post('/calls', requireAuth, (req, res) => {
 r.patch('/calls/:id', requireAuth, (req, res) => {
   const c = get('SELECT * FROM calls WHERE id = ?', req.params.id);
   if (!c) return err(res, 404, 'Call not found');
-  const { status, duration } = req.body || {};
-  run('UPDATE calls SET status = ?, ended_at = ?, duration = ? WHERE id = ?', status || c.status, now(), duration ?? c.duration, c.id);
-  res.json({ ok: true });
+  if (c.caller_id !== req.user.id && c.callee_id !== req.user.id) return err(res, 403, 'Not your call');
+  const { status, duration, reason } = req.body || {};
+  /* The person sending this request is the one who ended it, unless the call
+     was already closed by the other side or timed out. */
+  const endedBy = c.ended_by || (status && status !== 'ringing' ? req.user.id : null);
+  const endedReason = c.ended_reason || reason || (status === 'missed' ? 'no-answer' : status === 'declined' ? 'declined' : status === 'completed' ? 'hangup' : null);
+  run('UPDATE calls SET status = ?, ended_at = ?, duration = ?, ended_by = ?, ended_reason = ? WHERE id = ?',
+    status || c.status, now(), duration ?? c.duration, endedBy, endedReason, c.id);
+  res.json({ ok: true, endedBy, endedReason });
 });
 
 export default r;

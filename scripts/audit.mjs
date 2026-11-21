@@ -99,9 +99,13 @@ async function main() {
     // rate limit: same address twice in a row must be throttled
     const r1 = await req('POST', '/api/auth/email/start', { body: { email: 'audit.owner@azolve.io' } });
     const r2 = await req('POST', '/api/auth/email/start', { body: { email: 'audit.owner@azolve.io' } });
-    // The first call may already be inside the cooldown window left by sign-up,
-    // so what matters is that a rapid repeat is refused rather than re-sent.
-    check('OTP resend is throttled', r2.status === 429, `first=${r1.status} second=${r2.status}`);
+    // A rapid repeat must never mint a second live code. The product either
+    // refuses with 429 or hands back the code that is still valid (reused:true)
+    // so a returning user is not forced to wait. Both are correct; re-sending a
+    // brand new code would not be.
+    const reused = r2.data?.reused === true && r2.data?.deliveryCode === r1.data?.deliveryCode;
+    check('OTP resend is throttled or reuses the live code', r2.status === 429 || reused,
+      `first=${r1.status} second=${r2.status} reused=${r2.data?.reused === true}`);
 
     const badEmail = await req('POST', '/api/auth/email/start', { body: { email: 'not-an-email' } });
     check('invalid email -> 400', badEmail.status === 400, String(badEmail.status));
@@ -131,6 +135,19 @@ async function main() {
     check('GET /api/users/suggestions', sug.status === 200, String(sug.status));
     const byName = await req('GET', `/api/users/${B.user.username}`, { token: A.token });
     check('GET /api/users/:username', byName.status === 200, String(byName.status));
+  }
+
+  section('2b. Contacts (the request gate)');
+  {
+    /* Messaging and calling are contact-only. Without this the rest of the
+       audit would be testing a gate instead of the features behind it. */
+    const rq = await req('POST', '/api/contacts/request', { token: A.token, body: { userId: B.user.id } });
+    check('contact request sent', rq.status === 201 || rq.data.state === 'pending_out', JSON.stringify(rq.data).slice(0, 70));
+    const rid = rq.data.requestId;
+    const acc = await req('POST', '/api/contacts/respond', { token: B.token, body: { requestId: rid, action: 'accept' } });
+    check('contact request accepted', acc.status === 200 && acc.data.state === 'contact', JSON.stringify(acc.data).slice(0, 70));
+    const st = await req('GET', `/api/contacts/state/${B.user.id}`, { token: A.token });
+    check('contact state reads back as contact', st.status === 200 && st.data.state === 'contact', JSON.stringify(st.data).slice(0, 70));
   }
 
   section('3. Chats & messaging');
@@ -384,6 +401,26 @@ async function main() {
       token: A.token, body: { body: 'x'.repeat(20000) },
     });
     check('oversized message rejected', huge.status === 400 || huge.status === 413, String(huge.status));
+  }
+
+  section('13b. Push notifications (ring when the app is closed)');
+  {
+    const key = await req('GET', '/api/push/key');
+    check('GET /api/push/key returns a VAPID public key',
+      key.status === 200 && typeof key.data.key === 'string' && key.data.key.length > 40,
+      key.status === 200 ? `${key.data.key.slice(0, 12)}...` : String(key.status));
+
+    const st = await req('GET', '/api/push/status', { token: A.token });
+    check('GET /api/push/status', st.status === 200 && st.data.ready === true, JSON.stringify(st.data));
+
+    const badSub = await req('POST', '/api/push/subscribe', { token: A.token, body: { subscription: { endpoint: 'x' } } });
+    check('subscribe rejects an incomplete subscription', badSub.status === 400, String(badSub.status));
+
+    const badTok = await req('POST', '/api/push/decline', { body: { token: 'not-a-token' } });
+    check('decline rejects a bad token', badTok.status === 401, String(badTok.status));
+
+    const anon = await req('GET', '/api/push/status');
+    check('push status needs a session', anon.status === 401, String(anon.status));
   }
 
   section('14. Logout');

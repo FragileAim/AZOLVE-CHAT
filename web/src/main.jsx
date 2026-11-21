@@ -26,6 +26,12 @@ async function boot() {
   }
   const root = createRoot(document.getElementById('root'));
   root.render(<App />);
+
+  /* Registering the worker early means a call can ring this device even if the
+     person never opens Settings. It does nothing until they grant permission. */
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('/sw.js', { scope: '/' }).catch(() => {});
+  }
 }
 
 boot();

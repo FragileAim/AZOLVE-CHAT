@@ -1,29 +1,40 @@
-# AZOLVE CHAT — Request Z: bright default, adaptive UI, fix the UI
+# AZOLVE CHAT — Request AA: call audio, call details, profile UI, stay signed in, ring when app is closed
 
-## 1. Diagnose honestly
-- [x] Rebuild the UI audit so it cannot lie (theme was leaking between runs; hash-only navigation never reloaded React)
-- [x] Screenshot + measure all surfaces at phone / small phone / tablet / desktop in both themes
-- [x] Separate real defects from false positives (gradient buttons, clipped decorative glows, scroll rails)
+## 1. Voice calls: nobody can hear anybody
+- [x] Find the real cause (audio-only calls had no media sink at all)
+- [x] Always mount a remote audio element; attach the remote stream to it
+- [x] Fix the peer-connection double-create race (accept + signal both called ensurePC)
+- [x] Make the speaker/earpiece control actually do something (setSinkId) or say it can't
+- [x] Prove it with a real two-browser WebRTC test that measures received audio level
+- [x] Fix the credential-less TURN entry that made RTCPeerConnection throw (server + client)
+- [x] Wire the real Metered TURN username/credential so relay works off-LAN
 
-## 2. Bright by default
-- [x] App.jsx default theme 'light'
-- [x] index.html data-theme="light" + theme-color #F6F6FA
-- [x] Pre-paint inline script so a saved dark choice never flashes light (and vice versa)
+## 2. Call details: who ended it and how long it lasted
+- [x] Migrate calls table: ended_by, ended_reason
+- [x] Server records who ended / declined / missed, and the duration
+- [x] Calls list shows "You ended · 2:31", "Priya ended · 2:31", "Missed", "You declined"
+- [x] Ended screen says who hung up and how long the call ran
+- [x] test-aa.mjs: 20/20 socket-level checks pass
 
-## 3. Adaptive layout
-- [x] Fix desktop dead gap: `.app > *` was forcing the fixed rail back into flow (92px double offset)
-- [x] Use 100dvh for app + chat so mobile browser chrome cannot clip the chat
-- [x] Confirm rail on desktop, floating bottom nav on phone/tablet, single-column chat on phones
+## 3. Profile UI
+- [x] Rebuild the hero as a responsive grid (cover, avatar, actions, stats)
+- [x] Fix the phone layout: 170px cover, 54px padding hacks, wrapped action row
+- [x] Verify at 360 / 390 / 834 / 1440 in both themes
+- [x] Real bug found and fixed: the flex container was shrinking the card to 292px for 525px of content, so overflow:hidden cut the stats row off. 0 problems across all 8 combinations now
 
-## 4. Fix the UI that looked unfinished
-- [x] Style `.link-btn` (was a browser-default button, used across auth/home/moments/social)
-- [x] Style `.quick-grid button` (AI actions were unstyled)
-- [x] Fix chats tab active state (`.active` vs the `on` class the JSX sets)
-- [x] Style `.lang-pill`, `.people-row`, `.contact-card`, `.mv-nav`, `.cm-form`, `.cm-upload`, `.cm-cap`, `.ai-compose-panel`, `.acp-*`, `.pill-count`, `.word-cloud`, `.word-chip`
-- [x] Raise tap targets: chips 36px, `.btn.tiny` 36px, filters 34px, min button 44px
+## 4. Stay signed in on the same device
+- [x] Fix the snapshot signature: it ignored the -wal file, so saves were skipped and accounts vanished on restart
+- [x] Save immediately after signup / login / refresh instead of waiting for the 60s tick
+- [x] Boot must not sign you out on a network error — only on a real 401/revoked session
+- [x] Prove it: register, restart the server, confirm the same token still works (6/6)
 
-## 5. Verify + ship
-- [x] Audit clean: 0 issues across 72 app surfaces + 6 auth surfaces, both themes
-- [x] Seed a real account with a contact + conversation so the audit sees populated screens
-- [ ] Build, commit, deploy to Render, verify production
+## 5. Ring when the app is closed
+- [x] VAPID keys + push_subscriptions table + subscribe/unsubscribe endpoints
+- [x] Service worker: show the incoming call with Accept / Decline actions
+- [x] Server sends a push on call:invite when the callee has no live socket
+- [x] Declining from the notification really declines the call server-side
+- [x] Browser proof: 7/7 (real PushSubscription skipped — headless has no push service)
+
+## 6. Ship
+- [ ] Build, run the full API audit + UI audit, deploy, verify production
 - [ ] Rebuild APK + iOS zip

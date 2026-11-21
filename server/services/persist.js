@@ -166,10 +166,20 @@ export async function restoreSnapshot(dbPath) {
 let lastSig = '';
 let saving = false;
 
+/* The database runs in WAL mode, so almost every write lands in the -wal file
+   and the main .db file is not touched until a checkpoint. Signing only the
+   main file therefore reported "unchanged" for a database that had just gained
+   a user, the save was skipped, and the account vanished at the next restart.
+   Both files are part of the signature. */
 function signature(file) {
   try {
     const s = fs.statSync(file);
-    return `${s.size}:${Math.round(s.mtimeMs)}`;
+    let wal = '0:0';
+    try {
+      const w = fs.statSync(`${file}-wal`);
+      wal = `${w.size}:${Math.round(w.mtimeMs)}`;
+    } catch { /* no WAL file means everything is already in the main file */ }
+    return `${s.size}:${Math.round(s.mtimeMs)}:${wal}`;
   } catch { return ''; }
 }
 
@@ -225,6 +235,27 @@ export async function saveSnapshot(db, { force = false, file: explicitPath = nul
   } finally {
     saving = false;
   }
+}
+
+/* ---------------------------------------------------------------------------
+   Event-driven saves
+   Waiting for the 60 second tick means a brand new account is not backed up
+   for up to a minute. Signup, login and refresh call requestSave() so the
+   snapshot is current within a fraction of a second.
+--------------------------------------------------------------------------- */
+let boundDb = null;
+let pendingSave = null;
+
+export function bindDb(db) { boundDb = db; }
+
+export function requestSave(delay = 300) {
+  if (!snapshotEnabled() || !boundDb) return;
+  if (pendingSave) clearTimeout(pendingSave);
+  pendingSave = setTimeout(() => {
+    pendingSave = null;
+    saveSnapshot(boundDb, { force: true }).catch(() => {});
+  }, delay);
+  pendingSave.unref?.();
 }
 
 /** Start the background saver. Returns a stop function. */
