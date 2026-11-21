@@ -126,7 +126,17 @@ seedIfEmpty();
 /* Keep an encrypted copy of the database off-box so a restart on a diskless
    host does not wipe every account. */
 startSnapshotLoop(db);
-if (snapshotEnabled()) saveSnapshot(db, { force: true }).catch(() => {});
+if (snapshotEnabled()) {
+  /* Establish a baseline only when the restore actually succeeded, or when
+     there was nothing to restore yet. If a restore errored, saving now would
+     overwrite a good snapshot with this empty database. */
+  const r = persistStatus.lastRestore;
+  if (!r || r.restored || r.reason === 'no-snapshot-yet') {
+    saveSnapshot(db, { force: true }).catch(() => {});
+  } else {
+    console.warn('[persist] restore did not succeed — leaving the stored snapshot untouched');
+  }
+}
 
 /* Lets us confirm from outside that backups are actually landing, instead of
    hoping a log line was seen. */

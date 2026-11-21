@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="azolve_bg">#FF07070C</color>
+    <color name="azolve_bg">#FFF6F6FA</color>
     <color name="azolve_brand">#FF6555F0</color>
     <color name="azolve_brand_2">#FF4F7FF2</color>
 </resources>

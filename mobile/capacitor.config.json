@@ -6,7 +6,7 @@
   "ios": {
     "contentInset": "never",
     "limitsNavigationsToAppBoundDomains": false,
-    "backgroundColor": "#07070C"
+    "backgroundColor": "#F6F6FA"
   },
   "server": {
     "iosScheme": "capacitor"

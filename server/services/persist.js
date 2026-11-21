@@ -174,7 +174,7 @@ function signature(file) {
 }
 
 /** Push the current database to the configured store. Safe to call often. */
-export async function saveSnapshot(db, { force = false, file: explicitPath = null } = {}) {
+export async function saveSnapshot(db, { force = false, file: explicitPath = null, allowEmpty = false } = {}) {
   const b = backend();
   status.backend = b;
   if (!b || saving) return { saved: false };
@@ -183,6 +183,24 @@ export async function saveSnapshot(db, { force = false, file: explicitPath = nul
 
   const sig = signature(dbPath);
   if (!force && sig === lastSig) return { saved: false, reason: 'unchanged' };
+
+  /* Never replace a snapshot that may hold real accounts with a database that
+     has none. This is what would happen if a restore failed transiently on a
+     diskless host: the container starts empty and the first save would wipe the
+     only copy of everyone's data. */
+  if (!allowEmpty) {
+    const users = (() => { try { return db.prepare('SELECT COUNT(*) AS n FROM users').get().n; } catch { return 0; } })();
+    if (!users) {
+      try {
+        const existing = b === 'postgres' ? await pgGet() : await ghGet();
+        if (existing) {
+          status.lastError = null;
+          console.warn('[persist] refusing to overwrite a stored snapshot with an empty database');
+          return { saved: false, reason: 'empty-db-guard' };
+        }
+      } catch { /* if we cannot read it, fall through and save */ }
+    }
+  }
 
   saving = true;
   try {
