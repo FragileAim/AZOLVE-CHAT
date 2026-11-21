@@ -412,6 +412,9 @@ function CallStageInner({ call, onClose, onRedial }) {
         if (!source) return;
         const socket = getSocket();
         if (seg.engine === 'device') {
+          /* Show what we heard immediately, so the speaker can see the engine is
+             alive, then let the translated line replace it a moment later. */
+          addCaption({ source, text: source, srcLang: myLang, lang: myLang, mine: true, provisional: true });
           /* the server translates and fans the line out to both sides */
           socket?.emit('call:speech', { to: peerId, callId, text: source, lang: myLang });
         } else {
@@ -826,11 +829,22 @@ function CallStageInner({ call, onClose, onRedial }) {
           </div>
           <div className="cv-top-right">
             {phase === 'active' && (
-              <span className={`cv-chip mini live ${liveStatus.state === 'listening' ? 'on' : ''}`}>
+              <span
+                className={`cv-chip mini live ${liveStatus.state === 'listening' ? 'on' : ''}`}
+                data-state={liveStatus.state}
+                data-engine={liveStatus.engine || 'none'}
+                title={liveStatus.state === 'error'
+                  ? `Live captions could not start: ${liveStatus.error || 'unknown error'}`
+                  : liveStatus.engine === 'server'
+                    ? 'Listening on this device, transcribed and translated on the server'
+                    : 'Listening on this device'}
+              >
                 <i className="cv-live-dot" />
                 {liveStatus.state === 'listening'
                   ? `Live · ${langOf(user.language).code?.toUpperCase()} → ${peerLang.code?.toUpperCase()}`
-                  : liveOn ? 'Live starting…' : 'Live off'}
+                  : liveStatus.state === 'error' ? 'Live unavailable'
+                    : liveStatus.state === 'unsupported' ? 'Live unsupported'
+                      : liveOn ? 'Live starting…' : 'Live off'}
               </span>
             )}
             {peerMuted && <span className="cv-chip mini mute"><Icon name="mute" size={11} /> They're muted</span>}

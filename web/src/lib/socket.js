@@ -119,6 +119,10 @@ export function connectSocket() {
   const token = getToken();
   if (!token) return null;
   socket = io({ auth: { token }, transports: ['websocket', 'polling'] });
+  /* Support aid: lets a developer (or a bug report) inspect the live signalling
+     socket from the console. Nothing is exposed that the page does not already
+     hold. */
+  try { window.__azolveSocket = socket; } catch { /* no window */ }
   return socket;
 }
 
