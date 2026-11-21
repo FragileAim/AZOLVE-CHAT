@@ -41,7 +41,19 @@ app.use('/api', (req, res, next) => {
   next();
 });
 
-app.get('/api/health', (req, res) => res.json({ ok: true, service: 'azolve-chat', version: '1.0.0', time: Date.now() }));
+/* Report the version that is actually running. It used to be hardcoded to
+   1.0.0, so every deploy still claimed to be the first release. */
+const PKG_VERSION = (() => {
+  try {
+    const here = path.dirname(new URL(import.meta.url).pathname);
+    for (const rel of ['../package.json', 'package.json']) {
+      const p = path.resolve(here, rel);
+      if (fs.existsSync(p)) return JSON.parse(fs.readFileSync(p, 'utf8')).version || 'unknown';
+    }
+  } catch { /* fall through */ }
+  return 'unknown';
+})();
+app.get('/api/health', (req, res) => res.json({ ok: true, service: 'azolve-chat', version: PKG_VERSION, time: Date.now() }));
 
 /* Lets us confirm from outside that backups are actually landing, instead of
    hoping a log line was seen. Must be declared before the /api catch-all. */
