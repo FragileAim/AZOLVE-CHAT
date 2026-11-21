@@ -1,27 +1,32 @@
-# AZOLVE CHAT — Request AC: match the supplied design set, structurally
+# AZOLVE CHAT — Request AD: welcome page must not require scrolling
 
-## 1. Diagnose the real gap
-- [x] Pixel-histogram all 10 designs — palette was already byte-exact (#F7F5F0, #0C0F1B, #344FF5, #E3E4F1, #FDF6EC, #0E121F)
-- [x] OCR every screen to extract exact geometry (headings, tabs, rows, bubbles)
-- [x] Conclude the mismatch was structure/layout, not colour
+## A. Reproduce & measure
+- [x] Measure welcome hero and post-"Get started" form geometry via CDP at 360×640, 375×667, 390×844, 414×896
+- [x] Identify the submit button's real label ("Email me a code" / "Create account & email my code")
 
-## 2. Rebuild the structure
-- [x] Thin 34px top bar "Azolve Chat — <Screen>" on every screen
-- [x] Chat list: 40px "Chats", compose + search actions, centred Personal/Groups/Work pills, design spacing
-- [x] Conversation: TODAY divider above the lavender auto-translate banner
-- [x] Feed: "Updates" header, underline tabs, story rings, likes above caption
-- [x] Profile: cover, 30px name, Public badge, stats, underline tabs
-- [x] AI: centred header, private subtitle
-- [x] Translation settings: centred title + back, PREVIEW card, four design toggles, language pickers
-- [x] Welcome: phone-only hero (wordmark, preview chat, language chips, "Say it your way. They read it theirs.", Get started)
-- [x] Discover: title, category chips, Trending now hashtags, popular creators
+## B. Fix the transition
+- [x] Add `started` state so the hero is replaced by the form (not appended below it)
+- [x] Hide `.auth-mobile-hero` entirely once started
+- [x] Make `.auth-panel.started` a full-height flex column with a borderless transparent card
+- [x] Add a back chevron that restores the hero
+- [x] Tighten vertical rhythm (tabs, h2, sub, fields, buttons)
+- [x] Short-screen rules (≤740px height) drop legal footnote / OAuth row
+- [x] Trim hero spacing on short screens so "Get started" sits above the fold
 
-## 3. Verify
-- [x] Production build succeeds
-- [x] 80-combination UI sweep: 0 console exceptions, no page overflow
-- [x] Screenshots regenerated and compared against the design set
+## C. Verify
+- [x] All 8 size × mode combinations: `scrollH === viewport`, primary CTA visible, hero hidden
+- [x] Hero at all 4 sizes: `scrollH === viewport`, CTA visible
+- [x] Back button restores hero
+- [x] Full UI sweep: 0 console exceptions, no page-level overflow
 
-## 4. Ship
-- [x] Commit and push to main (aacb2ad) — Render auto-deploy verified (new CSS + classes live)
-- [x] Rebuild Android APK v1.0.6 (versionCode 7)
-- [x] Rebuild iOS Xcode project v1.0.6 (CURRENT_PROJECT_VERSION 7)
+## D. Build hardening
+- [x] Discover CSS minifier emitted `width<=899px` range syntax (breaks iOS < 16.4 / old Android WebView)
+- [x] Pin `cssTarget` to chrome87/safari13/firefox78/edge88 → classic `max-width` queries
+- [x] Confirm 0 range-syntax queries in the built CSS
+
+## E. Ship
+- [x] Bump to v1.0.7 (versionCode 8, CURRENT_PROJECT_VERSION 8, MARKETING_VERSION 1.0.7)
+- [x] Rebuild APK with corrected CSS, verify bundled asset hash + media queries
+- [x] Rebuild iOS project zip
+- [x] Commit + push `main`, confirm Render auto-deploy
+- [x] Verify live CSS hash, absence of range syntax, `/api/health` 200
