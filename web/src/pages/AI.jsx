@@ -107,8 +107,8 @@ export default function AI() {
     <div className="page page-wide ai-page">
       <div className="page-head">
         <div>
-          <h1><span className="grad-text">AZOLVE AI</span></h1>
-          <p className="muted">Your multilingual copilot for messages, posts and ideas.</p>
+          <h1>Azolve AI</h1>
+          <p className="muted">Private · on your chats only</p>
         </div>
         <div className="engine-chip" title="The model actually answering right now">
           <Icon name="zap" size={14} /> engine: <b>{status?.engine || '…'}</b>

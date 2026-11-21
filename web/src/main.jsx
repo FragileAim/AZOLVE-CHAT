@@ -5,6 +5,7 @@ import './styles.css';
 import './styles-v2.css';
 import './styles-v3.css';
 import './styles-mobile.css';
+import './styles-v4.css';
 
 const DEMO = import.meta.env.VITE_DEMO === '1';
 

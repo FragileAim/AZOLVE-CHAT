@@ -38,7 +38,9 @@ function ChatList({ activeId }) {
   const { user, notify } = useApp();
   const [convs, setConvs] = useState(null);
   const [q, setQ] = useState('');
-  const [archived, setArchived] = useState(false);
+  /* Design tabs: Personal (direct messages), Groups, Work (archived threads). */
+  const [tab, setTab] = useState('personal');
+  const archived = tab === 'work';
   const [newOpen, setNewOpen] = useState(false);
 
   const load = useCallback(async () => {
@@ -55,10 +57,12 @@ function ChatList({ activeId }) {
     return () => { s.off('conversation:updated', h); s.off('message:new', h); };
   }, [load]);
 
-  const filtered = useMemo(() => (convs || []).filter(c =>
-    !q || c.title?.toLowerCase().includes(q.toLowerCase()) ||
-    c.participants.some(p => p.displayName.toLowerCase().includes(q.toLowerCase()))
-  ), [convs, q]);
+  const filtered = useMemo(() => (convs || []).filter(c => {
+    if (tab === 'personal' && c.type === 'group') return false;
+    if (tab === 'groups' && c.type !== 'group') return false;
+    return !q || c.title?.toLowerCase().includes(q.toLowerCase()) ||
+      c.participants.some(p => p.displayName.toLowerCase().includes(q.toLowerCase()));
+  }), [convs, q, tab]);
 
   return (
     <aside className="chat-list-pane">
@@ -72,8 +76,9 @@ function ChatList({ activeId }) {
           <input value={q} onChange={e => setQ(e.target.value)} placeholder="Search conversations" />
         </div>
         <div className="clp-tabs">
-          <button className={!archived ? 'on' : ''} onClick={() => setArchived(false)}>All</button>
-          <button className={archived ? 'on' : ''} onClick={() => setArchived(true)}><Icon name="archive" size={13} /> Archived</button>
+          <button className={tab === 'personal' ? 'on' : ''} onClick={() => setTab('personal')}>Personal</button>
+          <button className={tab === 'groups' ? 'on' : ''} onClick={() => setTab('groups')}>Groups</button>
+          <button className={tab === 'work' ? 'on' : ''} onClick={() => setTab('work')} title="Archived conversations">Work</button>
         </div>
       </div>
 
@@ -81,7 +86,7 @@ function ChatList({ activeId }) {
         {!convs ? [1, 2, 3, 4, 5].map(i => (
           <div key={i} className="conv-skel"><Skeleton w={46} h={46} r={99} /><div style={{ flex: 1 }}><Skeleton w="55%" h={13} /><Skeleton w="80%" h={11} style={{ marginTop: 7 }} /></div></div>
         )) : filtered.length === 0 ? (
-          <Empty icon="chat" title={archived ? 'Nothing archived' : 'No conversations'} text={q ? 'No chats match that search.' : 'Start a direct message or create a group.'} />
+          <Empty icon="chat" title={tab === 'work' ? 'Nothing archived' : tab === 'groups' ? 'No groups yet' : 'No conversations'} text={q ? 'No chats match that search.' : tab === 'groups' ? 'Create a group to talk with several people at once.' : 'Start a direct message or create a group.'} />
         ) : filtered.map(c => (
           <button key={c.id} className={`conv-item ${activeId === c.id ? 'active' : ''}`} onClick={() => navigate('chats', c.id)}>
             <div className="ci-avatar">
@@ -528,6 +533,12 @@ function ChatView({ id }) {
         </div>
       </header>
 
+      <div className="translation-banner">
+        <Icon name="translate" size={13} />
+        <span>Messages are auto-translated to {langOf(me.language).label}</span>
+        <button onClick={() => navigate('settings')}>Settings</button>
+      </div>
+
       <div className="chat-scroll" ref={scrollRef}>
         {loading ? <div className="chat-loading"><Skeleton h={40} w="60%" /><Skeleton h={40} w="45%" style={{ marginLeft: 'auto' }} /><Skeleton h={40} w="55%" /></div> : (
           <>
@@ -687,6 +698,9 @@ function MessageBubble({ m, mine, sender, showName, isGroup, me, participants, o
         </div>
         <div className={`bubble ${m.pending ? 'pending' : ''} ${m.failed ? 'failed' : ''}`} dir={isRTL(m.displayLang || m.originalLang) ? 'rtl' : 'ltr'}>
           {showName && <div className="sender">{sender?.displayName || 'Member'}</div>}
+          {showName && m.originalLang && m.originalLang !== me.language && (
+            <div className="lang-tag">from {langOf(m.originalLang).native}</div>
+          )}
           {m.replyTo && (
             <div className="reply-quote">
               <b>{m.replyTo.sender_id === me.id ? 'You' : participants.find(p => p.id === m.replyTo.sender_id)?.displayName || 'Member'}</b>

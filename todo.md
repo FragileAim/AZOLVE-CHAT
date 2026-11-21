@@ -1,40 +1,35 @@
-# AZOLVE CHAT — Request AA: call audio, call details, profile UI, stay signed in, ring when app is closed
+# AZOLVE CHAT — Request AB: match the supplied design set
 
-## 1. Voice calls: nobody can hear anybody
-- [x] Find the real cause (audio-only calls had no media sink at all)
-- [x] Always mount a remote audio element; attach the remote stream to it
-- [x] Fix the peer-connection double-create race (accept + signal both called ensurePC)
-- [x] Make the speaker/earpiece control actually do something (setSinkId) or say it can't
-- [x] Prove it with a real two-browser WebRTC test that measures received audio level
-- [x] Fix the credential-less TURN entry that made RTCPeerConnection throw (server + client)
-- [x] Wire the real Metered TURN username/credential so relay works off-LAN
+## 1. Extract the design specification
+- [x] Read all 10 screenshots and OCR every screen
+- [x] Extract the exact palette (cream #F7F5F0, white, ink #0E121F, Azolve Blue #344FF5, lavender #E3E4F1, cream bubble #FDF6EC, gold #F4BC54)
+- [x] Extract the night palette (#0C0F1B page, #181E34 surface, #24293E elevated)
+- [x] Lock the type scale (Display 34/800, Title 26/800, Heading 20/700, Body 15/500, Caption 13)
 
-## 2. Call details: who ended it and how long it lasted
-- [x] Migrate calls table: ended_by, ended_reason
-- [x] Server records who ended / declined / missed, and the duration
-- [x] Calls list shows "You ended · 2:31", "Priya ended · 2:31", "Missed", "You declined"
-- [x] Ended screen says who hung up and how long the call ran
-- [x] test-aa.mjs: 20/20 socket-level checks pass
+## 2. Build the v4 design layer
+- [x] Write `web/src/styles-v4.css` with the exact tokens, radii, shadows and type scale
+- [x] Load it last in `main.jsx` so it wins the cascade
+- [x] Restyle shell, rail, mobile nav, cards, buttons, inputs
+- [x] Restyle chat list, conversation, bubbles, translation banner, original block, composer
+- [x] Restyle Explore (Updates title, For you/Following/Reels, stories row, post cards)
+- [x] Restyle Profile (verified name, handle, bio, Public badge, stats, highlights)
+- [x] Restyle AI (Azolve AI, private subtitle, cards, action chips)
+- [x] Restyle Translation settings (preview card + 4 toggles + language pickers)
+- [x] Restyle Welcome/auth to the design hero (preview chat card, language chips, headline)
 
-## 3. Profile UI
-- [x] Rebuild the hero as a responsive grid (cover, avatar, actions, stats)
-- [x] Fix the phone layout: 170px cover, 54px padding hacks, wrapped action row
-- [x] Verify at 360 / 390 / 834 / 1440 in both themes
-- [x] Real bug found and fixed: the flex container was shrinking the card to 292px for 525px of content, so overflow:hidden cut the stats row off. 0 problems across all 8 combinations now
+## 3. Add the missing structure from the designs
+- [x] Chats: Personal / Groups / Work pill tabs
+- [x] Conversation: auto-translation banner with Settings link
+- [x] Group messages: "from <language>" tag
+- [x] Explore: Updates header, three feed tabs, stories rail
+- [x] Settings: translation preview + the four design toggles
 
-## 4. Stay signed in on the same device
-- [x] Fix the snapshot signature: it ignored the -wal file, so saves were skipped and accounts vanished on restart
-- [x] Save immediately after signup / login / refresh instead of waiting for the 60s tick
-- [x] Boot must not sign you out on a network error — only on a real 401/revoked session
-- [x] Prove it: register, restart the server, confirm the same token still works (6/6)
+## 4. Verify
+- [x] Production build succeeds
+- [x] 80-combination UI sweep: no horizontal overflow, 0 console exceptions
+- [x] Token probe confirms cream/night backgrounds, 800-weight headings, ink active pills
+- [x] Conversation renders white incoming bubbles in light and #24293E in dark
 
-## 5. Ring when the app is closed
-- [x] VAPID keys + push_subscriptions table + subscribe/unsubscribe endpoints
-- [x] Service worker: show the incoming call with Accept / Decline actions
-- [x] Server sends a push on call:invite when the callee has no live socket
-- [x] Declining from the notification really declines the call server-side
-- [x] Browser proof: 7/7 (real PushSubscription skipped — headless has no push service)
-
-## 6. Ship
-- [ ] Build, run the full API audit + UI audit, deploy, verify production
-- [ ] Rebuild APK + iOS zip
+## 5. Ship
+- [ ] Commit and push to main (Render auto-deploy)
+- [ ] Rebuild Android APK + iOS project as v1.0.5

@@ -219,6 +219,9 @@ function Composer({ onClose, onCreated }) {
 export default function Explore() {
   const { user, notify } = useApp();
   const [tab, setTab] = useState('feed');
+  /* Top tabs from the design: For you / Following / Reels. */
+  const [view, setView] = useState('foryou');
+  const [moments, setMoments] = useState([]);
   const [feed, setFeed] = useState(null);
   const [explore, setExplore] = useState(null);
   const [trending, setTrending] = useState([]);
@@ -238,6 +241,7 @@ export default function Explore() {
     loadFeed();
     loadExplore();
     API.trending().then(r => setTrending(r.trending || [])).catch(() => {});
+    API.moments().then(r => setMoments(r.moments || [])).catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -253,27 +257,47 @@ export default function Explore() {
     catch { setSearchResults([]); }
   };
 
-  const posts = tab === 'feed' ? feed : explore;
+  const posts = view === 'reels' ? explore : feed;
 
   return (
     <div className="page page-wide explore-page">
-      <div className="page-head">
-        <div>
-          <h1>AZOLVE <span className="grad-text">SOCIAL</span></h1>
-          <p className="muted">A global feed that speaks your language — every caption is translatable.</p>
-        </div>
-        <button className="btn primary" onClick={() => setComposer(true)}><Icon name="plus" size={18} /> Create</button>
-      </div>
-
       <div className="explore-top">
+        <div className="row-between" style={{ marginBottom: 14 }}>
+          <h1>Updates</h1>
+          <button className="icon-btn" onClick={() => setComposer(true)} aria-label="Create a post"
+            style={{ width: 38, height: 38, borderRadius: '50%', background: 'var(--azolve-blue)', color: '#fff' }}>
+            <Icon name="plus" size={19} />
+          </button>
+        </div>
         <div className="explore-search">
           <Icon name="search" size={18} />
           <input value={q} onChange={e => setQ(e.target.value)} onKeyDown={e => e.key === 'Enter' && searchPeople(e)}
             placeholder="Search people, hashtags, places…" />
           {q && <button className="icon-btn" onClick={() => { setQ(''); setSearchResults(null); }}><Icon name="close" size={16} /></button>}
         </div>
-        <Seg options={[{ id: 'feed', label: 'Following' }, { id: 'explore', label: 'Discover' }]} value={tab} onChange={setTab} />
       </div>
+
+      <div className="feed-tabs">
+        <button className={view === 'foryou' ? 'on' : ''} onClick={() => { setView('foryou'); setTab('feed'); }}>For you</button>
+        <button className={view === 'following' ? 'on' : ''} onClick={() => { setView('following'); setTab('feed'); }}>Following</button>
+        <button className={view === 'reels' ? 'on' : ''} onClick={() => { setView('reels'); setTab('explore'); }}>Reels</button>
+      </div>
+
+      <div className="stories-row">
+        <button className="story-item" onClick={() => navigate('moments')}>
+          <div className="story-ring"><div className="inner" style={{ display: 'grid', placeItems: 'center', color: 'var(--azolve-blue)' }}><Icon name="plus" size={22} /></div></div>
+          <div className="nm">Your story</div>
+        </button>
+        {moments.slice(0, 8).map(m => (
+          <button key={m.id} className="story-item" onClick={() => navigate('moments')}>
+            <div className={`story-ring ${m.viewed ? 'seen' : ''}`}>
+              <div className="inner"><Avatar user={m.author || { displayName: 'User' }} size={56} /></div>
+            </div>
+            <div className="nm">{m.author?.displayName?.split(' ')[0] || 'User'}</div>
+          </button>
+        ))}
+      </div>
+
 
       {searchResults && (
         <div className="card search-results">

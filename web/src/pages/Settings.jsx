@@ -392,23 +392,49 @@ export default function Settings() {
           )}
 
           {sec === 'language' && (
-            <div className="card stack">
-              <h2>Language &amp; translation</h2>
-              <label className="field"><span>Your display language</span>
-                <select value={profile.language} onChange={e => { setProfile(p => ({ ...p, language: e.target.value })); }}>
-                  {LANGS.map(l => <option key={l.code} value={l.code}>{l.label} — {l.native}</option>)}
-                </select>
-              </label>
-              <button className="btn primary btn-sm" onClick={saveProfile} disabled={saving}>Save language</button>
-              <Switch on={prefs.autoTranslate !== false} label="Auto-translate incoming messages into my language"
-                onChange={v => savePrefs({ ...prefs, autoTranslate: v })} />
-              <div className="info-box">
-                <Icon name="info" size={16} />
-                <div>
-                  <b>How translation works</b>
-                  <p className="muted small">Every message is stored once in its original language. Translation happens per-recipient at read time and is cached separately — the original is never overwritten. If a provider is unavailable, AZOLVE falls back gracefully.</p>
-                  <div className="prov-chips">
-                    {(aiStatus?.translationProviders || []).map(p => <span key={p.name} className={`prov ${p.available ? 'on' : ''}`}>{p.name}{p.available ? ' ✓' : ''}</span>)}
+            <div className="stack">
+              <div className="card stack">
+                <div className="sec-head"><h3>Translation</h3></div>
+                <div className="tr-preview">
+                  <div className="src">Shall we meet this evening?</div>
+                  <div className="dst">¿Nos vemos esta noche? · translated to {langOf(profile.language).label}</div>
+                </div>
+                <Switch on={prefs.autoTranslate !== false} label="Auto-translate messages"
+                  onChange={v => savePrefs({ ...prefs, autoTranslate: v })} />
+                <p className="muted small" style={{ marginTop: -6 }}>Incoming chats appear in your language.</p>
+                <Switch on={prefs.showOriginalDefault === true} label="Show original by default"
+                  onChange={v => savePrefs({ ...prefs, showOriginalDefault: v })} />
+                <p className="muted small" style={{ marginTop: -6 }}>Display both languages together.</p>
+                <Switch on={prefs.voiceCaptions !== false} label="Voice message captions"
+                  onChange={v => savePrefs({ ...prefs, voiceCaptions: v })} />
+                <p className="muted small" style={{ marginTop: -6 }}>Transcribe and translate audio.</p>
+                <Switch on={prefs.translateFeeds !== false} label="Stories, posts & reels"
+                  onChange={v => savePrefs({ ...prefs, translateFeeds: v })} />
+                <p className="muted small" style={{ marginTop: -6 }}>Translate captions in feeds.</p>
+              </div>
+
+              <div className="card stack">
+                <div className="sec-head"><h3>Languages</h3></div>
+                <label className="field"><span>Your language</span>
+                  <select value={profile.language} onChange={e => { setProfile(p => ({ ...p, language: e.target.value })); }}>
+                    {LANGS.map(l => <option key={l.code} value={l.code}>{l.label} — {l.native}</option>)}
+                  </select>
+                </label>
+                <label className="field"><span>Translate everything into</span>
+                  <select value={prefs.translateTo || profile.language}
+                    onChange={e => savePrefs({ ...prefs, translateTo: e.target.value })}>
+                    {LANGS.map(l => <option key={l.code} value={l.code}>{l.label} — {l.native}</option>)}
+                  </select>
+                </label>
+                <button className="btn primary btn-sm" onClick={saveProfile} disabled={saving}>Save language</button>
+                <div className="info-box">
+                  <Icon name="info" size={16} />
+                  <div>
+                    <b>How translation works</b>
+                    <p className="muted small">Every message is stored once in its original language. Translation happens per-recipient at read time and is cached separately — the original is never overwritten. If a provider is unavailable, AZOLVE falls back gracefully.</p>
+                    <div className="prov-chips">
+                      {(aiStatus?.translationProviders || []).map(p => <span key={p.name} className={`prov ${p.available ? 'on' : ''}`}>{p.name}{p.available ? ' ✓' : ''}</span>)}
+                    </div>
                   </div>
                 </div>
               </div>

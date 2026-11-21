@@ -224,23 +224,20 @@ export default function Auth() {
         </div>
 
         <div className="auth-art-copy">
-          <div className="eyebrow"><span className="pulse-dot" /> AI-POWERED GLOBAL COMMUNICATION</div>
-          <h1>Every language.<br /><em>One conversation.</em></h1>
-          <p>
-            AZOLVE CHAT translates each message for each person — privately, automatically,
-            without ever changing what the sender wrote. Talk to anyone, anywhere, in your own language.
-          </p>
-          <div className="auth-chips">
-            <span><Icon name="globe" size={13} /> 27 languages</span>
-            <span><Icon name="lock" size={13} /> Private by design</span>
-            <span><Icon name="sparkles" size={13} /> Built-in AI</span>
+          <div className="auth-preview">
+            <div className="ap-row in">Shall we meet this evening?</div>
+            <div className="ap-row out">Absolutely, 7 pm works!</div>
+            <div className="ap-tr"><Icon name="translate" size={12} /> ¿Nos vemos esta noche?</div>
           </div>
-        </div>
-
-        <div className="word-cloud" aria-hidden="true">
-          {WORDS.map(([w, code], i) => (
-            <span key={code} className="word-chip" style={{ animationDelay: `${i * 0.35}s` }} lang={code}>{w}</span>
-          ))}
+          <div className="auth-chips">
+            <span className="on">English</span>
+            <span>Español</span>
+            <span>+ 25 more</span>
+          </div>
+          <h1>Say it your way.<br /><em>They read it theirs.</em></h1>
+          <p>
+            Every message arrives in the language you speak — instantly, beautifully, privately.
+          </p>
         </div>
 
         <div className="auth-art-foot">© {new Date().getFullYear()} AZOLVE INFOTECH · Designed for a borderless world</div>
