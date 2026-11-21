@@ -66,9 +66,11 @@ const shots = [
   ['chats', convId, 390, 844, 'light'],
   ['chats', convId, 390, 844, 'dark'],
   ['explore', null, 390, 844, 'light'],
+  ['people', null, 390, 844, 'light'],
   ['profile', null, 390, 844, 'light'],
   ['ai', null, 390, 844, 'dark'],
   ['settings', null, 390, 844, 'light'],
+  ['settings', 'language', 390, 844, 'light'],
   ['chats', convId, 1440, 900, 'light'],
   ['chats', null, 1440, 900, 'dark'],
 ];
@@ -85,7 +87,8 @@ for (const [page, param, width, height, theme] of shots) {
   await ev(`document.documentElement.setAttribute('data-theme','${theme}'); document.documentElement.style.colorScheme='${theme}';`);
   await sleep(250);
   const shot = await bsend('Page.captureScreenshot', { format: 'png', captureBeyondViewport: false }, sid);
-  const name = `v4-${theme}-${width}-${page}${param ? '-conv' : ''}.png`;
+  const suffix = page === 'chats' && param ? '-conv' : page === 'settings' && param ? '-lang' : '';
+  const name = `v4-${theme}-${width}-${page}${suffix}.png`;
   fs.writeFileSync(`${OUT}/${name}`, Buffer.from(shot.result.data, 'base64'));
   const info = await ev(`(() => {
     const cs = (s,p) => { const e=document.querySelector(s); return e?getComputedStyle(e)[p]:null; };

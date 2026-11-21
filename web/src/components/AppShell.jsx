@@ -27,6 +27,21 @@ const NAV = [
   { id: 'communities', label: 'Communities', icon: 'users' },
 ];
 
+/* Screen names shown after the brand in the thin top bar, matching the design set. */
+const SCREEN_LABEL = {
+  home: 'Home',
+  chats: 'Chat List',
+  moments: 'Moments',
+  people: 'Discover',
+  explore: 'Social Feed',
+  ai: 'AI Assistant',
+  calls: 'Calls',
+  communities: 'Communities',
+  profile: 'Profile',
+  settings: 'Translation Settings',
+  admin: 'Admin',
+};
+
 const MOBILE = [
   { id: 'home', label: 'Home', icon: 'home' },
   { id: 'chats', label: 'Chats', icon: 'chat' },
@@ -141,7 +156,14 @@ export default function AppShell() {
         </div>
       </aside>
 
-      <main className="main"><div className="page-wrap" key={page + ":" + (route.param || "")}>{content}</div></main>
+      <main className="main">
+        <div className="topbar">
+          <span className="tb-brand">Azolve <b>Chat</b></span>
+          <span className="tb-sep">—</span>
+          <span className="tb-screen">{SCREEN_LABEL[page] || 'Home'}</span>
+        </div>
+        <div className="page-wrap" key={page + ":" + (route.param || "")}>{content}</div>
+      </main>
 
       <nav className="mobile-nav">
         {MOBILE.map(n => (

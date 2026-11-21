@@ -177,6 +177,7 @@ export default function Profile() {
             <h1>{user.displayName} {user.verified && <Verified size={20} />}</h1>
             <p className="ph-handle">@{user.username} {followsYou && !isMe && <span className="pill">Follows you</span>}</p>
             {user.bio && <p className="ph-bio">{user.bio}</p>}
+            <span className="public-badge"><Icon name={user.private ? 'lock' : 'globe'} size={11} /> {user.private ? 'Private' : 'Public'}</span>
             <div className="ph-meta">
               {user.country && <span><Icon name="globe" size={14} /> {user.country}</span>}
               <span><Icon name="translate" size={14} /> {langOf(user.language)?.label || user.language}</span>

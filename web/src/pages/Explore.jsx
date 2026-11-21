@@ -60,20 +60,22 @@ function PostCard({ post, onChanged }) {
         </div>
       )}
 
-      {post.caption && (
-        <div className="post-caption">
-          <p>{translated || post.caption}</p>
-          {translated && <small className="translated-note">Translated to {user.language?.toUpperCase()} · <button className="linkbtn" onClick={() => setTranslated(null)}>See original</button></small>}
-        </div>
-      )}
-
       <div className="post-actions">
-        <button className={`pa ${liked ? 'on' : ''}`} onClick={toggleLike}><Icon name="heart" size={20} /> {likes}</button>
-        <button className="pa" onClick={() => setOpenComments(true)}><Icon name="comment" size={20} /> {commentCount}</button>
+        <button className={`pa ${liked ? 'on' : ''}`} onClick={toggleLike}><Icon name="heart" size={20} /></button>
+        <button className="pa" onClick={() => setOpenComments(true)}><Icon name="comment" size={20} /></button>
         <button className="pa" onClick={share}><Icon name="share" size={20} /></button>
         <button className="pa" onClick={translate} disabled={busy} title="Translate caption"><Icon name="translate" size={20} /></button>
         <button className={`pa ml ${saved ? 'on' : ''}`} onClick={toggleSave}><Icon name="bookmark" size={20} /></button>
       </div>
+
+      <div className="post-likes">{Number(likes).toLocaleString()} likes</div>
+
+      {post.caption && (
+        <div className="post-caption">
+          <p><b>{post.author.username}</b> {translated || post.caption}</p>
+          {translated && <small className="translated-note">Translated to {user.language?.toUpperCase()} · <button className="linkbtn" onClick={() => setTranslated(null)}>See original</button></small>}
+        </div>
+      )}
 
       {openComments && (
         <CommentsModal post={post} onClose={() => setOpenComments(false)} onCount={setCommentCount} />
@@ -226,6 +228,7 @@ export default function Explore() {
   const [explore, setExplore] = useState(null);
   const [trending, setTrending] = useState([]);
   const [q, setQ] = useState('');
+  const [searchOpen, setSearchOpen] = useState(false);
   const [composer, setComposer] = useState(false);
   const [searchResults, setSearchResults] = useState(null);
 
@@ -264,17 +267,19 @@ export default function Explore() {
       <div className="explore-top">
         <div className="row-between" style={{ marginBottom: 14 }}>
           <h1>Updates</h1>
-          <button className="icon-btn" onClick={() => setComposer(true)} aria-label="Create a post"
-            style={{ width: 38, height: 38, borderRadius: '50%', background: 'var(--azolve-blue)', color: '#fff' }}>
-            <Icon name="plus" size={19} />
-          </button>
+          <div className="explore-actions">
+            <button className="icon-btn" onClick={() => setSearchOpen(v => !v)} aria-label="Search"><Icon name="search" size={18} /></button>
+            <button className="icon-btn solid" onClick={() => setComposer(true)} aria-label="Create a post"><Icon name="plus" size={19} /></button>
+          </div>
         </div>
-        <div className="explore-search">
-          <Icon name="search" size={18} />
-          <input value={q} onChange={e => setQ(e.target.value)} onKeyDown={e => e.key === 'Enter' && searchPeople(e)}
-            placeholder="Search people, hashtags, places…" />
-          {q && <button className="icon-btn" onClick={() => { setQ(''); setSearchResults(null); }}><Icon name="close" size={16} /></button>}
-        </div>
+        {searchOpen && (
+          <div className="explore-search">
+            <Icon name="search" size={18} />
+            <input autoFocus value={q} onChange={e => setQ(e.target.value)} onKeyDown={e => e.key === 'Enter' && searchPeople(e)}
+              placeholder="Search people, hashtags, places…" />
+            {q && <button className="icon-btn" onClick={() => { setQ(''); setSearchResults(null); }}><Icon name="close" size={16} /></button>}
+          </div>
+        )}
       </div>
 
       <div className="feed-tabs">

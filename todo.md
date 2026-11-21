@@ -31,5 +31,5 @@
 - [x] Conversation renders white incoming bubbles in light and #24293E in dark
 
 ## 5. Ship
-- [ ] Commit and push to main (Render auto-deploy)
-- [ ] Rebuild Android APK + iOS project as v1.0.5
+- [x] Commit and push to main (Render auto-deploy)
+- [x] Rebuild Android APK + iOS project as v1.0.5

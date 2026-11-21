@@ -38,6 +38,7 @@ function ChatList({ activeId }) {
   const { user, notify } = useApp();
   const [convs, setConvs] = useState(null);
   const [q, setQ] = useState('');
+  const [searchOpen, setSearchOpen] = useState(false);
   /* Design tabs: Personal (direct messages), Groups, Work (archived threads). */
   const [tab, setTab] = useState('personal');
   const archived = tab === 'work';
@@ -69,12 +70,17 @@ function ChatList({ activeId }) {
       <div className="clp-head">
         <div className="clp-title">
           <h1>Chats</h1>
-          <button className="icon-btn" onClick={() => setNewOpen(true)} aria-label="New chat"><Icon name="plus" size={19} /></button>
+          <div className="clp-actions">
+            <button className="icon-btn" onClick={() => setSearchOpen(v => !v)} aria-label="Search chats"><Icon name="search" size={18} /></button>
+            <button className="icon-btn solid" onClick={() => setNewOpen(true)} aria-label="New chat"><Icon name="plus" size={19} /></button>
+          </div>
         </div>
-        <div className="search-box">
-          <Icon name="search" size={15} />
-          <input value={q} onChange={e => setQ(e.target.value)} placeholder="Search conversations" />
-        </div>
+        {searchOpen && (
+          <div className="search-box">
+            <Icon name="search" size={15} />
+            <input autoFocus value={q} onChange={e => setQ(e.target.value)} placeholder="Search conversations" />
+          </div>
+        )}
         <div className="clp-tabs">
           <button className={tab === 'personal' ? 'on' : ''} onClick={() => setTab('personal')}>Personal</button>
           <button className={tab === 'groups' ? 'on' : ''} onClick={() => setTab('groups')}>Groups</button>
@@ -533,12 +539,6 @@ function ChatView({ id }) {
         </div>
       </header>
 
-      <div className="translation-banner">
-        <Icon name="translate" size={13} />
-        <span>Messages are auto-translated to {langOf(me.language).label}</span>
-        <button onClick={() => navigate('settings')}>Settings</button>
-      </div>
-
       <div className="chat-scroll" ref={scrollRef}>
         {loading ? <div className="chat-loading"><Skeleton h={40} w="60%" /><Skeleton h={40} w="45%" style={{ marginLeft: 'auto' }} /><Skeleton h={40} w="55%" /></div> : (
           <>
@@ -553,6 +553,13 @@ function ChatView({ id }) {
             {groups.map(g => (
               <React.Fragment key={g.day}>
                 <div className="chat-day">{g.label}</div>
+                {g === groups[0] && (
+                  <div className="translation-banner">
+                    <Icon name="translate" size={13} />
+                    <span>Messages are auto-translated to {langOf(me.language).label}</span>
+                    <button onClick={() => navigate('settings')}>Settings</button>
+                  </div>
+                )}
                 {g.items.map((m, i) => {
                   const prev = g.items[i - 1];
                   const mine = m.senderId === me.id;
@@ -699,7 +706,7 @@ function MessageBubble({ m, mine, sender, showName, isGroup, me, participants, o
         <div className={`bubble ${m.pending ? 'pending' : ''} ${m.failed ? 'failed' : ''}`} dir={isRTL(m.displayLang || m.originalLang) ? 'rtl' : 'ltr'}>
           {showName && <div className="sender">{sender?.displayName || 'Member'}</div>}
           {showName && m.originalLang && m.originalLang !== me.language && (
-            <div className="lang-tag">from {langOf(m.originalLang).native}</div>
+            <div className="lang-tag">{String(m.originalLang).slice(0, 2).toUpperCase()}</div>
           )}
           {m.replyTo && (
             <div className="reply-quote">
@@ -759,8 +766,8 @@ function MessageBubble({ m, mine, sender, showName, isGroup, me, participants, o
             <div className="translated-row">
               <button className="translated-note" onClick={onToggleOrig}>
                 <Icon name="translate" size={11} />
-                Translated from {langOf(m.originalLang).label}
-                <span>{origOpen ? 'Hide original' : 'See original'}</span>
+                Translated
+                <span>{origOpen ? 'Hide original' : 'Show original'}</span>
               </button>
               <Hear
                 variant="inline"

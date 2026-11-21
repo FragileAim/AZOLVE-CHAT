@@ -125,7 +125,7 @@ export default function People() {
     <div className="page page-wide people-page">
       <div className="page-head">
         <div>
-          <h1>People</h1>
+          <h1>Discover</h1>
           <p className="muted">Everyone is visible. Conversations open once a request is accepted.</p>
         </div>
         <Seg
@@ -137,6 +137,24 @@ export default function People() {
           onChange={setTab}
         />
       </div>
+      <div className="discover-cats">
+        {['Music', 'Travel', 'Food', 'Art', 'Sports'].map((c, idx) => (
+          <button key={c} className={idx === 0 ? 'on' : ''}>{c}</button>
+        ))}
+      </div>
+
+      <section className="discover-trending">
+        <div className="dt-head">
+          <h3>Trending now</h3>
+          <button className="linkbtn">See all</button>
+        </div>
+        <div className="trend-chips">
+          {['#goldenhour', '#streetfood', '#learnhindi', '#monsoon', '#slowtravel'].map(t => (
+            <button key={t} onClick={() => setQ(t.replace('#', ''))}>{t}</button>
+          ))}
+        </div>
+      </section>
+
 
       {tab === 'requests' ? (
         <div className="people-grid">

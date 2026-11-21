@@ -1,0 +1,27 @@
+import { spawn } from 'node:child_process';
+import WebSocket from 'ws';
+const CHROME='/root/.cache/ms-playwright/chromium_headless_shell-1217/chrome-headless-shell-linux64/chrome-headless-shell';
+const PORT=9411, BASE='http://localhost:4500';
+const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+async function api(p,{method='GET',token,body}={}){const r=await fetch(BASE+p,{method,headers:{'content-type':'application/json',...(token?{authorization:'Bearer '+token}:{})},body:body?JSON.stringify(body):undefined});return r.json();}
+const s=await api('/api/auth/email/start',{method:'POST',body:{email:`w${Date.now()}@a.io`,displayName:'W'}});
+const v=await api('/api/auth/email/verify',{method:'POST',body:{userId:s.userId,code:s.deliveryCode}});
+await api('/api/users/me',{method:'PATCH',token:v.token,body:{username:'w'+Date.now(),country:'IN',bio:'x'}});
+const chrome=spawn(CHROME,['--headless=new',`--remote-debugging-port=${PORT}`,'--no-sandbox','--disable-gpu','--window-size=390,844','about:blank']);
+await sleep(1200);
+const list=await (await fetch(`http://127.0.0.1:${PORT}/json`)).json();
+const ws=new WebSocket(list[0].webSocketDebuggerUrl);
+let id=0;const pend=new Map();
+ws.on('message',d=>{const m=JSON.parse(d);if(m.id&&pend.has(m.id)){pend.get(m.id)(m);pend.delete(m.id);}});
+await new Promise(r=>ws.on('open',r));
+const send=(method,params={})=>new Promise(r=>{const i=++id;pend.set(i,r);ws.send(JSON.stringify({id:i,method,params}));});
+await send('Page.enable');await send('Runtime.enable');
+await send('Emulation.setDeviceMetricsOverride',{width:390,height:844,deviceScaleFactor:2,mobile:true});
+await send('Page.navigate',{url:BASE+'/'});
+await sleep(1500);
+await send('Runtime.evaluate',{expression:`localStorage.setItem('azolve.token',${JSON.stringify(v.token)});localStorage.setItem('azolve.refresh',${JSON.stringify(v.refreshToken)});`});
+await send('Page.navigate',{url:BASE+'/#/chats'});
+await sleep(2500);
+const r=await send('Runtime.evaluate',{expression:`JSON.stringify([...document.querySelectorAll('*')].map(e=>{const b=e.getBoundingClientRect();return {c:e.className&&e.className.toString().slice(0,40),t:e.tagName,w:Math.round(b.width),x:Math.round(b.x)}}).filter(o=>o.w>391).slice(0,20))`,returnByValue:true});
+console.log(r.result.result.value);
+ws.close();chrome.kill();

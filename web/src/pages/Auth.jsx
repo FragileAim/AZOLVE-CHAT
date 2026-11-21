@@ -42,6 +42,9 @@ export default function Auth() {
   const [pending, setPending] = useState(null);
   const [error, setError] = useState('');
   const [otpInfo, setOtpInfo] = useState(null);
+  /* On phones the design opens on the welcome hero; the form appears after
+     "Get started". On desktop both columns are visible at once. */
+  const [started, setStarted] = useState(false);
   const set = (k) => (e) => setForm(f => ({ ...f, [k]: e.target.value }));
 
   /* Ask the server whether a real SMS will actually arrive, so the UI never
@@ -243,7 +246,39 @@ export default function Auth() {
         <div className="auth-art-foot">© {new Date().getFullYear()} AZOLVE INFOTECH · Designed for a borderless world</div>
       </section>
 
-      <section className="auth-panel">
+      {/* Phone-only welcome hero, matching the supplied design screen. */}
+      <section className="auth-mobile-hero">
+        <div className="topbar">
+          <span className="tb-brand">Azolve <b>Chat</b></span>
+          <span className="tb-sep">—</span>
+          <span className="tb-screen">Welcome</span>
+        </div>
+        <div className="auth-mark">AZOLVE CHAT</div>
+        <div className="auth-preview">
+          <div className="ap-row in">Shall we meet this evening?</div>
+          <div className="ap-row out">Absolutely, 7 pm works!</div>
+          <div className="ap-tr"><Icon name="translate" size={12} /> ¿Nos vemos esta noche?</div>
+        </div>
+        <div className="auth-chips">
+          <span className="on">English</span>
+          <span>Español</span>
+          <span>+ 25 more</span>
+        </div>
+        <div className="auth-hero">
+          <h1>Say it your way.<br /><em>They read it theirs.</em></h1>
+          <p>Every message arrives in the language you speak — instantly, beautifully, privately.</p>
+        </div>
+        <div className="auth-actions">
+          <button className="btn primary btn-block" onClick={() => setStarted(true)}>
+            Get started <Icon name="arrow" size={16} />
+          </button>
+        </div>
+        <div className="auth-foot">
+          Already have an account? <button onClick={() => { setMode('signin'); setStarted(true); }}>Sign in</button>
+        </div>
+      </section>
+
+      <section className={`auth-panel ${started ? 'started' : ''}`}>
         <div className="auth-card">
           {step === 'welcome' && (
             <>

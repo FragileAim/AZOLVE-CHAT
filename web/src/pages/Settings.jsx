@@ -230,8 +230,8 @@ function PushPanel({ notify }) {
 }
 
 export default function Settings() {
-  const { user, theme, themePref, setTheme, notify, refreshMe, logout, device, setDevice } = useApp();
-  const [sec, setSec] = useState('account');
+  const { user, route, navigate, theme, themePref, setTheme, notify, refreshMe, logout, device, setDevice } = useApp();
+  const [sec, setSec] = useState(route?.param || 'account');
   const [profile, setProfile] = useState({ displayName: user.displayName || '', bio: user.bio || '', country: user.country || '', language: user.language || 'en', mood: user.mood || '' });
   const [privacy, setPrivacy] = useState(user.privacy || { profile: 'public', lastSeen: 'contacts', readReceipts: true, storyAudience: 'followers' });
   const [prefs, setPrefs] = useState(user.prefs || { autoTranslate: true, notifications: { messages: true, social: true, calls: true } });
@@ -290,7 +290,7 @@ export default function Settings() {
   };
 
   return (
-    <div className="page page-wide settings-page">
+    <div className={`page page-wide settings-page ${route?.param ? 'focused' : ''}`}>
       <div className="page-head"><div><h1>Settings</h1><p className="muted">Control how AZOLVE looks, speaks and protects you.</p></div></div>
       <div className="settings-layout">
         <aside className="settings-nav card">
@@ -393,24 +393,50 @@ export default function Settings() {
 
           {sec === 'language' && (
             <div className="stack">
-              <div className="card stack">
-                <div className="sec-head"><h3>Translation</h3></div>
-                <div className="tr-preview">
-                  <div className="src">Shall we meet this evening?</div>
-                  <div className="dst">¿Nos vemos esta noche? · translated to {langOf(profile.language).label}</div>
+              <div className="settings-head">
+                <button className="icon-btn" onClick={() => navigate('settings')} aria-label="Back"><Icon name="back" size={18} /></button>
+                <h1>Translation</h1>
+              </div>
+
+              <div className="tr-preview">
+                <div className="trp-label">PREVIEW</div>
+                <div className="trp-src">“Shall we meet this evening?”</div>
+                <div className="trp-out">¿Nos vemos esta noche? · translated to {langOf(profile.language).label}</div>
+              </div>
+
+              <div className="settings-nav">
+                <div className="set-row">
+                  <div className="sr-body">
+                    <div className="sr-title">Auto-translate messages</div>
+                    <div className="sr-sub">Incoming chats appear in your language.</div>
+                  </div>
+                  <button className={`switch ${prefs.autoTranslate !== false ? 'on' : ''}`}
+                    onClick={() => savePrefs({ ...prefs, autoTranslate: prefs.autoTranslate === false })} aria-label="Auto-translate messages" />
                 </div>
-                <Switch on={prefs.autoTranslate !== false} label="Auto-translate messages"
-                  onChange={v => savePrefs({ ...prefs, autoTranslate: v })} />
-                <p className="muted small" style={{ marginTop: -6 }}>Incoming chats appear in your language.</p>
-                <Switch on={prefs.showOriginalDefault === true} label="Show original by default"
-                  onChange={v => savePrefs({ ...prefs, showOriginalDefault: v })} />
-                <p className="muted small" style={{ marginTop: -6 }}>Display both languages together.</p>
-                <Switch on={prefs.voiceCaptions !== false} label="Voice message captions"
-                  onChange={v => savePrefs({ ...prefs, voiceCaptions: v })} />
-                <p className="muted small" style={{ marginTop: -6 }}>Transcribe and translate audio.</p>
-                <Switch on={prefs.translateFeeds !== false} label="Stories, posts & reels"
-                  onChange={v => savePrefs({ ...prefs, translateFeeds: v })} />
-                <p className="muted small" style={{ marginTop: -6 }}>Translate captions in feeds.</p>
+                <div className="set-row">
+                  <div className="sr-body">
+                    <div className="sr-title">Show original by default</div>
+                    <div className="sr-sub">Display both languages together.</div>
+                  </div>
+                  <button className={`switch ${prefs.showOriginalDefault === true ? 'on' : ''}`}
+                    onClick={() => savePrefs({ ...prefs, showOriginalDefault: prefs.showOriginalDefault !== true })} aria-label="Show original by default" />
+                </div>
+                <div className="set-row">
+                  <div className="sr-body">
+                    <div className="sr-title">Voice message captions</div>
+                    <div className="sr-sub">Transcribe and translate audio.</div>
+                  </div>
+                  <button className={`switch ${prefs.voiceCaptions !== false ? 'on' : ''}`}
+                    onClick={() => savePrefs({ ...prefs, voiceCaptions: prefs.voiceCaptions === false })} aria-label="Voice message captions" />
+                </div>
+                <div className="set-row">
+                  <div className="sr-body">
+                    <div className="sr-title">Stories, posts &amp; reels</div>
+                    <div className="sr-sub">Translate captions in feeds.</div>
+                  </div>
+                  <button className={`switch ${prefs.translateFeeds !== false ? 'on' : ''}`}
+                    onClick={() => savePrefs({ ...prefs, translateFeeds: prefs.translateFeeds === false })} aria-label="Stories, posts and reels" />
+                </div>
               </div>
 
               <div className="card stack">
