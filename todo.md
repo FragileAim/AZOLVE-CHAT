@@ -25,8 +25,8 @@
 - [x] UI sweep: 80 page/width/theme combos, 0 console exceptions
 
 ## E. Ship v1.0.8
-- [ ] Rebuild web bundle (classic media queries preserved)
-- [ ] Bump versionCode 9 / CURRENT_PROJECT_VERSION 9 / MARKETING_VERSION 1.0.8
-- [ ] Rebuild APK + iOS project zip
-- [ ] Commit + push `main`, confirm Render deploy
-- [ ] Verify production `/api/calls/live/status` reports `canTranscribe: true`
+- [x] Rebuild web bundle (classic media queries preserved)
+- [x] Bump versionCode 9 / CURRENT_PROJECT_VERSION 9 / MARKETING_VERSION 1.0.8
+- [x] Rebuild APK + iOS project zip
+- [x] Commit + push `main`, confirm Render deploy
+- [x] Verify production `/api/calls/live/status` reports `canTranscribe: true`
