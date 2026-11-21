@@ -1,26 +1,27 @@
-# AZOLVE CHAT — v1.1.2 (buttons + captions)
+# AZOLVE CHAT — v1.1.3 (stuck-on-loading fix)
 
-## Request AJ — every button, every API, correct captions
-- [x] Reproduce the "buttons do not navigate" report with a real CDP sweep at 390×844
-- [x] Cause 1: the `Mobile view` device-preview pill (`position:fixed; z-index:70; bottom:18px; right:18px`) sat on top of the bottom nav, so Profile and nearby taps hit the pill
-- [x] Cause 2: `device === 'mobile'` wrapped the whole app in an iframe, so taps changed the iframe hash and never the page
-- [x] Gate the preview behind `?preview=1` only; production renders the app directly
-- [x] Navigation truth test: bottom nav, all-screens sheet and 10 deep links — 21/21 behave correctly
-- [x] People category chips now refetch the directory by keyword (were highlight-only)
-- [x] Explore: For you / Following / Reels are three distinct lists (were one list)
-- [x] Profile: Share profile can no longer fail silently
-- [x] Hear: reports "voices still loading" instead of doing nothing
-- [x] Static API audit: all 84 UI calls resolve to real server routes (119 routes)
-- [x] Fix `/api/social/moments` — handler was not `async` after the translation patch, which crashed the server on boot
-- [x] Moments captions translate per viewer + real "See original" toggle
-- [x] AI captions grounded in the user's own sentence, in their language (was unrelated English templates)
-- [x] AI provider timeout 30s → 8s, model chain capped at 3 (was ~60s per caption)
-- [x] Click sweep: 35 dead buttons → 10; every remaining one is an active tab, an empty-input Send, or a headless-only mic/speech limit
-- [x] `audit-ux.mjs` 32/32 computed-style checks pass
-- [x] `shot-ux.mjs` 14 screens, no horizontal overflow, 0 console errors
-- [x] Version 1.1.2 / versionCode 13 / iOS build 13
-- [x] APK rebuilt and verified (`io.azolve.chat` 1.1.2)
-- [x] Committed `11b06a2`, pushed, Render `dep-dc0v3bos00ms73fvfavg` live, bundle hash matches local
+## Root cause
+- [x] Reproduce on the live site: splash clears, login screen shows, but "Get started" / "I already have an account" do nothing
+- [x] Identify cause: `.ux-welcome` is `height:100dvh` and no rule hid it, so the form rendered below the fold
+- [x] Identify desktop cause: `.ux-welcome` claimed the 2nd grid column, pushing the form to row 2
 
-## Open
-- none
+## Fix
+- [x] `.auth-wrap.started .ux-welcome { display:none }`
+- [x] Hide `.ux-welcome` at `min-width:900px`
+- [x] Phone: full-height form panel, card chrome stripped, back button to welcome
+- [x] Verify at 390x844 and 1440x900 (`auth-advance.mjs`)
+- [x] Regression: `audit-ux.mjs` 32/32 PASS
+- [x] Regression: `shot-ux.mjs` 14 screens, 0 overflow, no errors
+
+## Ship
+- [x] Commit + push `2dd2a54`
+- [x] Deploy to Render — live
+- [x] Live check `live-auth.mjs`: both buttons now reveal the form
+- [x] Live check `live-form.mjs`: create account → POST /api/auth/email/start 200 → 6-digit code screen
+- [x] Confirm deployed bundle MD5 == local tested bundle
+- [x] Build `AZOLVE-CHAT-v1.1.3.apk` (versionCode 14, versionName 1.1.3)
+- [x] Fix `/api/health` hardcoded version 1.0.0 → real package version (`3647dae`)
+- [x] Deploy health fix + verify version string (`/api/health` → 1.1.3, deploy live)
+- [x] Final live re-check after deploy: both login buttons advance, no console errors, no network failures
+
+Open: none
