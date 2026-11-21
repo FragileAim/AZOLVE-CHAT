@@ -1778,3 +1778,59 @@ html[data-theme='dark'] .ux-post-follow { background: var(--ux-blue); }
 .ux-gc-locked b { display: block; margin-top: 10px; font-size: 17px; color: #fff; }
 .ux-gc-locked p { margin-top: 6px; font-size: 13px; line-height: 1.45; }
 .ux-gc-locked button { margin-top: 16px; height: 46px; padding: 0 22px; border: 0; border-radius: 14px; background: #2b50ff; color: #fff; font-size: 13.5px; font-weight: 800; cursor: pointer; }
+
+/* --------------------------- onboarding scrolling --------------------------
+   The shell pins html/body/#root to 100dvh with overflow:hidden so the app feels
+   native. Onboarding is the one screen that is not an app pane: it is a long
+   form, and the Privacy step is the tallest. With no scroll container behind it
+   the last step was clipped at the fold — on a 390x844 phone the "Enter AZOLVE
+   CHAT" button sat at y=847, three pixels out of reach, and .onb reported
+   scrollHeight == clientHeight so there was nothing to scroll either.
+
+   .onb therefore becomes its own scroll container, top-aligned (a centred flex
+   box taller than its viewport loses the top of its content), with safe-area
+   padding and momentum scrolling on iOS. */
+.onb {
+  height: 100dvh !important;
+  min-height: 0 !important;
+  max-height: 100dvh !important;
+  overflow-x: hidden !important;
+  overflow-y: auto !important;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-y: contain;
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  justify-content: flex-start !important;
+  padding: calc(20px + env(safe-area-inset-top, 0px)) 20px calc(28px + env(safe-area-inset-bottom, 0px)) !important;
+}
+
+/* Children must never shrink or the form squeezes instead of scrolling. */
+.onb > * { flex: 0 0 auto; }
+
+.onb-head, .onb-body { width: min(680px, 100%); margin: 0 auto; }
+.onb-head { margin-bottom: 18px; }
+.onb-body { margin: 0 auto; }
+
+/* styles.css gives .onb-card margin:auto, which in a column flex container
+   fights the scroll position. */
+.onb .onb-card { margin: 0 auto; max-width: 680px; }
+
+/* Keep the step buttons reachable without hunting: they stick to the bottom of
+   the scrollport, on a solid backdrop so content never shows through. */
+.onb .onb-actions {
+  position: sticky;
+  bottom: calc(-1 * (28px + env(safe-area-inset-bottom, 0px)));
+  z-index: 2;
+  margin-top: 4px;
+  padding: 12px 0 calc(14px + env(safe-area-inset-bottom, 0px));
+  background: linear-gradient(to bottom, transparent, var(--bg) 18px);
+}
+
+/* A long language grid or privacy list should not trap the scroll either. */
+.onb .lang-grid { max-height: none; overflow: visible; }
+
+@media (min-width: 900px) {
+  .onb { padding-top: 40px; padding-bottom: 40px; }
+  .onb .onb-actions { position: static; background: none; padding-bottom: 0; }
+}
