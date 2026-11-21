@@ -73,6 +73,7 @@ function CallStageInner({ call, onClose, onRedial }) {
   const [sharing, setSharing] = useState(false);
   const [minimized, setMinimized] = useState(false);
   const [showCaptions, setShowCaptions] = useState(false);
+  const [panel, setPanel] = useState(null);
   const [captions, setCaptions] = useState([]);
   const [captionDraft, setCaptionDraft] = useState('');
   const [level, setLevel] = useState(0);
@@ -683,27 +684,22 @@ function CallStageInner({ call, onClose, onRedial }) {
   /* ------------------------------ ended card ----------------------------- */
   if (phase === 'ended') {
     return (
-      <div className="cv-root">
-        <div className="cv-ended">
-          <div className="cv-ended-glow" aria-hidden />
-          <Avatar user={call.peer} size={96} ring />
-          <h2>{call.peer?.displayName || 'Call'}</h2>
-          <p className="cv-ended-status">{endedText}</p>
-          <p className="cv-ended-meta">
-            {video ? 'Video' : 'Audio'} call
-            {endDuration > 0 ? ` \u00b7 ${fmtDur(endDuration)}` : ''}
-            {endInfo?.byName && !iEnded ? ` \u00b7 ended by ${endInfo.byName}` : ''}
-          </p>
-          <div className="cv-ended-actions">
-            <button className="cv-ended-btn ghost" onClick={onClose}>Close</button>
-            <button className="cv-ended-btn primary" onClick={onRedial || onClose}>
-              <Icon name={video ? 'video' : 'phone'} size={17} /> Call again
-            </button>
-          </div>
-          <p className="cv-ended-note">
-            <Icon name="translate" size={13} /> Live translated captions were available during this call
-          </p>
+      <div className="ux-call-ended">
+        <Avatar user={call.peer} size={110} ring />
+        <b>{call.peer?.displayName || 'Call'}</b>
+        <p>{endedText}</p>
+        <p className="meta">
+          {video ? 'Video' : 'Audio'} call
+          {endDuration > 0 ? ` · ${fmtDur(endDuration)}` : ''}
+          {endInfo?.byName && !iEnded ? ` · ended by ${endInfo.byName}` : ''}
+        </p>
+        <div className="acts">
+          <button className="g" onClick={onClose}>Close</button>
+          <button className="p" onClick={onRedial || onClose}>
+            <Icon name={video ? 'video' : 'phone'} size={16} style={{ marginRight: 6, verticalAlign: '-3px' }} /> Call again
+          </button>
         </div>
+        <p className="note">Live translated captions were available during this call.</p>
       </div>
     );
   }
@@ -711,43 +707,32 @@ function CallStageInner({ call, onClose, onRedial }) {
   /* ------------------------------- incoming ------------------------------ */
   if (phase === 'incoming') {
     return (
-      <div className="cv-root">
-        <div className="cv-incoming">
-          <div className="cv-incoming-bg" aria-hidden>
-            <div className="cv-aurora a1" /><div className="cv-aurora a2" /><div className="cv-aurora a3" />
-          </div>
-
-          <div className="cv-incoming-top">
-            <span className="cv-chip"><Icon name="lock" size={12} /> Encrypted in transit</span>
-            <span className="cv-chip soft">{video ? 'Video call' : 'Audio call'}</span>
-          </div>
-
-          <div className="cv-incoming-core">
-            <div className="cv-rings" aria-hidden>
-              <span /><span /><span />
-            </div>
-            <Avatar user={call.peer} size={132} ring />
-            <h1>{call.peer?.displayName || 'Unknown'}</h1>
-            <p className="cv-incoming-sub">
-              <span className="cv-dotpulse" /> Incoming {video ? 'video' : 'audio'} call
-            </p>
-            <span className="cv-lang-pill">
-              <Icon name="translate" size={12} /> Speaks {peerLang.native} · you hear {langOf(user.language).native}
-            </span>
-          </div>
-
-          <div className="cv-incoming-actions">
-            <button className="cv-big decline" onClick={decline}>
-              <span className="cv-big-ic"><Icon name="phone" size={26} /></span>
-              <span>Decline</span>
-            </button>
-            <button className="cv-big accept" onClick={accept}>
-              <span className="cv-big-ic"><Icon name={video ? 'video' : 'phone'} size={26} /></span>
-              <span>Accept</span>
-            </button>
-          </div>
-          <p className="cv-slide-hint">Tap to answer — your camera and mic stay off until you do</p>
+      <div className="ux-call-incoming">
+        <div className="top">
+          <span className="chip"><Icon name="lock" size={12} /> Encrypted in transit</span>
+          <span className="chip">{video ? 'Video call' : 'Audio call'}</span>
         </div>
+
+        <div className="core">
+          <Avatar user={call.peer} size={132} ring />
+          <b>{call.peer?.displayName || 'Unknown'}</b>
+          <small>Incoming {video ? 'video' : 'audio'} call</small>
+          <span className="chip" style={{ marginTop: 6 }}>
+            <Icon name="translate" size={12} /> Speaks {peerLang.native} · you hear {langOf(user.language).native}
+          </span>
+        </div>
+
+        <div className="acts">
+          <button className="ux-call-big decline" onClick={decline} aria-label="Decline">
+            <Icon name="phone" size={26} style={{ transform: 'rotate(135deg)' }} />
+          </button>
+          <button className="ux-call-big accept" onClick={accept} aria-label="Accept">
+            <Icon name={video ? 'video' : 'phone'} size={26} />
+          </button>
+        </div>
+        <p style={{ marginTop: 18, fontSize: 11.5, color: 'rgba(255,255,255,.45)' }}>
+          Tap to answer — your camera and mic stay off until you do
+        </p>
       </div>
     );
   }
@@ -755,241 +740,220 @@ function CallStageInner({ call, onClose, onRedial }) {
   /* --------------------------- ringing / active -------------------------- */
   const showRemoteVideo = video && (phase === 'active' || phase === 'connecting');
   const peerAvatar = call.peer?.avatar;
+  const lastCap = captions[captions.length - 1];
+  const capLine = liveLine || (showCaptions ? lastCap : null);
+  const capWho = capLine
+    ? (capLine.mine ? 'You' : (call.peer?.displayName || 'They').split(' ')[0])
+    : '';
+  const capLang = capLine ? langOf(capLine.lang || 'en').code?.toUpperCase() : '';
 
   return (
-    <div className={`cv-root ${minimized ? 'is-min' : ''}`}>
-      {/* The single sink for the other person's voice. It stays mounted for the
-          whole call, including audio-only calls where no <video> exists. */}
+    <div className={`ux-call ${minimized ? 'is-min' : ''}`}>
       <audio ref={remoteAudioRef} autoPlay playsInline className="cv-remote-audio" />
-      <div className={`cv-stage ${video ? 'is-video' : 'is-audio'} ${sharing ? 'is-sharing' : ''}`} ref={stageRef}>
-        {/* backdrop */}
-        {!video && (
-          <div className="cv-audio-bg" aria-hidden>
-            <div className="cv-aurora a1" /><div className="cv-aurora a2" /><div className="cv-aurora a3" />
-          </div>
-        )}
 
-        {/* remote */}
-        {showRemoteVideo && (
-          <>
-            <video ref={remoteRef} autoPlay playsInline className="cv-remote" />
-            {simulated && (
-              <div className="cv-sim-remote">
-                {peerAvatar && <div className="cv-sim-photo" style={{ backgroundImage: `url(${peerAvatar})` }} />}
-                <div className="cv-sim-veil" />
-                <div className="cv-sim-tag">Preview · simulated peer</div>
-              </div>
-            )}
-          </>
-        )}
-
-        {/* audio art / ringing art */}
-        {(!showRemoteVideo || phase !== 'active') && (
-          <div className="cv-art">
-            <div className="cv-rings big" aria-hidden><span /><span /><span /></div>
-            {peerAvatar && video ? (
-              <div className="cv-art-photo" style={{ backgroundImage: `url(${peerAvatar})` }} />
-            ) : null}
-            <Avatar user={call.peer} size={video ? 108 : 138} ring />
-            <h1>{call.peer?.displayName || 'Unknown'}</h1>
-            <p className="cv-art-status">
-              {statusText}
-              {phase === 'ringing' && <span className="cv-dots"><i /><i /><i /></span>}
-            </p>
-            {phase === 'ringing' && (
-              <span className="cv-lang-pill">
-                <Icon name="translate" size={12} /> Captions will translate to {peerLang.native}
-              </span>
-            )}
-            {phase === 'active' && !video && <Waveform level={level} bars={32} active={!muted} />}
-          </div>
-        )}
-
-        {/* top bar */}
-        <div className="cv-top">
-          <div className="cv-top-left">
-            <button
-              className={`cv-icon min-ic ${minimized ? 'is-min' : ''}`}
-              onClick={() => setMinimized(m => !m)}
-              title={minimized ? 'Back to full screen' : 'Minimise call'}
-              aria-label={minimized ? 'Expand call' : 'Minimise call'}
-            >
-              <Icon name={minimized ? 'screen' : 'arrow'} size={17} />
-            </button>
-            <div className="cv-peer">
-              <span className="cv-peer-name">{call.peer?.displayName || 'Unknown'}</span>
-              <span className="cv-peer-meta">
-                {phase === 'active' ? (
-                  <>
-                    <i className={`cv-q ${quality}`} /> {qualityLabel} · {fmtDur(seconds)}
-                  </>
-                ) : statusText}
-              </span>
+      <div className="ux-call-media">
+        {showRemoteVideo ? (
+          <video ref={remoteRef} autoPlay playsInline />
+        ) : (
+          <div className="ux-call-audio">
+            <div className="orb" aria-hidden />
+            <div className="who">
+              <Avatar user={call.peer} size={128} ring />
+              <b>{call.peer?.displayName || 'Unknown'}</b>
+              <small>
+                {statusText}
+                {phase === 'ringing' && <span className="cv-dots" style={{ marginLeft: 6 }}><i /><i /><i /></span>}
+              </small>
+              {phase === 'active' && !video && <Waveform level={level} bars={30} active={!muted} />}
             </div>
           </div>
-          <div className="cv-top-right">
-            {phase === 'active' && (
-              <span
-                className={`cv-chip mini live ${liveStatus.state === 'listening' ? 'on' : ''}`}
-                data-state={liveStatus.state}
-                data-engine={liveStatus.engine || 'none'}
-                title={liveStatus.state === 'error'
-                  ? `Live captions could not start: ${liveStatus.error || 'unknown error'}`
-                  : liveStatus.engine === 'server'
-                    ? 'Listening on this device, transcribed and translated on the server'
-                    : 'Listening on this device'}
-              >
-                <i className="cv-live-dot" />
-                {liveStatus.state === 'listening'
-                  ? `Live · ${langOf(user.language).code?.toUpperCase()} → ${peerLang.code?.toUpperCase()}`
-                  : liveStatus.state === 'error' ? 'Live unavailable'
-                    : liveStatus.state === 'unsupported' ? 'Live unsupported'
-                      : liveOn ? 'Live starting…' : 'Live off'}
-              </span>
-            )}
-            {peerMuted && <span className="cv-chip mini mute"><Icon name="mute" size={11} /> They're muted</span>}
-            {simulated && <span className="cv-chip mini warn">Simulated</span>}
-          </div>
-        </div>
-
-        {/* local preview */}
-        {(video || phase === 'ringing') && (
-          <div
-            className={`cv-pip ${camOn ? '' : 'off'} ${pipPos.x || pipPos.y ? 'moved' : ''}`}
-            style={pipPos.x || pipPos.y ? { left: pipPos.x, top: pipPos.y, right: 'auto', bottom: 'auto' } : undefined}
-            onPointerDown={onPipDown}
-            onPointerMove={onPipMove}
-            onPointerUp={onPipUp}
-            onPointerCancel={onPipUp}
-          >
-            <video ref={localRef} autoPlay playsInline muted className="cv-pip-video" />
-            {!camOn && (
-              <div className="cv-pip-off">
-                <Icon name="camera" size={18} />
-                <span>Camera off</span>
-              </div>
-            )}
-            <span className="cv-pip-tag">You</span>
+        )}
+        {simulated && showRemoteVideo && (
+          <div className="cv-sim-remote">
+            {peerAvatar && <div className="cv-sim-photo" style={{ backgroundImage: `url(${peerAvatar})` }} />}
+            <div className="cv-sim-veil" />
+            <div className="cv-sim-tag">Preview · simulated peer</div>
           </div>
         )}
+      </div>
+      <div className="ux-call-shade" aria-hidden />
 
-        {/* always-on translated line: the point of live translation is that you
-            never have to open a panel to read it */}
-        {phase === 'active' && liveOn && liveLine && (
-          <div className="cv-livebar" role="status" aria-live="polite">
-            <div className="cv-livebar-head">
-              <i className="cv-live-dot" />
-              <span>{liveLine.mine ? 'You' : (call.peer?.displayName || 'They')} · {langOf(liveLine.lang || 'en').native}</span>
+      {/* header */}
+      <div className="ux-call-head">
+        <button className="ux-call-rnd" onClick={() => setMinimized(true)} aria-label="Minimise call">
+          <Icon name="back" size={18} style={{ transform: 'rotate(-90deg)' }} />
+        </button>
+        <div className="ux-call-id">
+          <b>{call.peer?.displayName || 'Unknown'}</b>
+          <span>
+            {phase === 'active' ? (<><i />{fmtDur(seconds)}</>) : statusText}
+          </span>
+        </div>
+        <button className="ux-call-rnd" onClick={() => setPanel(p => p === 'options' ? null : 'options')} aria-label="Call options">
+          <Icon name="users" size={18} />
+        </button>
+      </div>
+
+      {/* live translation badge */}
+      <button
+        type="button"
+        className={`ux-call-live ${liveOn && liveStatus.state === 'listening' ? '' : 'off'}`}
+        onClick={() => setLiveOn(v => !v)}
+        title={liveStatus.state === 'error' ? `Live captions could not start: ${liveStatus.error || 'unknown error'}` : 'Toggle live translation'}
+      >
+        <Icon name="translate" size={14} />
+        {liveStatus.state === 'listening'
+          ? `Live · ${langOf(user.language).code?.toUpperCase()} → ${peerLang.code?.toUpperCase()}`
+          : liveStatus.state === 'error' ? 'Live unavailable'
+            : liveStatus.state === 'unsupported' ? 'Live unsupported'
+              : liveOn ? 'Live starting…' : 'Live translation off'}
+      </button>
+
+      {/* self view */}
+      {(video || phase === 'ringing') && (
+        <div
+          className="ux-call-self"
+          style={pipPos.x || pipPos.y ? { left: pipPos.x, top: pipPos.y, right: 'auto' } : undefined}
+          onPointerDown={onPipDown}
+          onPointerMove={onPipMove}
+          onPointerUp={onPipUp}
+          onPointerCancel={onPipUp}
+        >
+          <video ref={localRef} autoPlay playsInline muted />
+          {!camOn && (
+            <div className="off">
+              <Icon name="camera" size={18} />
+              <span>Camera off</span>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* caption card */}
+      {phase === 'active' && capLine && (
+        <div className="ux-call-caps" onClick={() => setPanel(p => p === 'captions' ? null : 'captions')} role="status" aria-live="polite">
+          <div className="lbl">{capWho} · {capLang} · translated</div>
+          <p>{capLine.text}</p>
+          {capLine.source && capLine.source !== capLine.text && <div className="src">{capLine.source}</div>}
+        </div>
+      )}
+
+      {/* reconnecting */}
+      {reconnecting && (
+        <div className="cv-reconnect" role="status">
+          <span className="cv-reconnect-spin" aria-hidden />
+          <div>
+            <strong>Reconnecting…</strong>
+            <span>Switching network route to keep the call alive</span>
+          </div>
+        </div>
+      )}
+
+      {!turnReady && phase !== 'active' && (
+        <div className="ux-call-warn">
+          <Icon name="warning" size={14} />
+          <span>No TURN relay configured. Calls between mobile networks may fail — add <code>TURN_URL</code> on the server.</span>
+        </div>
+      )}
+
+      {error && <div className="ux-call-err"><Icon name="warning" size={15} /> {error}</div>}
+
+      {/* options / captions sheet */}
+      {panel && (
+        <div className="ux-call-sheet">
+          <div className="hd">
+            <Icon name={panel === 'captions' ? 'comment' : 'settings'} size={16} />
+            <span style={{ flex: 1 }}>{panel === 'captions' ? 'Live captions' : 'Call options'}</span>
+            <button className="ux-call-rnd" style={{ width: 32, height: 32 }} onClick={() => setPanel(null)} aria-label="Close"><Icon name="close" size={15} /></button>
+          </div>
+          {panel === 'options' ? (
+            <div className="bd">
+              <div className="ux-call-cap" style={{ cursor: 'default' }}>
+                <span className="tx"><b style={{ fontSize: 14 }}>Live translation</b><em>Captions appear in the other person's language.</em></span>
+                <button className={`ux-tgl ${liveOn ? 'on' : ''}`} onClick={() => setLiveOn(v => !v)} aria-label="Live translation"><i /></button>
+              </div>
+              <div className="ux-call-cap" style={{ cursor: 'default' }}>
+                <span className="tx"><b style={{ fontSize: 14 }}>Speak translations aloud</b><em>Reads the translated line out loud.</em></span>
+                <button className={`ux-tgl ${autoSpeak ? 'on' : ''}`} onClick={() => setAutoSpeak(v => !v)} aria-label="Speak translations"><i /></button>
+              </div>
+              <button className="ux-call-cap" onClick={() => setPanel('captions')}>
+                <span className="tx"><b style={{ fontSize: 14 }}>Caption history</b><em>{captions.length} lines this call</em></span>
+                <Icon name="arrow" size={16} />
+              </button>
+              {video && (
+                <button className="ux-call-cap" onClick={flipCamera}>
+                  <span className="tx"><b style={{ fontSize: 14 }}>Flip camera</b><em>Switch between front and back</em></span>
+                  <Icon name="refresh" size={16} />
+                </button>
+              )}
               <button
-                type="button"
-                className={`cv-livebar-speak ${autoSpeak ? 'on' : ''}`}
-                onClick={() => setAutoSpeak(v => !v)}
-                title={autoSpeak ? 'Stop speaking translations aloud' : 'Speak translations aloud'}
+                className="ux-call-cap"
+                onClick={async () => {
+                  const link = `${location.origin}/#/calls`;
+                  try {
+                    if (navigator.share) await navigator.share({ title: 'AZOLVE CHAT call', text: `Call ${call.peer?.displayName || ''} on AZOLVE CHAT`, url: link });
+                    else { await navigator.clipboard.writeText(link); }
+                  } catch { /* user dismissed */ }
+                }}
               >
-                <Icon name="volume" size={12} /> {autoSpeak ? 'Voice on' : 'Voice off'}
+                <span className="tx"><b style={{ fontSize: 14 }}>Share call link</b><em>Invite someone else to AZOLVE CHAT</em></span>
+                <Icon name="share" size={16} />
               </button>
             </div>
-            <p className="cv-livebar-text">{liveLine.text}</p>
-            {liveLine.source && liveLine.source !== liveLine.text && (
-              <p className="cv-livebar-src">{liveLine.source}</p>
-            )}
-          </div>
-        )}
-
-        {/* captions */}
-        {showCaptions && (
-          <div className="cv-captions">
-            <div className="cv-captions-head">
-              <span><Icon name="translate" size={13} /> Live captions</span>
-              <button className="cv-icon sm" onClick={() => setShowCaptions(false)}><Icon name="close" size={13} /></button>
-            </div>
-            <div className="cv-captions-body">
-              {captions.length === 0 && <p className="cv-cap-empty">Speak normally — every sentence appears here in the other person’s language, and theirs in yours.</p>}
-              {captions.map((c, i) => {
-                const cid = `cap-${i}-${c.lang}`;
-                const live = sp.isPlaying(cid);
-                return (
-                  <button
-                    key={i}
-                    type="button"
-                    className={`cv-cap ${c.mine ? 'mine' : ''} ${live ? 'speaking' : ''}`}
-                    onClick={() => sp.toggle({ text: c.text, lang: c.lang || 'en', id: cid })}
-                    title={`Tap to hear this in ${langOf(c.lang || 'en').native}`}
-                  >
-                    <span className="cv-cap-lang">{langOf(c.lang || 'en').code?.toUpperCase()}</span>
-                    <span className="cv-cap-text">
-                      {c.text}
-                      {c.source && c.source !== c.text && <em className="cv-cap-src">{c.source}</em>}
-                    </span>
-                    <span className="cv-cap-hear" aria-hidden>
-                      {live ? <SpeakingBars small /> : <Icon name="volume" size={13} />}
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
-            <form className="cv-cap-form" onSubmit={e => { e.preventDefault(); sendCaption(); }}>
-              <input
-                value={captionDraft}
-                onChange={e => setCaptionDraft(e.target.value)}
-                placeholder="Type a caption — auto-translated…"
-              />
-              <button type="submit" className="cv-cap-send"><Icon name="send" size={15} /></button>
-            </form>
-          </div>
-        )}
-
-        {/* reconnecting */}
-        {reconnecting && (
-          <div className="cv-reconnect" role="status">
-            <span className="cv-reconnect-spin" aria-hidden />
-            <div>
-              <strong>Reconnecting…</strong>
-              <span>Switching network route to keep the call alive</span>
-            </div>
-          </div>
-        )}
-
-        {/* no TURN configured — be honest about why mobile calls can fail */}
-        {!turnReady && phase !== 'active' && (
-          <div className="cv-warn">
-            <Icon name="warning" size={14} />
-            <span>
-              No TURN relay configured. Calls between mobile networks may fail —
-              add <code>TURN_URL</code> on the server.
-            </span>
-          </div>
-        )}
-
-        {/* error */}
-        {error && (
-          <div className="cv-error">
-            <Icon name="warning" size={15} /> {error}
-          </div>
-        )}
-
-        {/* dock */}
-        <div className="cv-dock-wrap">
-          <div className="cv-dock">
-            <Ctrl icon={muted ? 'mute' : 'mic'} label={muted ? 'Unmute' : 'Mute'} on={muted} onClick={toggleMute} />
-            {video && <Ctrl icon="video" label={camOn ? 'Camera' : 'Cam off'} on={!camOn} onClick={toggleCam} />}
-            {video && <Ctrl icon="refresh" label="Flip" onClick={flipCamera} />}
-            <Ctrl icon="volume" label={speaker ? 'Speaker' : 'Earpiece'} on={!speaker} onClick={toggleSpeaker} />
-            <Ctrl icon="translate" label="Live" on={liveOn} onClick={() => setLiveOn(v => !v)} />
-            <Ctrl icon="comment" label="Captions" on={showCaptions} onClick={() => setShowCaptions(s => !s)} />
-            <Ctrl icon="screen" label="Share" on={sharing} onClick={shareScreen} />
-            <button className="cv-end" onClick={hangup} aria-label="End call">
-              <Icon name="phone" size={24} />
-              <span>End</span>
-            </button>
-          </div>
-          <p className="cv-dock-hint">
-            {phase === 'ringing'
-              ? (ringLeft ? `Ringing… ${ringLeft}s left` : 'Waiting for the other person to answer…')
-              : `${fmtDur(seconds)} · ${turnReady ? 'peer-to-peer media' : 'direct connection'}`}
-          </p>
+          ) : (
+            <>
+              <div className="bd">
+                {captions.length === 0 && <p className="cv-cap-empty" style={{ padding: 8 }}>Speak normally — every sentence appears here in the other person's language, and theirs in yours.</p>}
+                {captions.map((c, i) => {
+                  const cid = `cap-${i}-${c.lang}`;
+                  const live = sp.isPlaying(cid);
+                  return (
+                    <button key={i} className="ux-call-cap" onClick={() => sp.toggle({ text: c.text, lang: c.lang || 'en', id: cid })}>
+                      <span className="lc">{langOf(c.lang || 'en').code?.toUpperCase()}</span>
+                      <span className="tx">
+                        {c.text}
+                        {c.source && c.source !== c.text && <em>{c.source}</em>}
+                      </span>
+                      <span style={{ flex: 'none', color: live ? 'var(--ux-amber)' : 'rgba(255,255,255,.45)' }}>
+                        {live ? <SpeakingBars small /> : <Icon name="volume" size={13} />}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+              <form className="ux-call-capform" onSubmit={e => { e.preventDefault(); sendCaption(); }}>
+                <input value={captionDraft} onChange={e => setCaptionDraft(e.target.value)} placeholder="Type a caption — auto-translated…" />
+                <button type="submit" aria-label="Send caption"><Icon name="send" size={15} /></button>
+              </form>
+            </>
+          )}
         </div>
+      )}
+
+      {/* dock */}
+      <div className="ux-call-dock">
+        <button className={`ux-call-btn ${muted ? 'on' : ''}`} onClick={toggleMute} aria-label={muted ? 'Unmute' : 'Mute'} aria-pressed={muted}>
+          <Icon name={muted ? 'mute' : 'mic'} size={22} />
+        </button>
+        <button className={`ux-call-btn ${!camOn ? 'on' : ''}`} onClick={video ? toggleCam : flipCamera} aria-label={video ? (camOn ? 'Turn camera off' : 'Turn camera on') : 'Flip camera'}>
+          <Icon name={video ? 'video' : 'refresh'} size={22} />
+        </button>
+        <button className={`ux-call-btn ${sharing ? 'on' : ''}`} onClick={shareScreen} aria-label="Share screen">
+          <Icon name="screen" size={22} />
+        </button>
+        <button className={`ux-call-btn ${speaker ? 'on' : ''}`} onClick={toggleSpeaker} aria-label={speaker ? 'Speaker on' : 'Earpiece'}>
+          <Icon name="volume" size={22} />
+        </button>
+        <button className="ux-call-btn end" onClick={hangup} aria-label="End call">
+          <Icon name="phone" size={22} style={{ transform: 'rotate(135deg)' }} />
+        </button>
       </div>
+
+      <p className="ux-call-note">
+        {phase === 'ringing'
+          ? (ringLeft ? `Ringing… ${ringLeft}s left` : 'Waiting for the other person to answer…')
+          : `${fmtDur(seconds)} · ${turnReady ? 'peer-to-peer media' : 'direct connection'}${peerMuted ? ' · they are muted' : ''}`}
+      </p>
     </div>
   );
 }

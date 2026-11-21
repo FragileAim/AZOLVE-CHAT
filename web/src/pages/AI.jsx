@@ -1,18 +1,19 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { useApp } from '../App.jsx';
-import { Icon, Avatar, Empty, Skeleton } from '../components/UI.jsx';
+import { useApp, navigate } from '../App.jsx';
+import { Icon, Avatar, Modal } from '../components/UI.jsx';
 import { API } from '../lib/api.js';
 import { LANGS, langOf } from '../lib/i18n.js';
 
+/* ===========================================================================
+   Azolve AI — the dark assistant screen from the UI/UX export.
+   Four tools, real threads, real provider status. No canned answers.
+   ========================================================================= */
+
 const QUICK = [
-  { kind: 'summarize', label: 'Summarise a thread', icon: 'brain', hint: 'Paste a conversation and get the key points.' },
-  { kind: 'rewrite', label: 'Rewrite a message', icon: 'edit', hint: 'Make it clearer, warmer or more concise.' },
-  { kind: 'translate', label: 'Translate text', icon: 'translate', hint: 'Any language to any language.' },
-  { kind: 'caption', label: 'Write a caption', icon: 'magic', hint: 'For a post or a moment.' },
-  { kind: 'hashtags', label: 'Suggest hashtags', icon: 'hashtag', hint: 'Reach the right audience.' },
-  { kind: 'explain', label: 'Explain something', icon: 'info', hint: 'Plain-language answers.' },
-  { kind: 'ideas', label: 'Brainstorm ideas', icon: 'zap', hint: 'Content, product, campaigns.' },
-  { kind: 'replies', label: 'Draft replies', icon: 'reply', hint: 'Three ways to respond.' },
+  { kind: 'summarize', label: 'Summarize', icon: 'brain', tone: 'a' },
+  { kind: 'translate', label: 'Translate', icon: 'translate', tone: 'b' },
+  { kind: 'rewrite', label: 'Rewrite', icon: 'edit', tone: 'c' },
+  { kind: 'caption', label: 'Caption', icon: 'magic', tone: 'd' },
 ];
 
 export default function AI() {
@@ -29,26 +30,27 @@ export default function AI() {
   const [taskResult, setTaskResult] = useState(null);
   const [taskBusy, setTaskBusy] = useState(false);
   const [listening, setListening] = useState(false);
+  const [menu, setMenu] = useState(false);
   const endRef = useRef(null);
   const recRef = useRef(null);
 
   useEffect(() => {
-    API.aiStatus().then(setStatus).catch(() => {});
+    API.aiStatus().then(setStatus).catch(() => { });
     loadThreads();
   }, []);
 
   useEffect(() => { endRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages, sending]);
 
   const loadThreads = async () => {
-    try { const r = await API.aiThreads(); setThreads(r.threads || []); } catch {}
+    try { const r = await API.aiThreads(); setThreads(r.threads || []); } catch { }
   };
 
   const openThread = async (id) => {
-    setThreadId(id);
+    setThreadId(id); setMenu(false);
     try { const r = await API.aiThread(id); setMessages(r.messages || []); } catch { setMessages([]); }
   };
 
-  const newThread = () => { setThreadId(null); setMessages([]); };
+  const newThread = () => { setThreadId(null); setMessages([]); setMenu(false); };
 
   const send = async (e) => {
     e?.preventDefault();
@@ -78,6 +80,13 @@ export default function AI() {
     finally { setTaskBusy(false); }
   };
 
+  const useResult = () => {
+    if (!taskResult) return;
+    setInput(taskResult.text || taskResult.result || '');
+    setTaskKind(null);
+    notify('Added to the composer', 'ok');
+  };
+
   const toggleVoice = () => {
     const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SR) { notify('Voice input is not supported in this browser', 'err'); return; }
@@ -103,114 +112,119 @@ export default function AI() {
     window.speechSynthesis.speak(u);
   };
 
+  const engine = status?.engine || '…';
+
   return (
-    <div className="page page-wide ai-page">
-      <div className="page-head">
-        <div>
-          <h1>Azolve AI</h1>
-          <p className="muted">Private · on your chats only</p>
+    <div className="ux-ai">
+      <header className="ux-ai-head">
+        <button type="button" className="ux-ai-back" onClick={() => navigate('chats')} aria-label="Back">
+          <Icon name="back" size={20} />
+        </button>
+        <span className="ux-ai-orb"><Icon name="magic" size={20} /></span>
+        <div className="ux-ai-who">
+          <b>Azolve AI</b>
+          <span>Private · on your chats only</span>
         </div>
-        <div className="engine-chip" title="The model actually answering right now">
-          <Icon name="zap" size={14} /> engine: <b>{status?.engine || '…'}</b>
-        </div>
-      </div>
+        <button type="button" className="ux-ai-back" onClick={() => setMenu(true)} aria-label="Conversations">
+          <Icon name="more" size={20} />
+        </button>
+      </header>
 
-      <div className="ai-layout">
-        <aside className="ai-threads card">
-          <button className="btn primary btn-block" onClick={newThread}><Icon name="plus" size={16} /> New chat</button>
-          <div className="thread-list">
-            {threads.length === 0 && <p className="muted small">No conversations yet.</p>}
-            {threads.map(t => (
-              <button key={t.thread_id} className={`thread-row ${threadId === t.thread_id ? 'active' : ''}`} onClick={() => openThread(t.thread_id)}>
-                <Icon name="chat" size={15} />
-                <span>{new Date(t.last).toLocaleDateString()} · {new Date(t.last).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
-              </button>
-            ))}
+      <div className="ux-ai-body">
+        {messages.length === 0 && (
+          <div className="ux-ai-card">
+            <div className="h"><Icon name="magic" size={12} /> Ready · {engine}</div>
+            <p className="ux-ai-p" style={{ marginTop: 10 }}>
+              Hi {user.displayName?.split(' ')[0]}. I answer in {user.language?.toUpperCase() || 'EN'} by default.
+              Ask me anything, or use a tool below.
+            </p>
+            <div className="foot">
+              <b>What I can do</b>
+              <ul>
+                <li>Summarise a long conversation into decisions and action items.</li>
+                <li>Translate between {LANGS.length} languages, keeping the original intact.</li>
+                <li>Rewrite a message so it lands the way you meant it.</li>
+              </ul>
+            </div>
           </div>
-        </aside>
+        )}
 
-        <section className="ai-main">
-          <div className="ai-chat card">
-            <div className="ai-chat-scroll">
-              {messages.length === 0 && (
-                <div className="ai-hello">
-                  <div className="ai-orb"><Icon name="sparkles" size={30} /></div>
-                  <h2>How can I help, {user.displayName?.split(' ')[0]}?</h2>
-                  <p className="muted">Ask anything, or pick a tool below. I answer in {user.language?.toUpperCase() || 'EN'} by default.</p>
-                  <div className="quick-grid">
-                    {QUICK.map(q => (
-                      <button key={q.kind} className="quick-card" onClick={() => { setTaskKind(q.kind); setTaskText(''); setTaskResult(null); }}>
-                        <Icon name={q.icon} size={18} />
-                        <b>{q.label}</b>
-                        <small>{q.hint}</small>
-                      </button>
-                    ))}
-                  </div>
+        {messages.map(m => (
+          m.role === 'user' ? (
+            <div key={m.id} className="ux-ai-me">{m.content}</div>
+          ) : (
+            <div key={m.id} className="ux-ai-card">
+              <div className="h"><Icon name="magic" size={12} /> {m.error ? 'Error' : (m.engine || 'Azolve AI')}</div>
+              <p className="ux-ai-p" style={{ marginTop: 10 }}>{m.content}</p>
+              {!m.error && (
+                <div className="ux-ai-tools">
+                  <button type="button" className="ux-ai-use" onClick={() => { navigator.clipboard.writeText(m.content); notify('Copied', 'ok'); }}>Copy</button>
+                  <button type="button" className="ux-ai-use ux-ai-ghost" onClick={() => speak(m.content)}>
+                    <Icon name="volume" size={14} /> Speak
+                  </button>
                 </div>
               )}
-              {messages.map(m => (
-                <div key={m.id} className={`ai-msg ${m.role} ${m.error ? 'error' : ''}`}>
-                  {m.role === 'assistant' && <span className="ai-avatar"><Icon name="sparkles" size={15} /></span>}
-                  <div className="bubble">
-                    <p>{m.content}</p>
-                    {m.role === 'assistant' && (
-                      <div className="ai-msg-tools">
-                        <button onClick={() => { navigator.clipboard.writeText(m.content); notify('Copied', 'ok'); }}><Icon name="copy" size={13} /> Copy</button>
-                        <button onClick={() => speak(m.content)}><Icon name="volume" size={13} /> Speak</button>
-                      </div>
-                    )}
-                  </div>
-                  {m.role === 'user' && <Avatar user={user} size={30} />}
-                </div>
-              ))}
-              {sending && <div className="ai-msg assistant"><span className="ai-avatar"><Icon name="sparkles" size={15} /></span><div className="bubble typing"><i /><i /><i /></div></div>}
-              <div ref={endRef} />
             </div>
+          )
+        ))}
 
-            <form className="ai-input" onSubmit={send}>
-              <button type="button" className={`icon-btn ${listening ? 'rec' : ''}`} onClick={toggleVoice} title="Voice input"><Icon name="mic" size={19} /></button>
-              <input value={input} onChange={e => setInput(e.target.value)} placeholder="Message AZOLVE AI…" />
-              <button className="btn primary" disabled={sending || !input.trim()}><Icon name="send" size={17} /></button>
-            </form>
+        {sending && (
+          <div className="ux-ai-card">
+            <div className="h"><Icon name="magic" size={12} /> Thinking</div>
+            <div className="ux-ai-typing"><i /><i /><i /></div>
           </div>
-        </section>
-
-        <aside className="ai-side card">
-          <h3><Icon name="brain" size={16} /> Toolbox</h3>
-          <div className="tool-list">
-            {QUICK.map(q => (
-              <button key={q.kind} className={`tool-row ${taskKind === q.kind ? 'active' : ''}`} onClick={() => { setTaskKind(q.kind); setTaskResult(null); }}>
-                <Icon name={q.icon} size={15} /> {q.label}
-              </button>
-            ))}
-          </div>
-          <div className="ai-provider-note">
-            <p className="muted small">Translation providers — highlighted means configured &amp; active:</p>
-            <div className="prov-chips">
-              {(status?.translationProviders || []).map(p => (
-                <span key={p.name} className={`prov ${p.available ? 'on' : ''}`}>{p.name}</span>
-              ))}
-            </div>
-            <p className="muted small">
-              {(() => {
-                const on = (status?.translationProviders || []).filter(p => p.available).map(p => p.name);
-                const live = status?.engine && !/local|heuristic|offline/i.test(status.engine);
-                if (!on.length && !live) {
-                  return <>No provider keys are set, so the assistant uses a deterministic local engine and MyMemory translation. Add keys in <code>.env</code> to unlock DeepL, Google, OpenAI, Anthropic, Gemini or Groq.</>;
-                }
-                return <>Active now: <b>{live ? status.engine : 'local engine'}</b>{on.length ? <> · translation via <b>{on.join(', ')}</b></> : null}. Any provider without a key stays greyed out above.</>;
-              })()}
-            </p>
-          </div>
-        </aside>
+        )}
+        <div ref={endRef} />
       </div>
+
+      <div className="ux-ai-compose">
+        <div className="ux-ai-quick">
+          {QUICK.map(q => (
+            <button key={q.kind} type="button" className="ux-ai-q"
+              onClick={() => { setTaskKind(q.kind); setTaskText(''); setTaskResult(null); }}>
+              <Icon name={q.icon} size={16} className={q.tone} />
+              {q.label}
+            </button>
+          ))}
+        </div>
+        <form className="ux-ai-input" onSubmit={send}>
+          <button type="button" className="ux-ai-back" style={{ width: 28, height: 28 }}
+            onClick={toggleVoice} aria-label="Voice input">
+            <Icon name="mic" size={18} style={{ color: listening ? '#ffb938' : 'rgba(255,255,255,.55)' }} />
+          </button>
+          <input value={input} onChange={e => setInput(e.target.value)} placeholder="Ask Azolve AI anything…" />
+          <button type="submit" className="ux-ai-send" disabled={sending || !input.trim()} aria-label="Send">
+            <Icon name="arrow" size={16} style={{ transform: 'rotate(-90deg)' }} />
+          </button>
+        </form>
+      </div>
+
+      {menu && (
+        <div className="more-sheet" onClick={() => setMenu(false)}>
+          <div className="more-sheet-inner" onClick={e => e.stopPropagation()}>
+            <div className="more-grab" />
+            <b className="more-title">Conversations</b>
+            <button className="more-new" onClick={newThread}><Icon name="plus" size={18} /> New chat</button>
+            <div className="more-grid">
+              {threads.length === 0 && <p className="muted" style={{ padding: '0 4px' }}>No conversations yet.</p>}
+              {threads.map(t => (
+                <button key={t.thread_id} className={`more-item ${threadId === t.thread_id ? 'active' : ''}`}
+                  onClick={() => openThread(t.thread_id)}>
+                  <span className="more-ic"><Icon name="chat" size={20} /></span>
+                  <span>{new Date(t.last).toLocaleDateString()} · {new Date(t.last).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
 
       {taskKind && (
         <div className="modal-backdrop" onClick={() => setTaskKind(null)}>
           <div className="modal wide" onClick={e => e.stopPropagation()}>
             <div className="modal-head">
-              <h3>{QUICK.find(q => q.kind === taskKind)?.label}</h3>
-              <button className="icon-btn" onClick={() => setTaskKind(null)}><Icon name="close" size={18} /></button>
+              <h3>{QUICK.find(q => q.kind === taskKind)?.label || taskKind}</h3>
+              <button className="icon-btn" onClick={() => setTaskKind(null)} aria-label="Close"><Icon name="close" size={18} /></button>
             </div>
             <div className="modal-body">
               <textarea rows={6} value={taskText} onChange={e => setTaskText(e.target.value)}
@@ -226,13 +240,16 @@ export default function AI() {
               {taskResult && (
                 <div className="task-result">
                   <div className="row-between"><b>Result</b><span className="engine-chip small">{taskResult.engine}</span></div>
-                  <p>{taskResult.text}</p>
-                  <button className="btn ghost btn-sm" onClick={() => { navigator.clipboard.writeText(taskResult.text); notify('Copied', 'ok'); }}><Icon name="copy" size={14} /> Copy</button>
+                  <p>{taskResult.text || taskResult.result}</p>
+                  <button className="btn ghost btn-sm" onClick={() => { navigator.clipboard.writeText(taskResult.text || taskResult.result); notify('Copied', 'ok'); }}>
+                    <Icon name="copy" size={14} /> Copy
+                  </button>
                 </div>
               )}
             </div>
             <div className="modal-foot">
               <button className="btn ghost" onClick={() => setTaskKind(null)}>Close</button>
+              {taskResult && <button className="btn ghost" onClick={useResult}>Use this</button>}
               <button className="btn primary" onClick={runTask} disabled={taskBusy}>{taskBusy ? 'Working…' : 'Run'}</button>
             </div>
           </div>

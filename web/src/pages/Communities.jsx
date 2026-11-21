@@ -70,44 +70,58 @@ function CommunityPost({ post, communityId, onVoted }) {
 
   const total = post.poll?.total || 0;
   return (
-    <article className="cp-card card">
-      <header className="cp-head">
-        <Avatar user={post.author} size={34} />
-        <div><b>{post.author.displayName} {post.author.verified && <Verified />}</b><small>{post.author.username} · {timeAgo(post.createdAt)}</small></div>
-        <span className="lang-chip">{post.originalLang?.toUpperCase()}</span>
-      </header>
-      <p className="cp-body">{translated || post.displayBody || post.body}</p>
-      {translated && <small className="translated-note">Translated · <button className="linkbtn" onClick={() => setTranslated(null)}>See original</button></small>}
-      {post.displayBody !== post.body && !translated && (
-        <small className="translated-note">Translated for you · <button className="linkbtn" onClick={() => setTranslated(post.body)}>See original</button></small>
-      )}
-      {post.type === 'poll' && post.poll && (
-        <div className="poll-box">
-          <b>{post.poll.question}</b>
-          {post.poll.options.map((opt, i) => {
-            const count = post.poll.results?.[i] || 0;
-            const pct = total ? Math.round((count / total) * 100) : 0;
-            return (
-              <button key={i} className={`poll-opt ${post.poll.myVote === i ? 'voted' : ''}`} onClick={() => vote(i)} disabled={voting}>
-                <span className="poll-fill" style={{ width: `${pct}%` }} />
-                <span className="poll-label">{opt}</span>
-                <span className="poll-pct">{pct}%</span>
-              </button>
-            );
-          })}
-          <small className="muted">{total} vote{total === 1 ? '' : 's'}</small>
+    <div className="ux-gc-row">
+      <Avatar user={post.author} size={32} />
+      <div className="ux-gc-bub">
+        <div className="sender">
+          {post.author.displayName}
+          {post.author.verified && <Verified size={11} />}
+          <span className="tag">{post.originalLang?.toUpperCase() || 'EN'}</span>
         </div>
-      )}
-      {post.type === 'event' && post.event && (
-        <div className="event-box"><Icon name="calendar" size={18} /><div><b>{post.event.title}</b><small>{post.event.when || post.event.date || 'Upcoming'}</small></div></div>
-      )}
-      {post.media?.length > 0 && (
-        <div className="cp-media">{post.media.map((m, i) => m.kind === 'video' ? <video key={i} src={m.url} controls /> : <img key={i} src={m.url} alt="community" loading="lazy" />)}</div>
-      )}
-      <div className="cp-actions">
-        <button className="pa" onClick={translate}><Icon name="translate" size={16} /> Translate</button>
+        <p>{translated || post.displayBody || post.body}</p>
+        {(translated || (post.displayBody && post.displayBody !== post.body)) && (
+          <button className="trbtn" onClick={() => setTranslated(translated ? null : post.body)}>
+            {translated ? 'See original' : 'See original'}
+          </button>
+        )}
+        {post.type === 'poll' && post.poll && (
+          <div className="ux-gc-poll">
+            <span className="lbl">{post.poll.question}</span>
+            {post.poll.options.map((opt, i) => {
+              const count = post.poll.results?.[i] || 0;
+              const pct = total ? Math.round((count / total) * 100) : 0;
+              return (
+                <button key={i} className={`ux-gc-opt ${post.poll.myVote === i ? 'on' : ''}`} onClick={() => vote(i)} disabled={voting}>
+                  <i style={{ width: `${pct}%` }} />
+                  <span>{opt}</span>
+                  <span>{pct}%</span>
+                </button>
+              );
+            })}
+            <span style={{ fontSize: 11, color: 'rgba(255,255,255,.40)' }}>{total} vote{total === 1 ? '' : 's'}</span>
+          </div>
+        )}
+        {post.type === 'event' && post.event && (
+          <div className="ux-gc-poll">
+            <span className="lbl"><Icon name="calendar" size={11} /> Event</span>
+            <p style={{ fontSize: 13.5 }}><b>{post.event.title}</b> · {post.event.when || post.event.date || 'Upcoming'}</p>
+          </div>
+        )}
+        {post.media?.length > 0 && (
+          <div className="ux-gc-media">
+            {post.media.map((m, i) => m.kind === 'video'
+              ? <video key={i} src={m.url} controls />
+              : <img key={i} src={m.url} alt="community" loading="lazy" />)}
+          </div>
+        )}
+        <div className="meta">
+          {timeAgo(post.createdAt)}
+          <button className="trbtn" style={{ marginLeft: 'auto', marginTop: 0 }} onClick={translate}>
+            <Icon name="translate" size={11} /> Translate
+          </button>
+        </div>
       </div>
-    </article>
+    </div>
   );
 }
 
@@ -155,103 +169,114 @@ function CommunityDetail({ id, onBack }) {
   };
 
   return (
-    <div className="page page-wide">
-      <button className="linkbtn back-link" onClick={onBack}><Icon name="back" size={16} /> All communities</button>
-      <div className="community-hero card">
-        <div className="ch-cover" />
-        <div className="ch-body">
-          <div className="ch-avatar"><Icon name="users" size={30} /></div>
-          <div className="ch-info">
-            <h1>{community.name} {community.privacy === 'private' && <Icon name="lock" size={16} />}</h1>
-            <p className="muted">{community.description}</p>
-            <div className="ch-meta">
-              <span><Icon name="users" size={14} /> {community.members} members</span>
-              <span className="cat-chip">{community.category}</span>
-              <span>{community.privacy}</span>
-            </div>
-          </div>
-          <div className="ch-actions">
-            <button className={`btn ${community.joined ? 'ghost' : 'primary'}`} onClick={join}>{community.joined ? 'Leave' : 'Join'}</button>
-            {community.conversationId && community.joined && (
-              <button className="btn ghost" onClick={() => navigate('chats', community.conversationId)}><Icon name="chat" size={16} /> Group chat</button>
-            )}
-          </div>
+    <div className="ux-gc">
+      <header className="ux-gc-head">
+        <button className="ux-gc-back" onClick={onBack} aria-label="All communities"><Icon name="back" size={18} /></button>
+        <div className="ux-gc-ic"><Icon name="users" size={18} /></div>
+        <div className="ux-gc-who">
+          <b>{community.name} {community.privacy === 'private' && <Icon name="lock" size={11} />}</b>
+          <small>{community.members} members · <em>{community.category}</em></small>
         </div>
+        {community.conversationId && community.joined && (
+          <button className="ux-gc-btn" onClick={() => navigate('chats', community.conversationId)} aria-label="Group chat"><Icon name="chat" size={17} /></button>
+        )}
+        <button className="ux-gc-btn" onClick={join} aria-label={community.joined ? 'Leave' : 'Join'}>
+          <Icon name={community.joined ? 'check' : 'plus'} size={17} />
+        </button>
+      </header>
+
+      {community.rules && (
+        <div className="ux-gc-pinned">
+          <Icon name="pin" size={14} />
+          <span>{community.rules}</span>
+          <Icon name="arrow" size={14} style={{ opacity: .4 }} />
+        </div>
+      )}
+
+      <div className="ux-gc-tabs">
+        <button className={tab === 'discussion' ? 'on' : ''} onClick={() => setTab('discussion')}>Discussion</button>
+        <button className={tab === 'members' ? 'on' : ''} onClick={() => setTab('members')}>Members {members.length}</button>
+        <button className={tab === 'about' ? 'on' : ''} onClick={() => setTab('about')}>About</button>
       </div>
 
       {locked ? (
-        <div className="card locked-box"><Icon name="lock" size={26} /><h3>This community is private</h3><p className="muted">Join to see discussions, polls and members.</p></div>
+        <div className="ux-gc-locked">
+          <Icon name="lock" size={30} />
+          <b>This community is private</b>
+          <p>Join to see discussions, polls and members.</p>
+          <button onClick={join}>Join community</button>
+        </div>
       ) : (
-        <div className="community-grid">
-          <div className="community-main">
-            <div className="seg-tabs">
-              <button className={tab === 'discussion' ? 'active' : ''} onClick={() => setTab('discussion')}>Discussion</button>
-              <button className={tab === 'members' ? 'active' : ''} onClick={() => setTab('members')}>Members ({members.length})</button>
-              <button className={tab === 'about' ? 'active' : ''} onClick={() => setTab('about')}>About</button>
-            </div>
-
+        <>
+          <div className="ux-gc-body">
             {tab === 'discussion' && (
               <>
-                <form className="card cp-compose" onSubmit={submit}>
-                  {pollMode ? (
-                    <div className="stack">
-                      <input value={pollQ} onChange={e => setPollQ(e.target.value)} placeholder="Poll question" />
-                      {pollOpts.map((o, i) => (
-                        <input key={i} value={o} onChange={e => setPollOpts(p => p.map((x, j) => j === i ? e.target.value : x))} placeholder={`Option ${i + 1}`} />
-                      ))}
-                      <div className="row-gap">
-                        <button type="button" className="btn ghost btn-sm" onClick={() => setPollOpts(p => [...p, ''])}>+ Option</button>
-                        <button type="button" className="linkbtn" onClick={() => setPollMode(false)}>Cancel poll</button>
-                      </div>
+                {pollMode && (
+                  <div className="ux-gc-bub" style={{ maxWidth: '100%' }}>
+                    <div className="sender">New poll</div>
+                    {pollOpts.map((o, i) => (
+                      <input
+                        key={i}
+                        value={o}
+                        onChange={e => setPollOpts(p => p.map((x, j) => j === i ? e.target.value : x))}
+                        placeholder={`Option ${i + 1}`}
+                        style={{ width: '100%', marginTop: 6, height: 36, borderRadius: 10, border: 0, background: 'rgba(255,255,255,.06)', color: '#edeff7', padding: '0 12px', font: 'inherit', fontSize: 13 }}
+                      />
+                    ))}
+                    <div style={{ display: 'flex', gap: 12, marginTop: 8 }}>
+                      <button type="button" className="trbtn" onClick={() => setPollOpts(p => [...p, ''])}>+ Option</button>
+                      <button type="button" className="trbtn" onClick={() => setPollMode(false)}>Cancel</button>
                     </div>
-                  ) : (
-                    <textarea rows={3} value={body} onChange={e => setBody(e.target.value)} placeholder={`Share with ${community.name}…`} />
-                  )}
-                  <div className="cp-compose-foot">
-                    <button type="button" className="tool" onClick={() => setPollMode(m => !m)}><Icon name="poll" size={16} /> Poll</button>
-                    <button className="btn primary btn-sm" disabled={posting}>{posting ? 'Posting…' : 'Post'}</button>
                   </div>
-                </form>
-                {posts.length === 0 && <Empty icon="users" title="No posts yet" text="Be the first to start a discussion." />}
+                )}
+                {posts.length === 0 && (
+                  <div className="ux-gc-locked" style={{ margin: '30px 0' }}>
+                    <b>No posts yet</b>
+                    <p>Be the first to start a discussion.</p>
+                  </div>
+                )}
                 {posts.map(p => <CommunityPost key={p.id} post={p} communityId={id} onVoted={load} />)}
               </>
             )}
 
-            {tab === 'members' && (
-              <div className="card">
-                {members.map(m => (
-                  <button key={m.id} className="person-row" onClick={() => navigate('profile', m.username)}>
-                    <Avatar user={m} size={40} showStatus online={m.online} />
-                    <span><b>{m.displayName} {m.verified && <Verified />}</b><small>@{m.username} · {m.role} · {m.language?.toUpperCase()}</small></span>
-                  </button>
-                ))}
-              </div>
-            )}
+            {tab === 'members' && members.map(m => (
+              <button key={m.id} className="ux-gc-member" onClick={() => navigate('profile', m.username)}>
+                <Avatar user={m} size={40} showStatus online={m.online} />
+                <span style={{ flex: 1 }}>
+                  <b>{m.displayName} {m.verified && <Verified size={11} />}</b>
+                  <small>@{m.username} · {m.role} · {m.language?.toUpperCase()}</small>
+                </span>
+                <Icon name="arrow" size={15} style={{ opacity: .35 }} />
+              </button>
+            ))}
 
             {tab === 'about' && (
-              <div className="card stack">
-                <div><b>Description</b><p className="muted">{community.description}</p></div>
-                <div><b>Rules</b><p className="muted">{community.rules || 'No rules set.'}</p></div>
-                <div><b>Created</b><p className="muted">{timeAgo(community.createdAt)}</p></div>
-                <div><b>Privacy</b><p className="muted">{community.privacy}</p></div>
+              <div className="ux-gc-about">
+                <b>Description</b>{community.description}
+                <b>Rules</b>{community.rules || 'No rules set.'}
+                <b>Created</b>{timeAgo(community.createdAt)}
+                <b>Privacy</b>{community.privacy}
+                <b>Languages</b>Every post is stored in its original language and translated on demand for each reader. Nothing is overwritten.
               </div>
             )}
           </div>
 
-          <aside className="community-side">
-            <div className="card">
-              <h3>Members</h3>
-              <div className="member-stack">
-                {members.slice(0, 8).map(m => <Avatar key={m.id} user={m} size={34} />)}
-              </div>
-              <button className="linkbtn" onClick={() => setTab('members')}>See all {members.length}</button>
-            </div>
-            <div className="card">
-              <h3>Multilingual by default</h3>
-              <p className="muted small">Every post is stored in its original language and translated on demand for each reader. Nothing is overwritten.</p>
-            </div>
-          </aside>
-        </div>
+          {tab === 'discussion' && (
+            <form className="ux-gc-compose" onSubmit={submit}>
+              <input
+                value={pollMode ? pollQ : body}
+                onChange={e => pollMode ? setPollQ(e.target.value) : setBody(e.target.value)}
+                placeholder={pollMode ? 'Poll question…' : `Message ${community.name}…`}
+              />
+              <button type="button" onClick={() => setPollMode(m => !m)} aria-label="Poll" style={pollMode ? { color: '#ffb938' } : undefined}>
+                <Icon name="poll" size={18} />
+              </button>
+              <button type="submit" className="send" disabled={posting} aria-label="Send">
+                <Icon name="send" size={17} />
+              </button>
+            </form>
+          )}
+        </>
       )}
     </div>
   );
@@ -276,45 +301,62 @@ export default function Communities() {
   const filtered = (list || []).filter(c => cat === 'All' || c.category === cat);
 
   return (
-    <div className="page page-wide communities-page">
-      <div className="page-head">
-        <div>
-          <h1>Communities</h1>
-          <p className="muted">Interest, professional and local spaces — every discussion multilingual.</p>
-        </div>
-        <button className="btn primary" onClick={() => setCreating(true)}><Icon name="plus" size={17} /> Create</button>
-      </div>
-
-      <div className="explore-top">
-        <div className="explore-search">
-          <Icon name="search" size={18} />
-          <input value={q} onChange={e => setQ(e.target.value)} placeholder="Search communities…" />
-        </div>
-      </div>
-
-      <div className="cat-rail">
-        {CATEGORIES.map(c => <button key={c} className={`chip ${cat === c ? 'active' : ''}`} onClick={() => setCat(c)}>{c}</button>)}
-      </div>
-
-      {list === null && <div className="card-grid">{[1, 2, 3, 4].map(i => <Skeleton key={i} h={190} />)}</div>}
-      {list && filtered.length === 0 && <Empty icon="users" title="No communities found" text="Try another category or create one." action={<button className="btn primary" onClick={() => setCreating(true)}>Create a community</button>} />}
-
-      <div className="card-grid">
-        {filtered.map(c => (
-          <button key={c.id} className="community-card card" onClick={() => setSelected(c.id)}>
-            <div className="cc-top">
-              <div className="cc-icon"><Icon name="users" size={22} /></div>
-              {c.privacy === 'private' && <span className="lock-pill"><Icon name="lock" size={11} /> Private</span>}
-            </div>
-            <h3>{c.name}</h3>
-            <p className="muted">{c.description}</p>
-            <div className="cc-foot">
-              <span className="cat-chip">{c.category}</span>
-              <span className="muted small">{c.members} members</span>
-              {c.joined && <span className="joined-pill">Joined</span>}
-            </div>
+    <div className="ux-screen">
+      <div className="ux-scroll">
+        <header className="ux-set-head">
+          <div>
+            <h1 className="ux-set-h1 lg">Communities</h1>
+            <p className="ux-set-sub">Interest, professional and local spaces.</p>
+          </div>
+          <button className="ux-round blue" style={{ marginLeft: 'auto' }} onClick={() => setCreating(true)} aria-label="Create community">
+            <Icon name="plus" size={18} />
           </button>
-        ))}
+        </header>
+
+        <div className="ux-pad" style={{ paddingTop: 4 }}>
+          <div className="ux-search lg">
+            <Icon name="search" size={16} className="sl" />
+            <input value={q} onChange={e => setQ(e.target.value)} placeholder="Search communities…" />
+          </div>
+        </div>
+
+        <div className="ux-cats">
+          {CATEGORIES.map(c => (
+            <button key={c} className={`ux-cat ${cat === c ? 'on' : ''}`} onClick={() => setCat(c)}>{c}</button>
+          ))}
+        </div>
+
+        <p className="ux-sub">Your spaces <span>{filtered.length}</span></p>
+
+        {list === null && (
+          <div className="ux-comm-list">
+            {[1, 2, 3].map(i => <div key={i} style={{ margin: '12px 16px 0' }}><Skeleton h={88} /></div>)}
+          </div>
+        )}
+
+        {list && filtered.length === 0 && (
+          <div className="ux-pf-empty">
+            <b>No communities found</b>
+            <p>Try another category, or start one for your people.</p>
+            <button className="ux-set-btn" style={{ marginTop: 14 }} onClick={() => setCreating(true)}>Create a community</button>
+          </div>
+        )}
+
+        <div className="ux-comm-list">
+          {filtered.map(c => (
+            <button key={c.id} className="ux-comm-card" onClick={() => setSelected(c.id)}>
+              <span className="ux-comm-ic"><Icon name="users" size={24} /></span>
+              <span className="ux-set-main">
+                <b>{c.name} {c.privacy === 'private' && <Icon name="lock" size={12} />}</b>
+                <small>{c.description}</small>
+                <small style={{ marginTop: 4, fontWeight: 700 }}>
+                  {c.category} · {c.members} members{c.joined ? ' · Joined' : ''}
+                </small>
+              </span>
+              <span className={`ux-tiny ${c.joined ? 'ghost' : 'primary'}`}>{c.joined ? 'Open' : 'View'}</span>
+            </button>
+          ))}
+        </div>
       </div>
 
       {creating && <CreateCommunity onClose={() => setCreating(false)} onCreated={c => { setList(l => [c, ...(l || [])]); setSelected(c.id); }} />}

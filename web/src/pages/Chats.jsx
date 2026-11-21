@@ -65,63 +65,106 @@ function ChatList({ activeId }) {
       c.participants.some(p => p.displayName.toLowerCase().includes(q.toLowerCase()));
   }), [convs, q, tab]);
 
+  const pinned = filtered.filter(c => c.pinned);
+  const rest = filtered.filter(c => !c.pinned);
+  const totalUnread = (convs || []).reduce((n, c) => n + (c.unread || 0), 0);
+  const groupCount = (convs || []).filter(c => c.type === 'group').length;
+
+  const row = (c, isPinned) => (
+    <button key={c.id} className={`ux-row ${isPinned ? 'pinned' : ''}`} onClick={() => navigate('chats', c.id)}>
+      <div className="ux-av">
+        {c.type === 'group'
+          ? <div className="ux-av group"><Icon name="users" size={20} /></div>
+          : <Avatar user={{ displayName: c.title, avatar: c.avatar }} size={54} showStatus online={c.other?.online} />}
+      </div>
+      <div className="ux-row-main">
+        <div className="ux-row-top">
+          <span className="ux-name">
+            {c.title}
+            {c.locked && <Icon name="lock" size={11} />}
+            {c.muted && <Icon name="mute" size={11} style={{ opacity: .4 }} />}
+          </span>
+          <span className={`ux-time ${c.unread > 0 ? 'hot' : ''}`}>{timeAgo(c.lastMessageAt)}</span>
+        </div>
+        <div className="ux-row-top" style={{ alignItems: 'center' }}>
+          <span className={`ux-prev ${c.unread > 0 ? 'hot' : ''}`}>
+            {c.lastMessage?.translated && <Icon name="translate" size={12} />}
+            {c.lastMessage?.type && c.lastMessage.type !== 'text' && (
+              <Icon name={c.lastMessage.type === 'image' ? 'image' : c.lastMessage.type === 'voice' ? 'mic' : 'file'} size={12} />
+            )}
+            <span className="ellipsis">{c.lastMessage?.displayBody || c.lastMessage?.body || 'No messages yet'}</span>
+          </span>
+          {c.unread > 0
+            ? <i className="ux-badge">{c.unread}</i>
+            : c.lastMessage && <span className="ux-dot" style={{ opacity: 0 }} />}
+        </div>
+      </div>
+    </button>
+  );
+
   return (
-    <aside className="chat-list-pane">
-      <div className="clp-head">
-        <div className="clp-title">
-          <h1>Chats</h1>
-          <div className="clp-actions">
-            <button className="icon-btn" onClick={() => setSearchOpen(v => !v)} aria-label="Search chats"><Icon name="search" size={18} /></button>
-            <button className="icon-btn solid" onClick={() => setNewOpen(true)} aria-label="New chat"><Icon name="plus" size={19} /></button>
-          </div>
-        </div>
-        {searchOpen && (
-          <div className="search-box">
-            <Icon name="search" size={15} />
-            <input autoFocus value={q} onChange={e => setQ(e.target.value)} placeholder="Search conversations" />
-          </div>
-        )}
-        <div className="clp-tabs">
-          <button className={tab === 'personal' ? 'on' : ''} onClick={() => setTab('personal')}>Personal</button>
-          <button className={tab === 'groups' ? 'on' : ''} onClick={() => setTab('groups')}>Groups</button>
-          <button className={tab === 'work' ? 'on' : ''} onClick={() => setTab('work')} title="Archived conversations">Work</button>
-        </div>
-      </div>
-
-      <div className="clp-body">
-        {!convs ? [1, 2, 3, 4, 5].map(i => (
-          <div key={i} className="conv-skel"><Skeleton w={46} h={46} r={99} /><div style={{ flex: 1 }}><Skeleton w="55%" h={13} /><Skeleton w="80%" h={11} style={{ marginTop: 7 }} /></div></div>
-        )) : filtered.length === 0 ? (
-          <Empty icon="chat" title={tab === 'work' ? 'Nothing archived' : tab === 'groups' ? 'No groups yet' : 'No conversations'} text={q ? 'No chats match that search.' : tab === 'groups' ? 'Create a group to talk with several people at once.' : 'Start a direct message or create a group.'} />
-        ) : filtered.map(c => (
-          <button key={c.id} className={`conv-item ${activeId === c.id ? 'active' : ''}`} onClick={() => navigate('chats', c.id)}>
-            <div className="ci-avatar">
-              <Avatar user={{ displayName: c.title, avatar: c.avatar }} size={46} showStatus online={c.other?.online} />
-              {c.type === 'group' && <span className="ci-group"><Icon name="users" size={10} /></span>}
-            </div>
-            <div className="ci-main">
-              <div className="ci-top">
-                <span className="ci-name">{c.title}{c.locked && <Icon name="lock" size={11} />}</span>
-                <span className="ci-time">{timeAgo(c.lastMessageAt)}</span>
-              </div>
-              <div className="ci-sub">
-                {c.lastMessage?.translated && <Icon name="translate" size={11} />}
-                {c.lastMessage?.type && c.lastMessage.type !== 'text' && <Icon name={c.lastMessage.type === 'image' ? 'image' : c.lastMessage.type === 'voice' ? 'mic' : 'file'} size={11} />}
-                <span className="ellipsis">{c.lastMessage?.displayBody || c.lastMessage?.body || 'No messages yet'}</span>
-              </div>
-            </div>
-            <div className="ci-meta">
-              {c.unread > 0 && <i className="unread-pill">{c.unread}</i>}
-              <div className="ci-flags">
-                {c.pinned && <Icon name="pin" size={11} />}
-                {c.muted && <Icon name="mute" size={11} />}
-              </div>
-            </div>
+    <aside className="chat-list-pane ux-screen">
+      <div className="ux-cl-head">
+        <h1 className="ux-h1">Chats</h1>
+        <div className="ux-cl-actions">
+          <button className="ux-round" onClick={() => setSearchOpen(v => !v)} aria-label="Search chats">
+            <Icon name={searchOpen ? 'close' : 'search'} size={15} />
           </button>
-        ))}
+          <button className="ux-round blue" onClick={() => setNewOpen(true)} aria-label="New chat">
+            <Icon name="edit" size={14} />
+          </button>
+        </div>
       </div>
 
-      <button className="clp-new" onClick={() => setNewOpen(true)}><Icon name="plus" size={17} /> New conversation</button>
+      <div className="ux-pad" style={{ marginTop: 16 }}>
+        <div className="ux-search">
+          <Icon name="search" size={13} />
+          <input
+            value={q}
+            onChange={e => setQ(e.target.value)}
+            placeholder="Search people, messages, media"
+            aria-label="Search conversations"
+          />
+        </div>
+      </div>
+
+      <div className="ux-filters" style={{ marginTop: 16 }}>
+        <button className={`ux-filter ${tab === 'personal' ? 'on' : ''}`} onClick={() => setTab('personal')}>
+          Personal{totalUnread > 0 && <b className="amber">{totalUnread}</b>}
+        </button>
+        <button className={`ux-filter ${tab === 'groups' ? 'on' : ''}`} onClick={() => setTab('groups')}>
+          Groups{groupCount > 0 && <b>{groupCount}</b>}
+        </button>
+        <button className={`ux-filter ${tab === 'work' ? 'on' : ''}`} onClick={() => setTab('work')}>Archived</button>
+      </div>
+
+      <div className="ux-scroll" style={{ marginTop: 4 }}>
+        {!convs ? [1, 2, 3, 4, 5].map(i => (
+          <div key={i} className="ux-row"><Skeleton w={54} h={54} r={99} /><div style={{ flex: 1 }}><Skeleton w="55%" h={13} /><Skeleton w="80%" h={11} style={{ marginTop: 7 }} /></div></div>
+        )) : filtered.length === 0 ? (
+          <div style={{ padding: '8px 12px' }}>
+            <Empty icon="chat" title={tab === 'work' ? 'Nothing archived' : tab === 'groups' ? 'No groups yet' : 'No conversations'} text={q ? 'No chats match that search.' : tab === 'groups' ? 'Create a group to talk with several people at once.' : 'Start a direct message or create a group.'} />
+          </div>
+        ) : (
+          <>
+            {pinned.length > 0 && (
+              <>
+                <div className="ux-label ux-pad" style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 18 }}>
+                  <Icon name="pin" size={11} /> Pinned
+                </div>
+                <div style={{ padding: '4px 8px 0' }}>{pinned.map(c => row(c, true))}</div>
+              </>
+            )}
+            {rest.length > 0 && (
+              <>
+                <div className="ux-label ux-pad" style={{ marginTop: 16 }}>All messages</div>
+                <div style={{ padding: '4px 8px 0' }}>{rest.map(c => row(c, false))}</div>
+              </>
+            )}
+          </>
+        )}
+      </div>
+
       <NewChatModal open={newOpen} onClose={() => setNewOpen(false)} />
     </aside>
   );
@@ -520,26 +563,27 @@ function ChatView({ id }) {
     : `${conv?.participants.length || 0} members`;
 
   return (
-    <section className="chat-pane">
-      <header className="chat-head">
-        <button className="icon-btn chat-back" onClick={() => navigate('chats')} aria-label="Back"><Icon name="back" size={19} /></button>
-        <Avatar user={{ displayName: title, avatar: conv?.avatar }} size={40} showStatus online={conv?.other?.online} />
-        <div className="who">
-          <div className="n">{title} {conv?.type === 'dm' && conv.other && <Verified size={13} />}</div>
-          <div className="s">
-            {typing.length > 0 ? <span className="typing-inline">typing…</span> : subtitle}
-            {conv?.languageOverride && <> · <span className="lo-badge">reads in {langOf(conv.languageOverride).label}</span></>}
-          </div>
+    <section className="chat-pane ux-screen cv">
+      <header className="ux-cv-head">
+        <button className="ux-cv-back" onClick={() => navigate('chats')} aria-label="Back"><Icon name="back" size={20} /></button>
+        <div style={{ position: 'relative', flex: 'none' }}>
+          <Avatar user={{ displayName: title, avatar: conv?.avatar }} size={40} showStatus online={conv?.other?.online} />
         </div>
-        <div className="chat-head-actions">
-          <button className="icon-btn" title="Search in chat" onClick={() => setSearchOpen(true)}><Icon name="search" size={18} /></button>
-          <button className="icon-btn" title="Voice call" onClick={() => callPeer('audio')}><Icon name="phone" size={18} /></button>
-          <button className="icon-btn" title="Video call" onClick={() => callPeer('video')}><Icon name="video" size={18} /></button>
-          <button className="icon-btn" title="Chat settings" onClick={() => setSettingsOpen(true)}><Icon name="more" size={19} /></button>
+        <div className="ux-cv-who">
+          <b>{title}</b>
+          <span className={conv?.other?.online ? '' : 'off'}>
+            {typing.length > 0 ? 'typing…' : (conv?.other?.online ? 'online' : subtitle)}
+          </span>
         </div>
+        <span className="ux-langchip">
+          <Icon name="translate" size={12} />
+          {conv?.other?.language ? `${langOf(conv.other.language).code?.toUpperCase() || 'HI'} → ${langOf(me.language).code?.toUpperCase() || 'EN'}` : `${langOf(me.language).code?.toUpperCase() || 'EN'}`}
+        </span>
+        <button className="ux-round" title="Video call" onClick={() => callPeer('video')}><Icon name="video" size={14} /></button>
+        <button className="ux-round" title="Voice call" onClick={() => callPeer('audio')}><Icon name="phone" size={14} /></button>
       </header>
 
-      <div className="chat-scroll" ref={scrollRef}>
+      <div className="ux-msgs" ref={scrollRef}>
         {loading ? <div className="chat-loading"><Skeleton h={40} w="60%" /><Skeleton h={40} w="45%" style={{ marginLeft: 'auto' }} /><Skeleton h={40} w="55%" /></div> : (
           <>
             {hasMore && <button className="btn ghost sm load-older" onClick={loadOlder}>Load earlier messages</button>}
@@ -552,7 +596,7 @@ function ChatView({ id }) {
             )}
             {groups.map(g => (
               <React.Fragment key={g.day}>
-                <div className="chat-day">{g.label}</div>
+                <div className="ux-day"><span>{g.label}</span></div>
                 {g === groups[0] && (
                   <div className="translation-banner">
                     <Icon name="translate" size={13} />
@@ -580,13 +624,13 @@ function ChatView({ id }) {
               </React.Fragment>
             ))}
             {typing.length > 0 && (
-              <div className="typing"><span className="dots"><span /><span /><span /></span> {typing.map(t => conv?.participants.find(p => p.id === t)?.displayName?.split(' ')[0]).filter(Boolean).join(', ')} typing…</div>
+              <div className="ux-typing"><i /><i /><i /></div>
             )}
           </>
         )}
       </div>
 
-      <div className="chat-composer">
+      <div className="ux-composer">
         {replyTo && (
           <div className="reply-banner">
             <Icon name="reply" size={14} />
@@ -620,38 +664,40 @@ function ChatView({ id }) {
             ))}
           </div>
         )}
-        <div className="composer-box">
-          <div className="composer-tools">
-            <button className="icon-btn sm" title="Attach" onClick={() => fileRef.current?.click()} disabled={sending}><Icon name="plus" size={19} /></button>
-            <input ref={fileRef} type="file" hidden onChange={pickFile} accept="image/*,video/*,audio/*,.pdf,.doc,.docx,.xls,.xlsx,.zip,.txt" />
-            <button className="icon-btn sm" title="Emoji" onClick={() => setEmojiOpen(o => !o)}><Icon name="smile" size={18} /></button>
-            <button className="icon-btn sm" title="AI tools" onClick={() => setAiOpen(o => !o)}><Icon name="sparkles" size={18} /></button>
+        <div className="ux-composer-row">
+          <button className="ux-composer-btn" title="Attach" onClick={() => fileRef.current?.click()} disabled={sending}>
+            <Icon name="plus" size={20} />
+          </button>
+          <input ref={fileRef} type="file" hidden onChange={pickFile} accept="image/*,video/*,audio/*,.pdf,.doc,.docx,.xls,.xlsx,.zip,.txt" />
+          <div className="ux-input-pill">
+            <textarea
+              value={text}
+              rows={1}
+              placeholder={editing ? 'Edit your message…' : `Type in ${langOf(me.language).label}…`}
+              dir={isRTL(me.language) ? 'rtl' : 'ltr'}
+              onChange={e => { setText(e.target.value); emitTyping(); }}
+              onKeyDown={e => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                  e.preventDefault();
+                  if (editing) saveEdit(); else send();
+                }
+              }}
+            />
+            <span className="ico" title="Emoji" onClick={() => setEmojiOpen(o => !o)}><Icon name="smile" size={20} /></span>
+            <span className="ico" title="AI tools" onClick={() => setAiOpen(o => !o)}><Icon name="sparkles" size={20} /></span>
           </div>
-          <textarea
-            value={text}
-            rows={1}
-            placeholder={editing ? 'Edit your message…' : `Message in ${langOf(me.language).label} — translated for each person`}
-            dir={isRTL(me.language) ? 'rtl' : 'ltr'}
-            onChange={e => { setText(e.target.value); emitTyping(); }}
-            onKeyDown={e => {
-              if (e.key === 'Enter' && !e.shiftKey) {
-                e.preventDefault();
-                if (editing) saveEdit(); else send();
-              }
-            }}
-          />
-          <div className="composer-tools right">
-            <button className={`icon-btn sm ${recording ? 'rec' : ''}`} title={recording ? 'Stop recording' : 'Voice note'} onClick={toggleRecord}>
-              <Icon name={recording ? 'pause' : 'mic'} size={18} />
+          {text.trim() || editing ? (
+            <button className="ux-composer-btn send" disabled={!text.trim() && !editing} onClick={() => editing ? saveEdit() : send()} aria-label="Send">
+              <Icon name={editing ? 'check' : 'send'} size={19} />
             </button>
-            <button className="send-btn" disabled={!text.trim() && !editing} onClick={() => editing ? saveEdit() : send()} aria-label="Send">
-              <Icon name={editing ? 'check' : 'send'} size={18} />
+          ) : (
+            <button className={`ux-composer-btn send ${recording ? 'rec' : ''}`} title={recording ? 'Stop recording' : 'Voice note'} onClick={toggleRecord}>
+              <Icon name={recording ? 'pause' : 'mic'} size={19} />
             </button>
-          </div>
+          )}
         </div>
         <div className="composer-foot">
           <span><Icon name="translate" size={11} /> Original text is never changed</span>
-          <span>Enter to send · Shift+Enter for a new line</span>
         </div>
       </div>
 
@@ -689,11 +735,11 @@ function MessageBubble({ m, mine, sender, showName, isGroup, me, participants, o
   const allRead = readCount >= totalOthers;
 
   if (m.deleted) {
-    return <div className={`msg-row ${mine ? 'mine' : ''}`}><div className="bubble deleted"><Icon name="trash" size={13} /> This message was deleted</div></div>;
+    return <div className={`ux-msgrow ${mine ? 'mine' : ''}`}><div className="ux-bubble deleted"><Icon name="trash" size={13} /> This message was deleted</div></div>;
   }
 
   return (
-    <div id={`m-${m.id}`} className={`msg-row ${mine ? 'mine' : ''} ${showName ? 'first' : ''}`}>
+    <div id={`m-${m.id}`} className={`ux-msgrow ${mine ? 'mine' : ''} ${showName ? 'first' : ''}`}>
       {!mine && <Avatar user={sender || { displayName: '?' }} size={28} />}
       <div className="bubble-wrap">
         <div className="msg-hover">
@@ -703,7 +749,7 @@ function MessageBubble({ m, mine, sender, showName, isGroup, me, participants, o
             <button onClick={() => setActions(true)} title="More"><Icon name="more" size={14} /></button>
           </div>
         </div>
-        <div className={`bubble ${m.pending ? 'pending' : ''} ${m.failed ? 'failed' : ''}`} dir={isRTL(m.displayLang || m.originalLang) ? 'rtl' : 'ltr'}>
+        <div className={`ux-bubble ${m.pending ? 'pending' : ''} ${m.failed ? 'failed' : ''}`} dir={isRTL(m.displayLang || m.originalLang) ? 'rtl' : 'ltr'}>
           {showName && <div className="sender">{sender?.displayName || 'Member'}</div>}
           {showName && m.originalLang && m.originalLang !== me.language && (
             <div className="lang-tag">{String(m.originalLang).slice(0, 2).toUpperCase()}</div>
@@ -763,8 +809,8 @@ function MessageBubble({ m, mine, sender, showName, isGroup, me, participants, o
           )}
 
           {translated && (
-            <div className="translated-row">
-              <button className="translated-note" onClick={onToggleOrig}>
+            <div className="ux-bubble-meta">
+              <button className="ux-linkbtn" onClick={onToggleOrig}>
                 <Icon name="translate" size={11} />
                 Translated
                 <span>{origOpen ? 'Hide original' : 'Show original'}</span>
@@ -780,8 +826,9 @@ function MessageBubble({ m, mine, sender, showName, isGroup, me, participants, o
             </div>
           )}
           {origOpen && translated && (
-            <div className="orig" dir={isRTL(m.originalLang) ? 'rtl' : 'ltr'}>
-              {m.originalBody}
+            <div className="ux-orig" dir={isRTL(m.originalLang) ? 'rtl' : 'ltr'}>
+              <div className="ux-orig-h">Original · {langOf(m.originalLang).native}</div>
+              <p>{m.originalBody}</p>
               <Hear
                 variant="inline"
                 text={m.originalBody}
@@ -804,7 +851,7 @@ function MessageBubble({ m, mine, sender, showName, isGroup, me, participants, o
             </div>
           )}
 
-          <div className="foot">
+          <div className="ux-bubble-meta">
             {m.silent && <Icon name="mute" size={10} />}
             {m.editedAt && <span>edited</span>}
             <span>{clock(m.createdAt)}</span>

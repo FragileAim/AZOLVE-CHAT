@@ -77,6 +77,8 @@ const P = {
   filter: <><path d="M3.5 5.5h17l-6.5 8v6l-4 2v-8l-6.5-8Z"/></>,
   arrow: <><path d="M4 12h16"/><path d="m14 6 6 6-6 6"/></>,
   gridview: <><path d="M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM13 13h7v7h-7z"/></>,
+  backspace: <><path d="M9 5.5h10.5a1.5 1.5 0 0 1 1.5 1.5v10a1.5 1.5 0 0 1-1.5 1.5H9L3 12l6-6.5Z"/><path d="m12 9.5 5 5M17 9.5l-5 5"/></>,
+  sliders: <><path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12M20 18h0"/><circle cx="16" cy="6" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="18" cy="18" r="2"/></>,
 };
 
 export function Icon({ name, size = 20, stroke = 1.75, className = '', style }) {

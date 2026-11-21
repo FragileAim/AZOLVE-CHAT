@@ -140,79 +140,71 @@ export default function Calls() {
   }, [calls]);
 
   return (
-    <div className="page page-wide calls-page">
-      <div className="page-head">
-        <div>
-          <h1>Calls</h1>
-          <p className="muted">Crystal-clear audio and video over WebRTC, encrypted in transit, with TURN relay when a direct path is blocked.</p>
-        </div>
-        <div className="row-gap">
-          {DEMO && (
-            <button
-              className="btn ghost"
-              title="Preview the incoming-call screen (preview build only)"
-              onClick={() => {
-                const p = (contacts && contacts[0]) || { id: 'preview-peer', displayName: 'Priya Sharma', language: 'hi', avatar: null };
-                previewIncoming(p);
-              }}
-            >
-              <Icon name="phone" size={16} /> Preview incoming
-            </button>
-          )}
-          <button className="btn primary" onClick={() => openPicker('video')}>
-            <Icon name="video" size={17} /> New call
-          </button>
-        </div>
-      </div>
-
-      {/* hero */}
-      <div className="cv-hero">
-        <div className="cv-hero-glow" aria-hidden />
-        <div className="cv-hero-body">
-          <span className="cv-hero-eyebrow"><i /> WebRTC · DTLS-SRTP encrypted media</span>
-          <h2>Talk to anyone, in any language.</h2>
-          <p>
-            Audio and video are negotiated peer-to-peer and fall back to a TURN relay when a
-            direct path is blocked, so a call across four time zones still connects. Live
-            translated captions inside calls are not built yet — text translation in chats is.
-          </p>
-          <div className="cv-hero-actions">
-            <button className="cv-hero-btn primary" onClick={() => openPicker('video')}>
-              <span className="cv-hero-ic"><Icon name="video" size={19} /></span>
-              <span><b>Video call</b><small>Face to face</small></span>
-            </button>
-            <button className="cv-hero-btn" onClick={() => openPicker('audio')}>
-              <span className="cv-hero-ic"><Icon name="phone" size={19} /></span>
-              <span><b>Audio call</b><small>Voice only</small></span>
-            </button>
+    <div className="ux-screen">
+      <div className="ux-scroll">
+        <header className="ux-feed-head">
+          <div>
+            <h1 className="ux-feed-h1">Calls</h1>
+            <p className="ux-set-sub">WebRTC · encrypted in transit</p>
           </div>
-        </div>
-        <div className="cv-hero-stats">
-          <div><b>{stats.total}</b><small>calls</small></div>
-          <div><b>{stats.minutes}</b><small>minutes</small></div>
-          <div><b>{stats.missed}</b><small>missed</small></div>
-        </div>
-      </div>
-
-      {/* recent */}
-      <div className="card cv-recent">
-        <div className="cv-recent-head">
-          <h3>Recent calls</h3>
-          <div className="cv-filters">
-            {FILTERS.map(f => (
-              <button key={f.id} className={`cv-filter ${filter === f.id ? 'on' : ''}`} onClick={() => setFilter(f.id)}>
-                {f.label}
+          <div className="acts">
+            {DEMO && (
+              <button
+                className="ux-round"
+                title="Preview the incoming-call screen (preview build only)"
+                onClick={() => {
+                  const p = (contacts && contacts[0]) || { id: 'preview-peer', displayName: 'Priya Sharma', language: 'hi', avatar: null };
+                  previewIncoming(p);
+                }}
+              >
+                <Icon name="bell" size={18} />
               </button>
-            ))}
+            )}
+            <button className="ux-round blue" onClick={() => openPicker('video')} aria-label="New call">
+              <Icon name="video" size={18} />
+            </button>
+          </div>
+        </header>
+
+        <div className="ux-calls-hero">
+          <div className="glow" />
+          <div className="eyebrow">AZOLVE CALLS</div>
+          <h2>Talk to anyone,<br />in any language.</h2>
+          <p>Audio and video negotiate peer-to-peer and fall back to a TURN relay when a direct path is blocked. Live translated captions inside calls are still in preview.</p>
+          <div className="acts">
+            <button className="p" onClick={() => openPicker('video')}><Icon name="video" size={16} /> Video</button>
+            <button className="g" onClick={() => openPicker('audio')}><Icon name="phone" size={16} /> Audio</button>
           </div>
         </div>
 
-        {visible === null && [1, 2, 3].map(i => <Skeleton key={i} h={62} style={{ marginBottom: 8 }} />)}
+        <div className="ux-calls-stats">
+          <div><b>{stats.total}</b><span>calls</span></div>
+          <div><b>{stats.minutes}</b><span>minutes</span></div>
+          <div><b>{stats.missed}</b><span>missed</span></div>
+        </div>
+
+        <div className="ux-filters" style={{ paddingTop: 16 }}>
+          {FILTERS.map(f => (
+            <button key={f.id} className={`ux-filter ${filter === f.id ? 'on' : ''}`} onClick={() => setFilter(f.id)}>{f.label}</button>
+          ))}
+        </div>
+
+        <p className="ux-sub">Recent calls <span>{visible?.length || 0}</span></p>
+
+        {visible === null && (
+          <div style={{ padding: '0 16px' }}>
+            {[1, 2, 3].map(i => <div key={i} style={{ marginBottom: 8 }}><Skeleton h={70} /></div>)}
+          </div>
+        )}
         {visible && visible.length === 0 && (
-          <Empty icon="phone" title="No calls here yet" text="Start a call from a chat, or use the buttons above." />
+          <div className="ux-pf-empty">
+            <b>No calls here yet</b>
+            <p>Start a call from a chat, or use the buttons above.</p>
+            <button className="ux-set-btn" style={{ marginTop: 14 }} onClick={() => openPicker('audio')}>Start a call</button>
+          </div>
         )}
 
-        <div className="cv-list">
+        <div style={{ padding: '0 4px' }}>
           {visible && visible.map(c => {
             const meta = statusMeta(c);
             const peer = {
@@ -224,38 +216,21 @@ export default function Calls() {
             };
             const outgoing = c.direction === 'outgoing';
             return (
-              <div key={c.id} className="cv-row">
-                <Avatar user={{ displayName: c.display_name, avatar: c.avatar }} size={46} />
-                <div className="cv-row-main">
-                  <div className="cv-row-top">
-                    <b>{c.display_name || 'Unknown'}</b>
-                    <span className={`cv-badge ${meta.cls}`}>{meta.label}</span>
-                  </div>
-                  <small className="cv-row-sub">
+              <div key={c.id} className="ux-callrow">
+                <Avatar user={{ displayName: c.display_name, avatar: c.avatar }} size={52} />
+                <div className="main">
+                  <b>{c.display_name || 'Unknown'}</b>
+                  <small className={meta.cls === 'missed' || meta.cls === 'declined' ? 'miss' : ''}>
                     <Icon name={outgoing ? 'arrow' : 'back'} size={12} />
                     {outgoing ? 'Outgoing' : 'Incoming'} · {c.type === 'video' ? 'Video' : 'Audio'} · {timeAgo(c.started_at)}
                   </small>
-                  {endLabel(c, user.id) && (
-                    <small className={`cv-row-who ${c.ended_by === user.id ? 'me' : ''}`}>
-                      {endLabel(c, user.id)}
-                    </small>
-                  )}
+                  <small>{endLabel(c, user.id) || meta.label}</small>
                 </div>
-                <div className="cv-row-actions">
-                  <button
-                    className="cv-round"
-                    title="Audio call"
-                    disabled={starting === peer.id}
-                    onClick={() => startCall(peer, 'audio')}
-                  >
+                <div className="acts">
+                  <button className="act a" title="Audio call" disabled={starting === peer.id} onClick={() => startCall(peer, 'audio')}>
                     <Icon name="phone" size={17} />
                   </button>
-                  <button
-                    className="cv-round accent"
-                    title="Video call"
-                    disabled={starting === peer.id}
-                    onClick={() => startCall(peer, 'video')}
-                  >
+                  <button className="act v" title="Video call" disabled={starting === peer.id} onClick={() => startCall(peer, 'video')}>
                     <Icon name="video" size={17} />
                   </button>
                 </div>
@@ -265,44 +240,42 @@ export default function Calls() {
         </div>
       </div>
 
-      {/* picker */}
       {picking && (
         <Modal open onClose={() => setPicking(false)} title="Start a call">
-          <div className="cv-pick-type">
-            <button className={`cv-pick-opt ${type === 'audio' ? 'on' : ''}`} onClick={() => setType('audio')}>
-              <Icon name="phone" size={17} /> Audio
+          <div className="ux-filters" style={{ padding: '0 0 12px' }}>
+            <button className={`ux-filter ${type === 'audio' ? 'on' : ''}`} onClick={() => setType('audio')}>
+              <Icon name="phone" size={14} /> Audio
             </button>
-            <button className={`cv-pick-opt ${type === 'video' ? 'on' : ''}`} onClick={() => setType('video')}>
-              <Icon name="video" size={17} /> Video
+            <button className={`ux-filter ${type === 'video' ? 'on' : ''}`} onClick={() => setType('video')}>
+              <Icon name="video" size={14} /> Video
             </button>
           </div>
 
-          <label className="cv-search">
-            <Icon name="search" size={16} />
+          <div className="ux-search" style={{ marginBottom: 10 }}>
+            <Icon name="search" size={16} className="sl" />
             <input value={query} onChange={e => setQuery(e.target.value)} placeholder="Search people…" autoFocus />
-          </label>
+          </div>
 
-          <div className="cv-contacts">
-            {filteredContacts === null && [1, 2, 3].map(i => <Skeleton key={i} h={52} style={{ marginBottom: 6 }} />)}
+          <div style={{ maxHeight: '52vh', overflowY: 'auto' }}>
+            {filteredContacts === null && [1, 2, 3].map(i => <div key={i} style={{ marginBottom: 6 }}><Skeleton h={58} /></div>)}
             {filteredContacts && filteredContacts.length === 0 && (
-              <p className="muted small" style={{ padding: '14px 4px' }}>No contacts found. Start a chat first.</p>
+              <p className="ux-pf-note">No contacts found. Start a chat first.</p>
             )}
             {filteredContacts && filteredContacts.map(p => (
-              <button key={p.id} className="cv-contact" onClick={() => startCall(p, type)} disabled={starting === p.id}>
-                <Avatar user={p} size={42} showStatus online={p.online} />
-                <span className="cv-contact-main">
+              <button key={p.id} className="ux-person" onClick={() => startCall(p, type)} disabled={starting === p.id}>
+                <Avatar user={p} size={44} showStatus online={p.online} />
+                <span className="ux-person-main">
                   <b>{p.displayName}</b>
                   <small>@{p.username} · speaks {langOf(p.language || 'en').native}</small>
                 </span>
-                <span className="cv-contact-go">
-                  <Icon name={type === 'video' ? 'video' : 'phone'} size={16} />
+                <span className="ux-tiny primary">
+                  <Icon name={type === 'video' ? 'video' : 'phone'} size={14} />
                 </span>
               </button>
             ))}
           </div>
         </Modal>
       )}
-
     </div>
   );
 }

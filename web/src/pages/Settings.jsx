@@ -229,9 +229,75 @@ function PushPanel({ notify }) {
   );
 }
 
+
+const META = {
+  account: { sub: 'Name, photo, bio and mood', tone: 'blue' },
+  appearance: { sub: 'Light, dark or follow your system', tone: 'amber' },
+  language: { sub: 'Your language and what gets translated', tone: 'green' },
+  voice: { sub: 'Tap-to-hear and installed voices', tone: 'red' },
+  privacy: { sub: 'Who sees your profile and activity', tone: 'blue' },
+  security: { sub: 'Two-factor, sessions and encryption status', tone: 'amber' },
+  notifications: { sub: 'Calls, messages and social activity', tone: 'green' },
+  data: { sub: 'Export or delete your account data', tone: 'red' },
+};
+
+/* A short, honest language preview: the same sentence rendered in the
+   language you picked. It is a static UI sample, not user data. */
+const PREVIEW = {
+  en: 'Shall we meet this evening?',
+  hi: 'आज शाम को मिलते हैं?',
+  ar: 'هل نتقابل هذا المساء؟',
+  gu: 'આજે સાંજે મળીએ?',
+  es: '¿Nos vemos esta noche?',
+  fr: 'On se voit ce soir ?',
+  de: 'Treffen wir uns heute Abend?',
+  zh: '今晚我们见面吗？',
+  ja: '今夜会いましょうか？',
+  ko: '오늘 저녁에 만날까요?',
+  pt: 'Encontramo-nos esta noite?',
+  ru: 'Встретимся сегодня вечером?',
+  it: 'Ci vediamo stasera?',
+  tr: 'Bu akşam buluşalım mı?',
+  id: 'Kita bertemu malam ini?',
+  bn: 'আজ সন্ধ্যায় দেখা করব?',
+  mr: 'आज संध्याकाळी भेटूया?',
+  ta: 'இன்று மாலை சந்திக்கலாமா?',
+  te: 'ఈ సాయంత్రం కలుద్దామా?',
+  ur: 'آج شام ملتے ہیں؟',
+  nl: 'Zien we elkaar vanavond?',
+  pl: 'Spotkamy się dziś wieczorem?',
+  vi: 'Tối nay gặp nhau nhé?',
+  th: 'เย็นนี้เจอกันไหม?',
+  he: 'ניפגש הערב?',
+  fa: 'امشب همدیگر را ببینیم؟',
+  sw: 'Tukutane leo jioni?',
+};
+
+const Toggle = ({ on, onClick, label }) => (
+  <button
+    type="button"
+    className={`ux-tgl ${on ? 'on' : ''}`}
+    onClick={onClick}
+    aria-label={label}
+    aria-pressed={!!on}
+  ><i /></button>
+);
+
+const TRow = ({ icon, tone, title, sub, on, onClick }) => (
+  <div className="ux-set-row" style={{ cursor: 'default' }}>
+    <span className={`ux-set-ic ${tone}`}><Icon name={icon} size={18} /></span>
+    <span className="ux-set-main"><b>{title}</b><small>{sub}</small></span>
+    <Toggle on={on} onClick={onClick} label={title} />
+  </div>
+);
+
+const Chev = () => (
+  <Icon name="back" size={16} className="ux-set-chev" style={{ transform: 'rotate(180deg)' }} />
+);
+
 export default function Settings() {
   const { user, route, navigate, theme, themePref, setTheme, notify, refreshMe, logout, device, setDevice } = useApp();
-  const [sec, setSec] = useState(route?.param || 'account');
+  const [sec, setSec] = useState(route?.param || null);
   const [profile, setProfile] = useState({ displayName: user.displayName || '', bio: user.bio || '', country: user.country || '', language: user.language || 'en', mood: user.mood || '' });
   const [privacy, setPrivacy] = useState(user.privacy || { profile: 'public', lastSeen: 'contacts', readReceipts: true, storyAudience: 'followers' });
   const [prefs, setPrefs] = useState(user.prefs || { autoTranslate: true, notifications: { messages: true, social: true, calls: true } });
@@ -239,6 +305,7 @@ export default function Settings() {
   const [twofa, setTwofa] = useState(false);
   const [saving, setSaving] = useState(false);
   const [aiStatus, setAiStatus] = useState(null);
+  const [pick, setPick] = useState(null); // 'primary' | 'read'
   const avRef = useRef(null);
 
   useEffect(() => {
@@ -289,262 +356,381 @@ export default function Settings() {
     catch (e) { notify(e.message, 'err'); }
   };
 
-  return (
-    <div className={`page page-wide settings-page ${route?.param ? 'focused' : ''}`}>
-      <div className="page-head"><div><h1>Settings</h1><p className="muted">Control how AZOLVE looks, speaks and protects you.</p></div></div>
-      <div className="settings-layout">
-        <aside className="settings-nav card">
-          {SECTIONS.map(s => (
-            <button key={s.id} className={`settings-item ${sec === s.id ? 'active' : ''}`} onClick={() => setSec(s.id)}>
-              <Icon name={s.icon} size={17} /> {s.label}
-            </button>
-          ))}
-        </aside>
+  const readLangs = Array.isArray(prefs.readLangs) && prefs.readLangs.length ? prefs.readLangs : ['en'];
+  const setReadLangs = (next) => savePrefs({ ...prefs, readLangs: next });
+  const toggleRead = (code) => {
+    if (code === profile.language) return;
+    setReadLangs(readLangs.includes(code) ? readLangs.filter(c => c !== code) : [...readLangs, code]);
+  };
+  const chooseLang = (code) => {
+    setProfile(p => ({ ...p, language: code }));
+    setPick(null);
+    API.updateMe({ language: code }).then(() => refreshMe()).then(() => notify('Language updated', 'ok')).catch(e => notify(e.message, 'err'));
+  };
 
-        <section className="settings-body">
-          {sec === 'account' && (
-            <div className="card stack">
-              <h2>Account</h2>
-              <div className="avatar-edit">
-                <Avatar user={user} size={72} />
-                <div>
-                  <button className="btn ghost btn-sm" onClick={() => avRef.current?.click()}>Change photo</button>
-                  <input ref={avRef} type="file" accept="image/*" hidden onChange={e => e.target.files[0] && changeAvatar(e.target.files[0])} />
-                  <p className="muted small">@{user.username} · {user.email || user.phone}</p>
-                </div>
-              </div>
-              <div className="field-row">
-                <label className="field"><span>Display name</span><input value={profile.displayName} onChange={e => setProfile(p => ({ ...p, displayName: e.target.value }))} /></label>
-                <label className="field"><span>Country</span><input value={profile.country} onChange={e => setProfile(p => ({ ...p, country: e.target.value.toUpperCase().slice(0, 2) }))} /></label>
-              </div>
-              <label className="field"><span>Bio</span><textarea rows={3} value={profile.bio} onChange={e => setProfile(p => ({ ...p, bio: e.target.value }))} maxLength={160} /></label>
-              <label className="field"><span>Mood status</span><input value={profile.mood} onChange={e => setProfile(p => ({ ...p, mood: e.target.value }))} placeholder="🎧 Focused" /></label>
-              <button className="btn primary" onClick={saveProfile} disabled={saving}>{saving ? 'Saving…' : 'Save'}</button>
-            </div>
-          )}
+  const title = sec ? (SECTIONS.find(s => s.id === sec)?.label || 'Settings') : 'Settings';
 
-          {sec === 'appearance' && (
-            <div className="stack">
-              <div className="card stack">
-                <div className="sec-head">
-                  <div>
-                    <h2>Theme</h2>
-                    <p className="muted small">Pick a look. It applies instantly and is remembered on this device.</p>
-                  </div>
-                  <span className="pill">{theme === 'dark' ? 'Dark active' : 'Light active'}</span>
-                </div>
-
-                <div className="theme-picker three">
-                  <button className={`theme-card ${themePref === 'light' ? 'active' : ''}`} onClick={() => setTheme('light')}>
-                    <div className="tc-preview light"><span /><span /><span /></div>
-                    <div className="tc-meta"><b>Light</b><small>Bright, paper-soft</small></div>
-                    {themePref === 'light' && <i className="tc-check">✓</i>}
-                  </button>
-                  <button className={`theme-card ${themePref === 'dark' ? 'active' : ''}`} onClick={() => setTheme('dark')}>
-                    <div className="tc-preview dark"><span /><span /><span /></div>
-                    <div className="tc-meta"><b>Dark</b><small>Midnight, low glare</small></div>
-                    {themePref === 'dark' && <i className="tc-check">✓</i>}
-                  </button>
-                  <button className={`theme-card ${themePref === 'system' ? 'active' : ''}`} onClick={() => setTheme('system')}>
-                    <div className="tc-preview auto"><span /><span /><span /></div>
-                    <div className="tc-meta"><b>System</b><small>Follows your OS</small></div>
-                    {themePref === 'system' && <i className="tc-check">✓</i>}
-                  </button>
-                </div>
-
-                <div className="theme-swatch">
-                  <span className="sw-label">Live preview</span>
-                  <div className="sw-card">
-                    <div className="sw-bubble in">Perfecto. ¿Podemos revisar la versión en español?</div>
-                    <div className="sw-bubble out">Sounds good — I'll review tonight.</div>
-                    <div className="sw-tag">Translated from Spanish · See original</div>
-                  </div>
-                </div>
-              </div>
-
-              <div className="card stack">
-                <div className="sec-head">
-                  <div>
-                    <h2>Device preview</h2>
-                    <p className="muted small">AZOLVE is built as a mobile application first. Open the phone frame to check the layout at real device sizes.</p>
-                  </div>
-                </div>
-                <div className="device-picker">
-                  <button className={`dp-card ${device === 'desktop' ? 'active' : ''}`} onClick={() => setDevice('desktop')}>
-                    <span className="dp-ic">🖥</span><b>Desktop</b><small>Wide layout</small>
-                  </button>
-                  <button className={`dp-card ${device === 'mobile' ? 'active' : ''}`} onClick={() => setDevice('mobile')}>
-                    <span className="dp-ic">📱</span><b>Mobile</b><small>Phone frame · 393×852</small>
-                  </button>
-                </div>
-              </div>
-
-              <div className="card stack">
-                <h2>Motion</h2>
-                <p className="muted small">AZOLVE uses gentle motion — a rotating mark on launch, a progress bar while data loads, and soft transitions between screens. Motion respects your system's reduced-motion setting.</p>
-                <div className="motion-demo">
-                  <span className="md-orbit"><i /></span>
-                  <div className="md-track"><i /></div>
-                  <span className="md-text">Rotating mark + progress</span>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {sec === 'language' && (
-            <div className="stack">
-              <div className="settings-head">
-                <button className="icon-btn" onClick={() => navigate('settings')} aria-label="Back"><Icon name="back" size={18} /></button>
-                <h1>Translation</h1>
-              </div>
-
-              <div className="tr-preview">
-                <div className="trp-label">PREVIEW</div>
-                <div className="trp-src">“Shall we meet this evening?”</div>
-                <div className="trp-out">¿Nos vemos esta noche? · translated to {langOf(profile.language).label}</div>
-              </div>
-
-              <div className="settings-nav">
-                <div className="set-row">
-                  <div className="sr-body">
-                    <div className="sr-title">Auto-translate messages</div>
-                    <div className="sr-sub">Incoming chats appear in your language.</div>
-                  </div>
-                  <button className={`switch ${prefs.autoTranslate !== false ? 'on' : ''}`}
-                    onClick={() => savePrefs({ ...prefs, autoTranslate: prefs.autoTranslate === false })} aria-label="Auto-translate messages" />
-                </div>
-                <div className="set-row">
-                  <div className="sr-body">
-                    <div className="sr-title">Show original by default</div>
-                    <div className="sr-sub">Display both languages together.</div>
-                  </div>
-                  <button className={`switch ${prefs.showOriginalDefault === true ? 'on' : ''}`}
-                    onClick={() => savePrefs({ ...prefs, showOriginalDefault: prefs.showOriginalDefault !== true })} aria-label="Show original by default" />
-                </div>
-                <div className="set-row">
-                  <div className="sr-body">
-                    <div className="sr-title">Voice message captions</div>
-                    <div className="sr-sub">Transcribe and translate audio.</div>
-                  </div>
-                  <button className={`switch ${prefs.voiceCaptions !== false ? 'on' : ''}`}
-                    onClick={() => savePrefs({ ...prefs, voiceCaptions: prefs.voiceCaptions === false })} aria-label="Voice message captions" />
-                </div>
-                <div className="set-row">
-                  <div className="sr-body">
-                    <div className="sr-title">Stories, posts &amp; reels</div>
-                    <div className="sr-sub">Translate captions in feeds.</div>
-                  </div>
-                  <button className={`switch ${prefs.translateFeeds !== false ? 'on' : ''}`}
-                    onClick={() => savePrefs({ ...prefs, translateFeeds: prefs.translateFeeds === false })} aria-label="Stories, posts and reels" />
-                </div>
-              </div>
-
-              <div className="card stack">
-                <div className="sec-head"><h3>Languages</h3></div>
-                <label className="field"><span>Your language</span>
-                  <select value={profile.language} onChange={e => { setProfile(p => ({ ...p, language: e.target.value })); }}>
-                    {LANGS.map(l => <option key={l.code} value={l.code}>{l.label} — {l.native}</option>)}
-                  </select>
-                </label>
-                <label className="field"><span>Translate everything into</span>
-                  <select value={prefs.translateTo || profile.language}
-                    onChange={e => savePrefs({ ...prefs, translateTo: e.target.value })}>
-                    {LANGS.map(l => <option key={l.code} value={l.code}>{l.label} — {l.native}</option>)}
-                  </select>
-                </label>
-                <button className="btn primary btn-sm" onClick={saveProfile} disabled={saving}>Save language</button>
-                <div className="info-box">
-                  <Icon name="info" size={16} />
-                  <div>
-                    <b>How translation works</b>
-                    <p className="muted small">Every message is stored once in its original language. Translation happens per-recipient at read time and is cached separately — the original is never overwritten. If a provider is unavailable, AZOLVE falls back gracefully.</p>
-                    <div className="prov-chips">
-                      {(aiStatus?.translationProviders || []).map(p => <span key={p.name} className={`prov ${p.available ? 'on' : ''}`}>{p.name}{p.available ? ' ✓' : ''}</span>)}
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {sec === 'privacy' && (
-            <div className="card stack">
-              <h2>Privacy</h2>
-              <label className="field"><span>Who can see my profile</span>
-                <select value={privacy.profile} onChange={e => savePrivacy({ ...privacy, profile: e.target.value })}>
-                  <option value="public">Everyone</option><option value="followers">Followers</option><option value="private">Only me</option>
-                </select>
-              </label>
-              <label className="field"><span>Last seen</span>
-                <select value={privacy.lastSeen} onChange={e => savePrivacy({ ...privacy, lastSeen: e.target.value })}>
-                  <option value="everyone">Everyone</option><option value="contacts">My contacts</option><option value="nobody">Nobody</option>
-                </select>
-              </label>
-              <label className="field"><span>Moment audience default</span>
-                <select value={privacy.storyAudience} onChange={e => savePrivacy({ ...privacy, storyAudience: e.target.value })}>
-                  <option value="followers">Followers</option><option value="close">Close friends</option><option value="private">Only me</option>
-                </select>
-              </label>
-              <Switch on={!!privacy.readReceipts} label="Send read receipts" onChange={v => savePrivacy({ ...privacy, readReceipts: v })} />
-              <Switch on={!!user.isPrivate} label="Private account (approve followers)" onChange={async v => { await API.updateMe({ isPrivate: v }); refreshMe(); }} />
-              <Switch on={!!user.temporaryIdentity} label="Temporary identity mode (hide real name in public spaces)" onChange={async v => { await API.updateMe({ temporaryIdentity: v }); refreshMe(); }} />
-            </div>
-          )}
-
-          {sec === 'security' && (
-            <div className="card stack">
-              <h2>Security</h2>
-              <Switch on={twofa} label="Two-factor authentication on login" onChange={toggle2fa} />
-              <div className="info-box warn">
-                <Icon name="warning" size={16} />
-                <div>
-                  <b>Encryption status — honest disclosure</b>
-                  <p className="muted small">AZOLVE currently uses TLS in transit and server-side storage at rest. End-to-end encryption is <b>not</b> enabled in this build, because per-recipient AI translation requires the server to read message text. We never claim E2EE when it is not active. A future E2EE mode will translate on-device and be clearly labelled.</p>
-                </div>
-              </div>
-              <h3>Active sessions</h3>
-              {sessions === null && <Skeleton h={50} />}
-              {sessions && sessions.length === 0 && <p className="muted">No other sessions.</p>}
-              {sessions && sessions.map(s => (
-                <div key={s.id} className="session-row">
-                  <Icon name="smartphone" size={18} />
-                  <div><b>{s.device || 'Unknown device'} {s.current && <span className="pill">This device</span>}</b><small>{s.ip} · active {timeAgo(s.last_active)}</small></div>
-                  {!s.current && <button className="btn ghost btn-sm" onClick={() => revoke(s.id)}>Revoke</button>}
-                </div>
-              ))}
-              <button className="btn ghost" onClick={async () => { await API.logout(); logout(); }}><Icon name="logout" size={16} /> Log out</button>
-            </div>
-          )}
-
-          {sec === 'voice' && <VoicePanel notify={notify} />}
-
-          {sec === 'notifications' && (
-            <>
-              <PushPanel notify={notify} />
-              <div className="card stack">
-                <h2>In-app notifications</h2>
-                <Switch on={prefs.notifications?.messages !== false} label="New messages" onChange={v => savePrefs({ ...prefs, notifications: { ...prefs.notifications, messages: v } })} />
-                <Switch on={prefs.notifications?.social !== false} label="Likes, comments and follows" onChange={v => savePrefs({ ...prefs, notifications: { ...prefs.notifications, social: v } })} />
-                <Switch on={prefs.notifications?.calls !== false} label="Incoming calls" onChange={v => savePrefs({ ...prefs, notifications: { ...prefs.notifications, calls: v } })} />
-              </div>
-            </>
-          )}
-
-          {sec === 'data' && (
-            <div className="card stack">
-              <h2>Data &amp; account</h2>
-              <div className="data-row">
-                <div><b>Download your data</b><p className="muted small">Export your profile, posts, messages and settings as JSON.</p></div>
-                <button className="btn ghost" onClick={exportData}><Icon name="download" size={16} /> Export</button>
-              </div>
-              <div className="data-row danger">
-                <div><b>Delete account</b><p className="muted small">Deactivates your profile and clears personal identifiers. This cannot be undone.</p></div>
-                <button className="btn danger" onClick={deleteAccount}><Icon name="trash" size={16} /> Delete</button>
-              </div>
-            </div>
-          )}
-        </section>
+  const backHeader = (t, sub) => (
+    <header className="ux-set-head">
+      <button className="ux-set-back" onClick={() => { setSec(null); navigate('settings'); }} aria-label="Back">
+        <Icon name="back" size={18} />
+      </button>
+      <div>
+        <h1 className="ux-set-h1">{t}</h1>
+        {sub && <p className="ux-set-sub">{sub}</p>}
       </div>
+    </header>
+  );
+
+  /* ------------------------------- menu ---------------------------------- */
+  const menu = (
+    <>
+      <header className="ux-set-head">
+        <div>
+          <h1 className="ux-set-h1 lg">Settings</h1>
+          <p className="ux-set-sub">How AZOLVE looks, speaks and protects you.</p>
+        </div>
+      </header>
+
+      <div className="ux-set-group">
+        {SECTIONS.map(s => (
+          <button key={s.id} className="ux-set-row" onClick={() => setSec(s.id)}>
+            <span className={`ux-set-ic ${META[s.id]?.tone || 'grey'}`}><Icon name={s.icon} size={18} /></span>
+            <span className="ux-set-main"><b>{s.label}</b><small>{META[s.id]?.sub}</small></span>
+            <Chev />
+          </button>
+        ))}
+      </div>
+
+      <div className="ux-set-group" style={{ marginTop: 16 }}>
+        <button className="ux-set-row" onClick={() => navigate('profile')}>
+          <span className="ux-set-ic grey"><Icon name="user" size={18} /></span>
+          <span className="ux-set-main"><b>View my profile</b><small>@{user.username}</small></span>
+          <Chev />
+        </button>
+        <button className="ux-set-row" onClick={async () => { await API.logout(); logout(); }}>
+          <span className="ux-set-ic red"><Icon name="logout" size={18} /></span>
+          <span className="ux-set-main"><b>Log out</b><small>You will need your code to sign back in</small></span>
+          <Chev />
+        </button>
+      </div>
+
+      <p className="ux-set-sub" style={{ textAlign: 'center', marginTop: 20 }}>
+        AZOLVE CHAT · v1.1.1 · {theme === 'dark' ? 'Dark' : 'Light'} theme
+      </p>
+    </>
+  );
+
+  /* ----------------------------- language -------------------------------- */
+  const languageBody = (
+    <>
+      <section className="ux-my-lang">
+        <div className="glow" />
+        <p className="lbl">MY LANGUAGE</p>
+        <div className="top">
+          <b dir={langOf(profile.language).rtl ? 'rtl' : 'ltr'}>{langOf(profile.language).native}</b>
+          <button className="chg" onClick={() => setPick('primary')}>Change</button>
+        </div>
+        <div className="prev">
+          <span>PREVIEW</span>
+          <p dir={langOf(profile.language).rtl ? 'rtl' : 'ltr'}>
+            “Shall we meet this evening?”
+            <Icon name="back" size={12} style={{ transform: 'rotate(180deg)' }} />
+            {PREVIEW[profile.language] || langOf(profile.language).native}
+          </p>
+        </div>
+      </section>
+
+      <section className="ux-set-group" style={{ marginTop: 20 }}>
+        <TRow icon="translate" tone="blue" title="Auto-translate messages"
+          sub="Incoming chats appear in your language"
+          on={prefs.autoTranslate !== false}
+          onClick={() => savePrefs({ ...prefs, autoTranslate: prefs.autoTranslate === false })} />
+        <TRow icon="eye" tone="amber" title="Show original by default"
+          sub="Display both languages together"
+          on={prefs.showOriginalDefault === true}
+          onClick={() => savePrefs({ ...prefs, showOriginalDefault: prefs.showOriginalDefault !== true })} />
+        <TRow icon="mic" tone="green" title="Voice message captions"
+          sub="Transcribe and translate audio"
+          on={prefs.voiceCaptions !== false}
+          onClick={() => savePrefs({ ...prefs, voiceCaptions: prefs.voiceCaptions === false })} />
+        <TRow icon="play" tone="red" title="Stories, posts & reels"
+          sub="Translate captions in feeds"
+          on={prefs.translateFeeds !== false}
+          onClick={() => savePrefs({ ...prefs, translateFeeds: prefs.translateFeeds === false })} />
+      </section>
+
+      <p className="ux-lang-lbl">LANGUAGES I READ</p>
+      <section className="ux-set-group" style={{ marginTop: 8 }}>
+        <div className="ux-lang-row">
+          <span dir={langOf(profile.language).rtl ? 'rtl' : 'ltr'}>{langOf(profile.language).native}</span>
+          <span className="tag">Primary</span>
+          <Icon name="check" size={18} className="ck" />
+        </div>
+        {readLangs.filter(c => c !== profile.language).map(code => (
+          <button key={code} className="ux-lang-row" onClick={() => toggleRead(code)}>
+            <span dir={langOf(code).rtl ? 'rtl' : 'ltr'}>{langOf(code).native}</span>
+            <Icon name="check" size={18} className="ck" />
+          </button>
+        ))}
+        <button className="ux-lang-row add" onClick={() => setPick('read')}>
+          <Icon name="plus" size={16} /> Add language
+        </button>
+      </section>
+
+      <section className="ux-set-group" style={{ marginTop: 20 }}>
+        <button className="ux-set-row" onClick={() => navigate('chats')}>
+          <span className="ux-set-ic grey"><Icon name="chat" size={18} /></span>
+          <span className="ux-set-main">
+            <b>Per-chat overrides</b>
+            <small>{readLangs.length > 1 ? `${readLangs.length} languages in use` : 'Set a language per conversation'}</small>
+          </span>
+          <Chev />
+        </button>
+      </section>
+
+      <div className="ux-set-note blue">
+        <Icon name="info" size={16} />
+        <div>
+          <b>How translation works</b>
+          Every message is stored once in its original language. Translation happens per-recipient at read time and is cached separately — the original is never overwritten.
+          <div className="prov-chips" style={{ marginTop: 8 }}>
+            {(aiStatus?.translationProviders || []).map(p => <span key={p.name} className={`prov ${p.available ? 'on' : ''}`}>{p.name}{p.available ? ' ✓' : ''}</span>)}
+          </div>
+        </div>
+      </div>
+
+      <div className="ux-set-pad" style={{ marginTop: 16 }}>
+        <button className="ux-set-btn" onClick={saveProfile} disabled={saving}>{saving ? 'Saving…' : 'Save language'}</button>
+      </div>
+    </>
+  );
+
+  /* ------------------------------ account -------------------------------- */
+  const accountBody = (
+    <div className="ux-set-pad">
+      <div className="ux-card" style={{ padding: 16 }}>
+        <div className="avatar-edit">
+          <Avatar user={user} size={72} />
+          <div>
+            <button className="btn ghost btn-sm" onClick={() => avRef.current?.click()}>Change photo</button>
+            <input ref={avRef} type="file" accept="image/*" hidden onChange={e => e.target.files[0] && changeAvatar(e.target.files[0])} />
+            <p className="muted small">@{user.username} · {user.email || user.phone}</p>
+          </div>
+        </div>
+        <div className="field-row" style={{ marginTop: 14 }}>
+          <label className="field"><span>Display name</span><input value={profile.displayName} onChange={e => setProfile(p => ({ ...p, displayName: e.target.value }))} /></label>
+          <label className="field"><span>Country</span><input value={profile.country} onChange={e => setProfile(p => ({ ...p, country: e.target.value.toUpperCase().slice(0, 2) }))} /></label>
+        </div>
+        <label className="field"><span>Bio</span><textarea rows={3} value={profile.bio} onChange={e => setProfile(p => ({ ...p, bio: e.target.value }))} maxLength={160} /></label>
+        <label className="field"><span>Mood status</span><input value={profile.mood} onChange={e => setProfile(p => ({ ...p, mood: e.target.value }))} placeholder="🎧 Focused" /></label>
+        <button className="ux-set-btn" style={{ marginTop: 14 }} onClick={saveProfile} disabled={saving}>{saving ? 'Saving…' : 'Save'}</button>
+      </div>
+    </div>
+  );
+
+  /* ----------------------------- appearance ------------------------------ */
+  const appearanceBody = (
+    <div className="ux-set-pad">
+      <div className="ux-card" style={{ padding: 16 }}>
+        <div className="sec-head">
+          <div>
+            <h2>Theme</h2>
+            <p className="muted small">Pick a look. It applies instantly and is remembered on this device.</p>
+          </div>
+          <span className="pill">{theme === 'dark' ? 'Dark active' : 'Light active'}</span>
+        </div>
+
+        <div className="theme-picker three">
+          <button className={`theme-card ${themePref === 'light' ? 'active' : ''}`} onClick={() => setTheme('light')}>
+            <div className="tc-preview light"><span /><span /><span /></div>
+            <div className="tc-meta"><b>Light</b><small>Bright, paper-soft</small></div>
+            {themePref === 'light' && <i className="tc-check">✓</i>}
+          </button>
+          <button className={`theme-card ${themePref === 'dark' ? 'active' : ''}`} onClick={() => setTheme('dark')}>
+            <div className="tc-preview dark"><span /><span /><span /></div>
+            <div className="tc-meta"><b>Dark</b><small>Midnight, low glare</small></div>
+            {themePref === 'dark' && <i className="tc-check">✓</i>}
+          </button>
+          <button className={`theme-card ${themePref === 'system' ? 'active' : ''}`} onClick={() => setTheme('system')}>
+            <div className="tc-preview auto"><span /><span /><span /></div>
+            <div className="tc-meta"><b>System</b><small>Follows your OS</small></div>
+            {themePref === 'system' && <i className="tc-check">✓</i>}
+          </button>
+        </div>
+
+        <div className="theme-swatch">
+          <span className="sw-label">Live preview</span>
+          <div className="sw-card">
+            <div className="sw-bubble in">Perfecto. ¿Podemos revisar la versión en español?</div>
+            <div className="sw-bubble out">Sounds good — I'll review tonight.</div>
+            <div className="sw-tag">Translated from Spanish · See original</div>
+          </div>
+        </div>
+      </div>
+
+      <div className="ux-card" style={{ padding: 16, marginTop: 16 }}>
+        <div className="sec-head">
+          <div>
+            <h2>Device preview</h2>
+            <p className="muted small">AZOLVE is built as a mobile application first. Check the layout at real device sizes.</p>
+          </div>
+        </div>
+        <div className="device-picker">
+          <button className={`dp-card ${device === 'desktop' ? 'active' : ''}`} onClick={() => setDevice('desktop')}>
+            <span className="dp-ic">🖥</span><b>Desktop</b><small>Wide layout</small>
+          </button>
+          <button className={`dp-card ${device === 'mobile' ? 'active' : ''}`} onClick={() => setDevice('mobile')}>
+            <span className="dp-ic">📱</span><b>Mobile</b><small>Phone frame · 393×852</small>
+          </button>
+        </div>
+      </div>
+
+      <div className="ux-card" style={{ padding: 16, marginTop: 16 }}>
+        <h2>Motion</h2>
+        <p className="muted small">AZOLVE uses gentle motion — a rotating mark on launch, a progress bar while data loads, and soft transitions between screens. Motion respects your system's reduced-motion setting.</p>
+        <div className="motion-demo">
+          <span className="md-orbit"><i /></span>
+          <div className="md-track"><i /></div>
+          <span className="md-text">Rotating mark + progress</span>
+        </div>
+      </div>
+    </div>
+  );
+
+  /* ------------------------------- privacy ------------------------------- */
+  const privacyBody = (
+    <div className="ux-set-pad">
+      <div className="ux-card" style={{ padding: 16 }}>
+        <label className="field"><span>Who can see my profile</span>
+          <select value={privacy.profile} onChange={e => savePrivacy({ ...privacy, profile: e.target.value })}>
+            <option value="public">Everyone</option><option value="followers">Followers</option><option value="private">Only me</option>
+          </select>
+        </label>
+        <label className="field"><span>Last seen</span>
+          <select value={privacy.lastSeen} onChange={e => savePrivacy({ ...privacy, lastSeen: e.target.value })}>
+            <option value="everyone">Everyone</option><option value="contacts">My contacts</option><option value="nobody">Nobody</option>
+          </select>
+        </label>
+        <label className="field"><span>Moment audience default</span>
+          <select value={privacy.storyAudience} onChange={e => savePrivacy({ ...privacy, storyAudience: e.target.value })}>
+            <option value="followers">Followers</option><option value="close">Close friends</option><option value="private">Only me</option>
+          </select>
+        </label>
+        <Switch on={!!privacy.readReceipts} label="Send read receipts" onChange={v => savePrivacy({ ...privacy, readReceipts: v })} />
+        <Switch on={!!user.isPrivate} label="Private account (approve followers)" onChange={async v => { await API.updateMe({ isPrivate: v }); refreshMe(); }} />
+        <Switch on={!!user.temporaryIdentity} label="Temporary identity mode (hide real name in public spaces)" onChange={async v => { await API.updateMe({ temporaryIdentity: v }); refreshMe(); }} />
+      </div>
+    </div>
+  );
+
+  /* ------------------------------ security ------------------------------- */
+  const securityBody = (
+    <div className="ux-set-pad">
+      <div className="ux-card" style={{ padding: 16 }}>
+        <Switch on={twofa} label="Two-factor authentication on login" onChange={toggle2fa} />
+      </div>
+      <div className="ux-set-note">
+        <Icon name="warning" size={16} />
+        <div>
+          <b>Encryption status — honest disclosure</b>
+          AZOLVE currently uses TLS in transit and server-side storage at rest. End-to-end encryption is <b>not</b> enabled in this build, because per-recipient AI translation requires the server to read message text. We never claim E2EE when it is not active.
+        </div>
+      </div>
+      <p className="ux-lang-lbl">ACTIVE SESSIONS</p>
+      <div className="ux-set-group" style={{ marginTop: 8 }}>
+        {sessions === null && <div style={{ padding: 16 }}><Skeleton h={44} /></div>}
+        {sessions && sessions.length === 0 && <div style={{ padding: 16 }} className="muted small">No other sessions.</div>}
+        {sessions && sessions.map(s => (
+          <div key={s.id} className="ux-sess">
+            <Icon name="smartphone" size={18} />
+            <div>
+              <b>{s.device || 'Unknown device'} {s.current && <span>This device</span>}</b>
+              <small>{s.ip} · active {timeAgo(s.last_active)}</small>
+            </div>
+            {!s.current && <button className="ux-set-btn ghost sm" onClick={() => revoke(s.id)}>Revoke</button>}
+          </div>
+        ))}
+      </div>
+      <button className="ux-set-btn ghost" style={{ marginTop: 16 }} onClick={async () => { await API.logout(); logout(); }}>
+        <Icon name="logout" size={16} /> Log out
+      </button>
+    </div>
+  );
+
+  /* --------------------------- notifications ----------------------------- */
+  const notificationsBody = (
+    <div className="ux-set-pad">
+      <PushPanel notify={notify} />
+      <div className="ux-card" style={{ padding: 16, marginTop: 16 }}>
+        <h2>In-app notifications</h2>
+        <Switch on={prefs.notifications?.messages !== false} label="New messages" onChange={v => savePrefs({ ...prefs, notifications: { ...prefs.notifications, messages: v } })} />
+        <Switch on={prefs.notifications?.social !== false} label="Likes, comments and follows" onChange={v => savePrefs({ ...prefs, notifications: { ...prefs.notifications, social: v } })} />
+        <Switch on={prefs.notifications?.calls !== false} label="Incoming calls" onChange={v => savePrefs({ ...prefs, notifications: { ...prefs.notifications, calls: v } })} />
+      </div>
+    </div>
+  );
+
+  /* -------------------------------- data --------------------------------- */
+  const dataBody = (
+    <div className="ux-set-pad">
+      <div className="ux-card" style={{ padding: 16 }}>
+        <div className="data-row">
+          <div><b>Download your data</b><p className="muted small">Export your profile, posts, messages and settings as JSON.</p></div>
+          <button className="ux-set-btn ghost sm" onClick={exportData}><Icon name="download" size={16} /> Export</button>
+        </div>
+        <div className="data-row danger">
+          <div><b>Delete account</b><p className="muted small">Deactivates your profile and clears personal identifiers. This cannot be undone.</p></div>
+          <button className="ux-set-btn red sm" onClick={deleteAccount}><Icon name="trash" size={16} /> Delete</button>
+        </div>
+      </div>
+    </div>
+  );
+
+  const bodies = {
+    account: accountBody,
+    appearance: appearanceBody,
+    language: languageBody,
+    voice: <div className="ux-set-pad"><VoicePanel notify={notify} /></div>,
+    privacy: privacyBody,
+    security: securityBody,
+    notifications: notificationsBody,
+    data: dataBody,
+  };
+
+  return (
+    <div className="ux-screen">
+      <div className="ux-scroll">
+        {!sec ? menu : (
+          <>
+            {backHeader(title, META[sec]?.sub)}
+            {bodies[sec]}
+          </>
+        )}
+      </div>
+
+      {pick && (
+        <div className="modal-backdrop" onClick={() => setPick(null)}>
+          <div className="modal" onClick={e => e.stopPropagation()}>
+            <div className="modal-head">
+              <b>{pick === 'primary' ? 'My language' : 'Add a language'}</b>
+              <button className="icon-btn" onClick={() => setPick(null)} aria-label="Close"><Icon name="close" size={18} /></button>
+            </div>
+            <div className="modal-body" style={{ maxHeight: '60vh', overflowY: 'auto' }}>
+              {LANGS.map(l => (
+                <button key={l.code} className="ux-lang-row" onClick={() => {
+                  if (pick === 'primary') chooseLang(l.code);
+                  else { if (!readLangs.includes(l.code)) setReadLangs([...readLangs, l.code]); setPick(null); }
+                }}>
+                  <span dir={l.rtl ? 'rtl' : 'ltr'}>{l.native}</span>
+                  <span className="tag">{l.label}</span>
+                  {(pick === 'primary' ? profile.language === l.code : readLangs.includes(l.code)) && <Icon name="check" size={18} className="ck" />}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

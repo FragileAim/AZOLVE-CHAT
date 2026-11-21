@@ -246,35 +246,54 @@ export default function Auth() {
         <div className="auth-art-foot">© {new Date().getFullYear()} AZOLVE INFOTECH · Designed for a borderless world</div>
       </section>
 
-      {/* Phone-only welcome hero, matching the supplied design screen. */}
-      <section className="auth-mobile-hero">
-        <div className="topbar">
-          <span className="tb-brand">Azolve <b>Chat</b></span>
-          <span className="tb-sep">—</span>
-          <span className="tb-screen">Welcome</span>
+      {/* Phone-first welcome, matching the UI/UX team's Welcome screen exactly. */}
+      <section className="ux-welcome">
+        <div className="ux-welcome-glow" />
+
+        <div className="ux-brand">
+          <div className="ux-brand-mark">A</div>
+          <span className="ux-brand-name">AZOLVE</span>
         </div>
-        <div className="auth-mark">AZOLVE CHAT</div>
-        <div className="auth-preview">
-          <div className="ap-row in">Shall we meet this evening?</div>
-          <div className="ap-row out">Absolutely, 7 pm works!</div>
-          <div className="ap-tr"><Icon name="translate" size={12} /> ¿Nos vemos esta noche?</div>
+
+        <div className="ux-demo">
+          <div className="ux-demo-b">
+            <p>आज शाम को मिलते हैं?</p>
+            <div className="ux-demo-tr">
+              <Icon name="translate" size={14} />
+              Shall we meet this evening?
+            </div>
+          </div>
+          <div className="ux-demo-b out">
+            <p>Absolutely, 7 pm works!</p>
+            <div className="ux-demo-tr">
+              <Icon name="translate" size={12} />
+              शाम 7 बजे ठीक है!
+            </div>
+          </div>
+          <div className="ux-langpills">
+            <span className="ux-langpill">हिन्दी</span>
+            <span className="ux-langpill">English</span>
+            <span className="ux-langpill">Español</span>
+            <span className="ux-langpill">العربية</span>
+          </div>
         </div>
-        <div className="auth-chips">
-          <span className="on">English</span>
-          <span>Español</span>
-          <span>+ 25 more</span>
-        </div>
-        <div className="auth-hero">
-          <h1>Say it your way.<br /><em>They read it theirs.</em></h1>
-          <p>Every message arrives in the language you speak — instantly, beautifully, privately.</p>
-        </div>
-        <div className="auth-actions">
-          <button className="btn primary btn-block" onClick={() => setStarted(true)}>
+
+        <div className="ux-welcome-foot">
+          <h1 className="ux-welcome-h1">
+            Say it your way.<br />
+            <em>They read it theirs.</em>
+          </h1>
+          <p className="ux-welcome-p">
+            Every message arrives in the language you speak — instantly, beautifully, privately.
+          </p>
+
+          <button className="ux-cta" onClick={() => setStarted(true)}>
             Get started <Icon name="arrow" size={16} />
           </button>
-        </div>
-        <div className="auth-foot">
-          Already have an account? <button onClick={() => { setMode('signin'); setStarted(true); }}>Sign in</button>
+          <button className="ux-cta-ghost" onClick={() => { setMode('signin'); setStarted(true); }}>
+            I already have an account
+          </button>
+          <p className="ux-legal">By continuing you agree to our Terms &amp; Privacy Policy</p>
         </div>
       </section>
 
@@ -465,11 +484,18 @@ export default function Auth() {
           )}
 
           {step === 'phoneotp' && pending && (
-            <>
-              <button className="back-link" onClick={() => setStep(pending.channel === 'email' ? 'welcome' : 'phone')}><Icon name="back" size={15} /> Back</button>
-              <h2>Enter your code</h2>
-              <p className="sub">
-                We sent a 6-digit code to <b>{pending.channel === 'email' ? pending.email : pending.phone}</b>.
+            <div className="ux-otp-wrap">
+              <button
+                className="ux-otp-back"
+                onClick={() => setStep(pending.channel === 'email' ? 'welcome' : 'phone')}
+                aria-label="Back"
+              >
+                <Icon name="back" size={20} />
+              </button>
+
+              <h1 className="ux-otp-title ux-h1">Enter the code</h1>
+              <p className="ux-otp-sub">
+                We sent a 6-digit code to <b>{pending.channel === 'email' ? pending.email : pending.phone}</b>
               </p>
 
               <OtpInput
@@ -480,55 +506,76 @@ export default function Auth() {
                 ariaLabel="Six digit verification code"
               />
 
-              {pending.delivered && (
-                <div className="otp-hint ok">
-                  <Icon name="check" size={14} />
-                  <span>
-                    Code sent by {pending.channel === 'email' ? 'email' : 'SMS'} via <b>{pending.provider}</b>.
-                    {pending.channel === 'email' ? ' Check your inbox and spam folder.' : ''}
-                  </span>
-                </div>
-              )}
-
-              {!pending.delivered && pending.deliveryCode && (
-                <div className="demo-code">
-                  <div className="dc-label"><Icon name="info" size={14} /> Test mode — the server is echoing the code</div>
-                  <div className="dc-code">{pending.deliveryCode}</div>
-                  <button className="link-btn" onClick={() => setForm(f => ({ ...f, code: pending.deliveryCode }))}>Use this code</button>
-                </div>
-              )}
-
-              {!pending.delivered && !pending.deliveryCode && (
-                <div className="otp-hint">
-                  <Icon name="info" size={14} />
-                  <span>
-                    No {pending.channel === 'email' ? 'email' : 'SMS'} provider is configured, so nothing was sent.
-                    Your code is in the server log — ask whoever runs this deployment to read it out.
-                    {pending.deliveryError ? <><br /><em>{pending.deliveryError}</em></> : null}
-                  </span>
-                </div>
-              )}
-
-              {error && <div className="form-error"><Icon name="warning" size={15} />{error}</div>}
-
-              <button
-                className="btn primary block lg"
-                disabled={busy || form.code.length < 6}
-                onClick={pending.channel === 'email' ? verifyEmail : verifyPhone}
-              >
-                {busy ? 'Verifying…' : 'Verify & continue'}
-              </button>
-              <p className="auth-switch">
-                Didn't get it?{' '}
+              <div className="ux-otp-meta">
+                <span>Didn&rsquo;t get it?</span>
                 <button
-                  className="link-btn"
+                  type="button"
                   disabled={busy}
                   onClick={pending.channel === 'email' ? resendEmail : resendPhone}
                 >
                   Send a new code
                 </button>
-              </p>
-            </>
+              </div>
+
+              {pending.delivered && (
+                <div className="ux-otp-note ok">
+                  <Icon name="check" size={13} />
+                  <span>Code sent by {pending.channel === 'email' ? 'email' : 'SMS'} via <b>{pending.provider}</b>.{pending.channel === 'email' ? ' Check your inbox and spam folder.' : ''}</span>
+                </div>
+              )}
+              {!pending.delivered && pending.deliveryCode && (
+                <div className="ux-otp-note">
+                  <Icon name="info" size={13} />
+                  <span>Test mode — the server echoes the code: <b>{pending.deliveryCode}</b></span>
+                  <button type="button" onClick={() => setForm(f => ({ ...f, code: pending.deliveryCode }))}>Use</button>
+                </div>
+              )}
+              {!pending.delivered && !pending.deliveryCode && (
+                <div className="ux-otp-note">
+                  <Icon name="info" size={13} />
+                  <span>No {pending.channel === 'email' ? 'email' : 'SMS'} provider is configured, so nothing was sent. Your code is in the server log.</span>
+                </div>
+              )}
+              {error && (
+                <div className="ux-otp-note err">
+                  <Icon name="warning" size={13} />
+                  <span>{error}</span>
+                </div>
+              )}
+
+              <button
+                className="ux-otp-verify"
+                disabled={busy || form.code.length < 6}
+                onClick={pending.channel === 'email' ? verifyEmail : verifyPhone}
+              >
+                {busy ? 'Verifying…' : 'Verify'}
+              </button>
+
+              <div className="ux-keypad">
+                {[1, 2, 3, 4, 5, 6, 7, 8, 9].map(n => (
+                  <button
+                    key={n}
+                    type="button"
+                    className="ux-key"
+                    onClick={() => setForm(f => ({ ...f, code: (f.code + n).slice(0, 6) }))}
+                  >{n}</button>
+                ))}
+                <span />
+                <button
+                  type="button"
+                  className="ux-key"
+                  onClick={() => setForm(f => ({ ...f, code: (f.code + '0').slice(0, 6) }))}
+                >0</button>
+                <button
+                  type="button"
+                  className="ux-key"
+                  aria-label="Delete last digit"
+                  onClick={() => setForm(f => ({ ...f, code: f.code.slice(0, -1) }))}
+                >
+                  <Icon name="backspace" size={22} />
+                </button>
+              </div>
+            </div>
           )}
 
           {step === 'login' && (

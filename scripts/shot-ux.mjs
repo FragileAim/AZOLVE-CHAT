@@ -28,6 +28,7 @@ async function account(name, lang) {
     body: JSON.stringify({
       language: lang, country: lang === 'hi' ? 'IN' : 'US',
       bio: 'Travel storyteller. Chasing light across India.',
+      displayName: name,
       username: name.toLowerCase().replace(/\W/g, '') + String(stamp).slice(-5),
     }),
   });
@@ -149,6 +150,26 @@ console.log('feed', JSON.stringify(await metrics()));
 await go('settings');
 await shot('ux-settings');
 console.log('settings', JSON.stringify(await metrics()));
+
+await go('settings/language');
+await shot('ux-settings-language');
+console.log('settings-language', JSON.stringify(await metrics()));
+
+await go('moments');
+await shot('ux-moments');
+console.log('moments', JSON.stringify(await metrics()));
+
+await go('calls');
+await shot('ux-calls');
+console.log('calls', JSON.stringify(await metrics()));
+
+await go('communities');
+await shot('ux-communities');
+console.log('communities', JSON.stringify(await metrics()));
+
+await go('home');
+await shot('ux-reels');
+console.log('reels', JSON.stringify(await metrics()));
 
 await go('ai');
 await shot('ux-ai');

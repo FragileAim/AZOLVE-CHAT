@@ -3,6 +3,7 @@ import { useApp, navigate } from '../App.jsx';
 import { API, api, uploadFile } from '../lib/api.js';
 import { Icon, Avatar, Modal, Empty, Skeleton, Verified } from '../components/UI.jsx';
 import { timeAgo } from '../lib/utils.js';
+import { langOf } from '../lib/i18n.js';
 
 const BGS = [
   'linear-gradient(135deg,#0F2027,#2C5364)', 'linear-gradient(135deg,#FF6B6B,#FFD93D)',
@@ -25,79 +26,90 @@ export default function Moments() {
   const mine = groups?.find(g => g.user.id === user.id);
 
   return (
-    <div className="page moments-page">
-      <div className="page-head">
-        <div>
-          <div className="eyebrow">AZOLVE MOMENTS · 24 HOURS</div>
-          <h1>Share a moment<span className="soft">, in any language.</span></h1>
-        </div>
-        <div className="head-actions">
-          <button className="btn" onClick={() => setCreateOpen(true)}><Icon name="magic" size={16} /> AI Moment Creator</button>
-          <button className="btn primary" onClick={() => setCreateOpen(true)}><Icon name="plus" size={16} /> New moment</button>
-        </div>
-      </div>
+    <div className="ux-screen">
+      <div className="ux-scroll">
+        <header className="ux-feed-head">
+          <div>
+            <h1 className="ux-feed-h1">Moments</h1>
+            <p className="ux-set-sub">24 hours · translated for every viewer</p>
+          </div>
+          <div className="acts">
+            <button className="ux-round" onClick={() => setCreateOpen(true)} aria-label="AI moment creator"><Icon name="magic" size={18} /></button>
+            <button className="ux-round blue" onClick={() => setCreateOpen(true)} aria-label="New moment"><Icon name="plus" size={18} /></button>
+          </div>
+        </header>
 
-      <section className="moment-hero">
-        <div className="mh-left">
-          <h2>Moments that speak<br /><em>every language.</em></h2>
-          <p>Post a photo, a video or a thought. Captions and replies are translated per viewer — your words stay yours.</p>
-          <div className="mh-stats">
-            <div><b>{groups?.length || 0}</b><span>people sharing</span></div>
-            <div><b>{groups?.reduce((s, g) => s + g.moments.length, 0) || 0}</b><span>live moments</span></div>
-            <div><b>24h</b><span>then it's gone</span></div>
+        <div className="ux-calls-hero">
+          <div className="glow" />
+          <div className="eyebrow">AZOLVE MOMENTS</div>
+          <h2>Say it once.<br />Everyone reads it in their language.</h2>
+          <p>Photo, video or a thought. Captions and replies are translated per viewer — your original is never replaced.</p>
+          <div className="acts">
+            <button className="p" onClick={() => setCreateOpen(true)}><Icon name="plus" size={16} /> New moment</button>
+            <button className="g" onClick={() => setCreateOpen(true)}><Icon name="magic" size={16} /> AI caption</button>
           </div>
         </div>
-        <div className="mh-art" aria-hidden="true">
-          <div className="mh-card c1"><span>नमस्ते</span></div>
-          <div className="mh-card c2"><span>Hola</span></div>
-          <div className="mh-card c3"><span>こんにちは</span></div>
+
+        <div className="ux-calls-stats">
+          <div><b>{groups?.length || 0}</b><span>people sharing</span></div>
+          <div><b>{groups?.reduce((s, g) => s + g.moments.length, 0) || 0}</b><span>live moments</span></div>
+          <div><b>24h</b><span>then it's gone</span></div>
         </div>
-      </section>
 
-      <div className="section-head">
-        <h3>Your circle</h3>
-        <button className="link-btn" onClick={() => setCreateOpen(true)}><Icon name="plus" size={13} /> Add yours</button>
-      </div>
+        <p className="ux-sub">Your circle <span>{groups?.length || 0}</span></p>
 
-      {!groups ? (
-        <div className="moment-rail">{[1, 2, 3, 4].map(i => <Skeleton key={i} w={150} h={210} r={20} />)}</div>
-      ) : groups.length === 0 ? (
-        <Empty icon="eye" title="No moments right now" text="Be the first to share something with your circle."
-          action={<button className="btn primary sm" onClick={() => setCreateOpen(true)}>Create a moment</button>} />
-      ) : (
-        <div className="moment-rail">
-          <button className="moment-card add" onClick={() => setCreateOpen(true)}>
-            <div className="mc-add"><Icon name="plus" size={22} /></div>
-            <span className="label">Your moment</span>
-          </button>
-          {groups.map((g, gi) => {
-            const last = g.moments[g.moments.length - 1];
-            return (
-              <button key={g.user.id} className={`moment-card ${g.allViewed ? 'seen' : 'unseen'}`} onClick={() => setViewer({ gi, mi: 0 })}>
-                <div className="ring" />
-                {last.type === 'image' || last.type === 'video' ? (
-                  <img src={last.media_url} alt="" loading="lazy" />
-                ) : (
-                  <div className="mc-text" style={{ background: last.bg || BGS[0] }}>{last.text}</div>
-                )}
-                <div className="scrim" />
-                <div className="mc-user"><Avatar user={g.user} size={30} /><span>{g.user.displayName.split(' ')[0]}</span></div>
-                <span className="label">{timeAgo(last.created_at)}</span>
-              </button>
-            );
-          })}
-        </div>
-      )}
-
-      <div className="section-head"><h3>Highlights</h3><span className="hint">Saved moments stay forever</span></div>
-      <div className="highlights-row">
-        {(mine?.moments || []).map(m => (
-          <div key={m.id} className="highlight-card">
-            {m.type === 'image' ? <img src={m.media_url} alt="" /> : <div style={{ background: m.bg || BGS[0] }}>{m.text}</div>}
-            <span>{new Date(m.created_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}</span>
+        {!groups ? (
+          <div className="ux-stories">{[1, 2, 3, 4, 5].map(i => <Skeleton key={i} w={66} h={66} r={999} />)}</div>
+        ) : groups.length === 0 ? (
+          <div className="ux-pf-empty">
+            <b>No moments right now</b>
+            <p>Be the first to share something with your circle.</p>
+            <button className="ux-set-btn" style={{ marginTop: 14 }} onClick={() => setCreateOpen(true)}>Create a moment</button>
           </div>
-        ))}
-        {!mine && <div className="hint">Create a moment to start your highlight collection.</div>}
+        ) : (
+          <div className="ux-stories">
+            <button className="ux-story" onClick={() => setCreateOpen(true)}>
+              <span className="ux-story-ring" style={{ background: 'transparent' }}>
+                <span className="inner"><Icon name="plus" size={22} /></span>
+                <span className="ux-story-add"><Icon name="plus" size={12} /></span>
+              </span>
+              <p>Your moment</p>
+            </button>
+            {groups.map((g, gi) => {
+              const last = g.moments[g.moments.length - 1];
+              return (
+                <button key={g.user.id} className={`ux-story ${g.allViewed ? 'seen' : ''}`} onClick={() => setViewer({ gi, mi: 0 })}>
+                  <span className={`ux-story-ring ${g.allViewed ? 'seen' : ''}`}>
+                    {last.type === 'image' ? (
+                      <img src={last.media_url} alt="" loading="lazy" />
+                    ) : (
+                      <span className="inner" style={{ background: last.bg || BGS[0], color: '#fff', fontSize: 10, fontWeight: 800, padding: 4, textAlign: 'center' }}>
+                        {(last.text || '').slice(0, 18)}
+                      </span>
+                    )}
+                  </span>
+                  <p>{g.user.displayName.split(' ')[0]}</p>
+                </button>
+              );
+            })}
+          </div>
+        )}
+
+        <div className="ux-section-head" style={{ marginTop: 26 }}>
+          <h3>Highlights</h3>
+          <span>Saved moments stay forever</span>
+        </div>
+        <div className="ux-pf-highlights">
+          {(mine?.moments || []).map(m => (
+            <div key={m.id} className="ux-pf-hl">
+              <span className="ux-pf-hl-circle">
+                {m.type === 'image' ? <img src={m.media_url} alt="" /> : <i style={{ background: m.bg || BGS[0], color: '#fff', width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, padding: 4, textAlign: 'center' }}>{(m.text || '').slice(0, 12)}</i>}
+              </span>
+              <small>{new Date(m.created_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}</small>
+            </div>
+          ))}
+          {!mine && <p className="ux-pf-note">Create a moment to start your highlight collection.</p>}
+        </div>
       </div>
 
       {viewer && groups && (
@@ -187,47 +199,65 @@ function MomentViewer({ groups, start, onClose, onChanged }) {
   };
 
   return (
-    <div className="moment-viewer" onMouseDown={e => e.target === e.currentTarget && onClose()}>
-      <div className="moment-stage" onMouseDown={() => setPaused(p => !p)}>
-        <div className="moment-bars">
-          {group.moments.map((m, i) => (
-            <i key={m.id} className={i < mi ? 'done' : ''}><b style={{ width: i < mi ? '100%' : i === mi ? `${progress}%` : 0 }} /></i>
-          ))}
+    <div className="ux-storyv">
+      {moment.type === 'image' && <img src={moment.media_url} alt={moment.caption || 'Moment'} />}
+      {moment.type === 'video' && <video src={moment.media_url} autoPlay muted playsInline loop />}
+      {moment.type === 'text' && (
+        <div className="ux-story-bg" style={{ background: moment.bg || BGS[0] }}>
+          <span>{moment.text}</span>
         </div>
-        <div className="moment-top">
-          <Avatar user={group.user} size={34} />
-          <div className="mt-who"><b>{group.user.displayName} {group.user.verified && <Verified size={12} />}</b><span>{timeAgo(moment.created_at)} · {moment.audience}</span></div>
-          {own && <button className="icon-btn" onClick={(e) => { e.stopPropagation(); openViewers(); }} title="Viewers"><Icon name="eye" size={17} /></button>}
-          <button className="icon-btn" onClick={(e) => { e.stopPropagation(); onClose(); }}><Icon name="close" size={18} /></button>
-        </div>
+      )}
+      <div className="ux-story-shade" />
+      <button className="ux-story-pause" onClick={() => setPaused(p => !p)} aria-label={paused ? 'Play' : 'Pause'} />
 
-        {moment.type === 'image' && <img src={moment.media_url} alt={moment.caption || 'Moment'} />}
-        {moment.type === 'video' && <video src={moment.media_url} autoPlay muted playsInline loop />}
-        {moment.type === 'text' && <div className="text-stage" style={{ background: moment.bg || BGS[0] }}>{moment.text}</div>}
-
-        {moment.caption && <div className="moment-caption">{moment.caption}</div>}
-        {moment.location && <div className="moment-loc"><Icon name="map" size={12} /> {moment.location}</div>}
-
-        <div className="moment-bottom" onMouseDown={e => e.stopPropagation()}>
-          <div className="moment-reactions">
-            {['❤️', '😂', '🔥', '👏', '😮'].map(e => <button key={e} onClick={() => react(e)}>{e}</button>)}
-          </div>
-          {!own ? (
-            <div className="moment-reply">
-              <input value={reply} onChange={e => setReply(e.target.value)} placeholder={`Reply to ${group.user.displayName.split(' ')[0]}…`} onKeyDown={e => e.key === 'Enter' && sendReply()} />
-              <button className="send-btn sm" onClick={sendReply}><Icon name="send" size={16} /></button>
-            </div>
-          ) : (
-            <div className="moment-own-actions">
-              <button className="btn ghost sm" onClick={openViewers}><Icon name="eye" size={14} /> Viewers</button>
-              <button className="btn ghost sm" onClick={del}><Icon name="trash" size={14} /> Delete</button>
-            </div>
-          )}
-        </div>
-
-        <button className="mv-nav left" onClick={(e) => { e.stopPropagation(); prev(); }} aria-label="Previous"><Icon name="back" size={20} /></button>
-        <button className="mv-nav right" onClick={(e) => { e.stopPropagation(); next(); }} aria-label="Next"><Icon name="arrow" size={20} /></button>
+      <div className="ux-story-bars">
+        {group.moments.map((m, i) => (
+          <i key={m.id}><b style={{ width: i < mi ? '100%' : i === mi ? `${progress}%` : 0 }} /></i>
+        ))}
       </div>
+
+      <div className="ux-story-head">
+        <div className="ux-story-av"><Avatar user={group.user} size={40} /></div>
+        <div className="ux-story-who">
+          <b>{group.user.displayName} {group.user.verified && <Verified size={12} />} <span>{timeAgo(moment.created_at)}</span></b>
+          <small><Icon name="star" size={9} style={{ fill: 'currentColor' }} /> {moment.audience === 'close' ? 'Close friends' : moment.audience || 'Everyone'}</small>
+        </div>
+        {own && <button className="ux-story-btn" onClick={openViewers} aria-label="Viewers"><Icon name="eye" size={19} /></button>}
+        <button className="ux-story-btn" onClick={onClose} aria-label="Close story"><Icon name="close" size={22} /></button>
+      </div>
+
+      {moment.music && (
+        <div className="ux-story-music"><Icon name="music" size={14} /><span>{moment.music}</span></div>
+      )}
+
+      {(moment.caption || moment.text) && (
+        <div className="ux-story-cap">
+          <p>{moment.caption || moment.text}</p>
+          <div className="ux-story-tr"><Icon name="translate" size={13} /><span>Translated from {langOf(group.user.language || 'en').native}</span></div>
+          {moment.location && <div className="ux-story-loc"><Icon name="map" size={12} /> {moment.location}</div>}
+        </div>
+      )}
+
+      <div className="ux-story-react">
+        {['😂', '😮', '😍', '😢', '👏', '🔥'].map(e => <button key={e} onClick={() => react(e)}>{e}</button>)}
+      </div>
+
+      {!own ? (
+        <div className="ux-story-reply">
+          <div className="fld">
+            <input value={reply} onChange={e => setReply(e.target.value)} placeholder={`Reply to ${group.user.displayName.split(' ')[0]}…`} onKeyDown={e => e.key === 'Enter' && sendReply()} />
+          </div>
+          <button className="snd" onClick={sendReply} aria-label="Send reply"><Icon name="send" size={20} /></button>
+        </div>
+      ) : (
+        <div className="ux-story-own">
+          <button onClick={openViewers}><Icon name="eye" size={15} /> Viewers</button>
+          <button onClick={del}><Icon name="trash" size={15} /> Delete</button>
+        </div>
+      )}
+
+      <button className="ux-story-nav l" onClick={prev} aria-label="Previous"><Icon name="back" size={20} /></button>
+      <button className="ux-story-nav r" onClick={next} aria-label="Next"><Icon name="arrow" size={20} /></button>
 
       <Modal open={viewersOpen} onClose={() => setViewersOpen(false)} title="Moment viewers">
         {!viewerList ? <Skeleton h={80} /> : viewerList.length === 0 ? <div className="hint">No views yet.</div> : (

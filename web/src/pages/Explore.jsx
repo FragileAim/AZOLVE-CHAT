@@ -1,14 +1,20 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useApp, navigate } from '../App.jsx';
-import { Icon, Avatar, Modal, Empty, Skeleton, Verified, Seg } from '../components/UI.jsx';
+import { Icon, Avatar, Modal, Empty, Skeleton, Verified } from '../components/UI.jsx';
 import { API, uploadFile } from '../lib/api.js';
 import { timeAgo } from '../lib/utils.js';
+import { langOf } from '../lib/i18n.js';
+
+/* ===========================================================================
+   Updates — the social feed, built to the UI/UX team's SocialFeed screen.
+   ========================================================================= */
 
 function PostCard({ post, onChanged }) {
   const { user, notify } = useApp();
   const [liked, setLiked] = useState(!!post.liked);
   const [likes, setLikes] = useState(post.likes || 0);
   const [saved, setSaved] = useState(!!post.saved);
+  const [following, setFollowing] = useState(!!post.author?.followedByMe);
   const [openComments, setOpenComments] = useState(false);
   const [commentCount, setCommentCount] = useState(post.comments || 0);
   const [translated, setTranslated] = useState(null);
@@ -22,6 +28,11 @@ function PostCard({ post, onChanged }) {
     setSaved(v => !v);
     try { await API.savePost(post.id); notify(saved ? 'Removed from saved' : 'Saved to collection', 'ok'); }
     catch { setSaved(saved); }
+  };
+  const follow = async () => {
+    setFollowing(true);
+    try { await API.follow(post.author.id); notify(`Following ${post.author.displayName}`, 'ok'); }
+    catch (e) { setFollowing(false); notify(e.message, 'err'); }
   };
   const translate = async () => {
     if (translated) { setTranslated(null); return; }
@@ -39,43 +50,61 @@ function PostCard({ post, onChanged }) {
   };
 
   const media = post.media || [];
+  const src = post.originalLang || post.author?.language || 'en';
+
   return (
-    <article className="post-card">
-      <header className="post-head">
-        <button className="post-author" onClick={() => navigate('profile', post.author.username)}>
+    <article className="ux-post">
+      <div className="ux-post-head">
+        <button type="button" className="ux-post-who" onClick={() => navigate('profile', post.author.username)}>
           <Avatar user={post.author} size={40} />
-          <span>
-            <b>{post.author.displayName} {post.author.verified && <Verified />}</b>
-            <small>@{post.author.username} · {timeAgo(post.createdAt)}{post.location ? ` · ${post.location}` : ''}</small>
+          <span style={{ minWidth: 0 }}>
+            <b>{post.author.displayName} {post.author.verified && <Verified size={14} />}</b>
+            <small>
+              {post.location ? `${post.location} · ` : ''}{timeAgo(post.createdAt)}
+            </small>
           </span>
         </button>
-        <span className="lang-chip">{post.originalLang?.toUpperCase()}</span>
-      </header>
-
-      {media.length > 0 && (
-        <div className={`post-media ${media.length > 1 ? 'multi' : ''}`}>
-          {media.map((m, i) => m.kind === 'video'
-            ? <video key={i} src={m.url} controls playsInline className="post-img" />
-            : <img key={i} src={m.url} alt={post.caption?.slice(0, 60) || 'post'} className="post-img" loading="lazy" />)}
-        </div>
-      )}
-
-      <div className="post-actions">
-        <button className={`pa ${liked ? 'on' : ''}`} onClick={toggleLike}><Icon name="heart" size={20} /></button>
-        <button className="pa" onClick={() => setOpenComments(true)}><Icon name="comment" size={20} /></button>
-        <button className="pa" onClick={share}><Icon name="share" size={20} /></button>
-        <button className="pa" onClick={translate} disabled={busy} title="Translate caption"><Icon name="translate" size={20} /></button>
-        <button className={`pa ml ${saved ? 'on' : ''}`} onClick={toggleSave}><Icon name="bookmark" size={20} /></button>
+        {post.author.id !== user.id && (
+          <button type="button" className="ux-post-follow" disabled={following} onClick={follow}>
+            {following ? 'Following' : 'Follow'}
+          </button>
+        )}
       </div>
 
-      <div className="post-likes">{Number(likes).toLocaleString()} likes</div>
-
-      {post.caption && (
-        <div className="post-caption">
-          <p><b>{post.author.username}</b> {translated || post.caption}</p>
-          {translated && <small className="translated-note">Translated to {user.language?.toUpperCase()} · <button className="linkbtn" onClick={() => setTranslated(null)}>See original</button></small>}
+      {media.length > 0 && (
+        <div className={`ux-post-media${media.length > 1 ? ' multi' : ''}`}>
+          {media.slice(0, 4).map((m, i) => m.kind === 'video'
+            ? <video key={i} src={m.url} controls playsInline />
+            : <img key={i} src={m.url} alt={post.caption?.slice(0, 60) || 'post'} loading="lazy" />)}
+          {media.length > 1 && <span className="ux-post-count">1/{media.length}</span>}
         </div>
       )}
+
+      <div className="ux-post-acts">
+        <button type="button" className={liked ? 'on' : ''} onClick={toggleLike} aria-label="Like"><Icon name="heart" size={22} /></button>
+        <button type="button" onClick={() => setOpenComments(true)} aria-label="Comments"><Icon name="comment" size={22} /></button>
+        <button type="button" onClick={share} aria-label="Share"><Icon name="share" size={22} /></button>
+        <button type="button" onClick={translate} disabled={busy} aria-label="Translate"><Icon name="translate" size={22} /></button>
+        <button type="button" className={`ml ${saved ? 'on' : ''}`} onClick={toggleSave} aria-label="Save"><Icon name="bookmark" size={22} /></button>
+      </div>
+
+      <div className="ux-post-body">
+        <p className="ux-post-likes">{Number(likes).toLocaleString()} likes</p>
+        {post.caption && (
+          <p className="ux-post-cap">
+            <b>{post.author.username}</b> {translated || post.caption}
+          </p>
+        )}
+        {translated && (
+          <p className="ux-post-tr">
+            <Icon name="translate" size={14} />
+            Translated from {langOf(src).label} · <b onClick={() => setTranslated(null)}>See original</b>
+          </p>
+        )}
+        <button type="button" className="ux-post-more" onClick={() => setOpenComments(true)}>
+          {commentCount > 0 ? `View all ${commentCount} comments` : 'Be the first to comment'}
+        </button>
+      </div>
 
       {openComments && (
         <CommentsModal post={post} onClose={() => setOpenComments(false)} onCount={setCommentCount} />
@@ -220,13 +249,12 @@ function Composer({ onClose, onCreated }) {
 
 export default function Explore() {
   const { user, notify } = useApp();
-  const [tab, setTab] = useState('feed');
-  /* Top tabs from the design: For you / Following / Reels. */
   const [view, setView] = useState('foryou');
   const [moments, setMoments] = useState([]);
   const [feed, setFeed] = useState(null);
   const [explore, setExplore] = useState(null);
   const [trending, setTrending] = useState([]);
+  const [people, setPeople] = useState([]);
   const [q, setQ] = useState('');
   const [searchOpen, setSearchOpen] = useState(false);
   const [composer, setComposer] = useState(false);
@@ -243,15 +271,10 @@ export default function Explore() {
   useEffect(() => {
     loadFeed();
     loadExplore();
-    API.trending().then(r => setTrending(r.trending || [])).catch(() => {});
-    API.moments().then(r => setMoments(r.moments || [])).catch(() => {});
+    API.trending().then(r => setTrending(r.trending || [])).catch(() => { });
+    API.moments().then(r => setMoments(r.moments || [])).catch(() => { });
+    API.directory('', 6).then(r => setPeople((r.users || []).filter(u => u.id !== user.id).slice(0, 4))).catch(() => { });
   }, []);
-
-  useEffect(() => {
-    if (tab !== 'explore') return;
-    const t = setTimeout(() => loadExplore(q), 350);
-    return () => clearTimeout(t);
-  }, [q, tab]);
 
   const searchPeople = async (e) => {
     e.preventDefault();
@@ -263,90 +286,118 @@ export default function Explore() {
   const posts = view === 'reels' ? explore : feed;
 
   return (
-    <div className="page page-wide explore-page">
-      <div className="explore-top">
-        <div className="row-between" style={{ marginBottom: 14 }}>
-          <h1>Updates</h1>
-          <div className="explore-actions">
-            <button className="icon-btn" onClick={() => setSearchOpen(v => !v)} aria-label="Search"><Icon name="search" size={18} /></button>
-            <button className="icon-btn solid" onClick={() => setComposer(true)} aria-label="Create a post"><Icon name="plus" size={19} /></button>
+    <div className="ux-screen">
+      <div className="ux-scroll">
+
+        <header className="ux-feed-head">
+          <h1 className="ux-feed-h1">Updates</h1>
+          <div className="acts">
+            <button type="button" className="ux-round" onClick={() => setSearchOpen(v => !v)} aria-label="Search">
+              <Icon name="search" size={20} />
+            </button>
+            <button type="button" className="ux-round blue" onClick={() => setComposer(true)} aria-label="Create a post">
+              <Icon name="plus" size={20} />
+            </button>
           </div>
-        </div>
+        </header>
+
         {searchOpen && (
-          <div className="explore-search">
-            <Icon name="search" size={18} />
-            <input autoFocus value={q} onChange={e => setQ(e.target.value)} onKeyDown={e => e.key === 'Enter' && searchPeople(e)}
-              placeholder="Search people, hashtags, places…" />
-            {q && <button className="icon-btn" onClick={() => { setQ(''); setSearchResults(null); }}><Icon name="close" size={16} /></button>}
+          <div className="ux-pad" style={{ paddingTop: 12, paddingBottom: 0 }}>
+            <div className="ux-search">
+              <Icon name="search" size={16} className="sl" />
+              <input autoFocus value={q} onChange={e => setQ(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && searchPeople(e)}
+                placeholder="Search people, hashtags, places…" />
+              <button type="button" className="ux-search-x" onClick={() => { setQ(''); setSearchResults(null); setSearchOpen(false); }} aria-label="Close search">
+                <Icon name="close" size={16} />
+              </button>
+            </div>
           </div>
         )}
-      </div>
 
-      <div className="feed-tabs">
-        <button className={view === 'foryou' ? 'on' : ''} onClick={() => { setView('foryou'); setTab('feed'); }}>For you</button>
-        <button className={view === 'following' ? 'on' : ''} onClick={() => { setView('following'); setTab('feed'); }}>Following</button>
-        <button className={view === 'reels' ? 'on' : ''} onClick={() => { setView('reels'); setTab('explore'); }}>Reels</button>
-      </div>
+        <div className="ux-ftabs">
+          <button type="button" className={`ux-ftab${view === 'foryou' ? ' on' : ''}`} onClick={() => setView('foryou')}>For you</button>
+          <button type="button" className={`ux-ftab${view === 'following' ? ' on' : ''}`} onClick={() => setView('following')}>Following</button>
+          <button type="button" className={`ux-ftab${view === 'reels' ? ' on' : ''}`} onClick={() => setView('reels')}>Reels</button>
+        </div>
 
-      <div className="stories-row">
-        <button className="story-item" onClick={() => navigate('moments')}>
-          <div className="story-ring"><div className="inner" style={{ display: 'grid', placeItems: 'center', color: 'var(--azolve-blue)' }}><Icon name="plus" size={22} /></div></div>
-          <div className="nm">Your story</div>
-        </button>
-        {moments.slice(0, 8).map(m => (
-          <button key={m.id} className="story-item" onClick={() => navigate('moments')}>
-            <div className={`story-ring ${m.viewed ? 'seen' : ''}`}>
-              <div className="inner"><Avatar user={m.author || { displayName: 'User' }} size={56} /></div>
+        <div className="ux-stories">
+          <button type="button" className="ux-story" onClick={() => navigate('moments')}>
+            <div className="ux-story-ring">
+              <div className="inner"><Icon name="plus" size={22} /></div>
+              <span className="ux-story-add"><Icon name="plus" size={14} stroke={3} /></span>
             </div>
-            <div className="nm">{m.author?.displayName?.split(' ')[0] || 'User'}</div>
+            <p>Your story</p>
           </button>
-        ))}
-      </div>
-
-
-      {searchResults && (
-        <div className="card search-results">
-          <div className="row-between"><b>People</b><button className="linkbtn" onClick={() => setSearchResults(null)}>Clear</button></div>
-          {searchResults.length === 0 && <p className="muted">No accounts found.</p>}
-          {searchResults.map(u => (
-            <button key={u.id} className="person-row" onClick={() => navigate('profile', u.username)}>
-              <Avatar user={u} size={40} />
-              <span><b>{u.displayName} {u.verified && <Verified />}</b><small>@{u.username} · {u.country || 'Global'}</small></span>
-              <Icon name="arrow" size={16} />
+          {moments.slice(0, 8).map(m => (
+            <button key={m.id} type="button" className={`ux-story${m.viewed ? ' seen' : ''}`} onClick={() => navigate('moments')}>
+              <div className={`ux-story-ring${m.viewed ? ' seen' : ''}`}>
+                <div className="inner"><Avatar user={m.author || { displayName: 'User' }} size={61} /></div>
+              </div>
+              <p>{m.author?.displayName?.split(' ')[0] || 'User'}</p>
             </button>
           ))}
         </div>
-      )}
 
-      <div className="explore-grid">
-        <div className="feed-col">
-          {posts === null && [1, 2, 3].map(i => <Skeleton key={i} h={380} style={{ marginBottom: 18, borderRadius: 20 }} />)}
-          {posts && posts.length === 0 && (
-            <Empty icon="explore" title="Nothing here yet" text={tab === 'feed' ? 'Follow people to fill your feed.' : 'Try a different search.'}
-              action={<button className="btn primary" onClick={() => setComposer(true)}>Create the first post</button>} />
-          )}
-          {posts && posts.map(p => <PostCard key={p.id} post={p} onChanged={loadFeed} />)}
-        </div>
+        {searchResults && (
+          <div className="ux-people-list" style={{ marginTop: 16 }}>
+            <div className="ux-sub" style={{ margin: 0 }}>People <span>{searchResults.length}</span></div>
+            {searchResults.length === 0 && <p className="muted">No accounts found.</p>}
+            {searchResults.map(u => (
+              <button key={u.id} type="button" className="ux-person" onClick={() => navigate('profile', u.username)}>
+                <span className="ux-person-main">
+                  <Avatar user={u} size={44} />
+                  <span>
+                    <b>{u.displayName} {u.verified && <Verified size={12} />}</b>
+                    <small>@{u.username} · {u.country || 'Global'}</small>
+                  </span>
+                </span>
+              </button>
+            ))}
+          </div>
+        )}
 
-        <aside className="explore-side">
-          <div className="card">
-            <h3><Icon name="hashtag" size={16} /> Trending globally</h3>
-            <div className="trend-list">
-              {trending.slice(0, 8).map(t => (
-                <button key={t.tag} className="trend-row" onClick={() => { setTab('explore'); setQ(t.tag.replace('#', '')); }}>
-                  <span><b>{t.tag}</b><small>{t.posts} post{t.posts === 1 ? '' : 's'} · {t.languages?.join(', ').toUpperCase()}</small></span>
-                  <Icon name="arrow" size={14} />
-                </button>
+        {posts === null && [1, 2].map(i => <Skeleton key={i} h={420} style={{ margin: '20px 12px 0', borderRadius: 28 }} />)}
+
+        {posts && posts.length === 0 && (
+          <Empty icon="explore" title="Nothing here yet"
+            text={view === 'reels' ? 'Try a different search.' : 'Follow people to fill your feed.'}
+            action={<button className="btn primary" onClick={() => setComposer(true)}>Create the first post</button>} />
+        )}
+
+        {posts && posts.map(p => <PostCard key={p.id} post={p} onChanged={loadFeed} />)}
+
+        {(people.length > 0 || trending.length > 0) && (
+          <div className="ux-sugg">
+            <div className="hd">
+              <b>Suggested for you</b>
+              <button type="button" onClick={() => navigate('people')}>See all</button>
+            </div>
+            <div className="row">
+              {people.map(u => (
+                <div key={u.id} className="ux-sugg-card">
+                  <button type="button" onClick={() => navigate('profile', u.username)}
+                    style={{ border: 0, background: 'none', padding: 0, width: '100%', cursor: 'pointer' }}>
+                    <Avatar user={u} size={64} />
+                    <b>{u.displayName}</b>
+                    <span>{langOf(u.language).label} · {u.country || 'Global'}</span>
+                  </button>
+                  <button type="button" onClick={() => navigate('people')}>Follow</button>
+                </div>
               ))}
-              {trending.length === 0 && <p className="muted">No trends yet.</p>}
+              {people.length === 0 && trending.slice(0, 3).map(t => (
+                <div key={t.tag} className="ux-sugg-card">
+                  <div className="ph">#</div>
+                  <b>{t.tag}</b>
+                  <span>{t.posts} post{t.posts === 1 ? '' : 's'}</span>
+                  <button type="button" onClick={() => { setView('reels'); setQ(t.tag.replace('#', '')); loadExplore(t.tag.replace('#', '')); }}>Explore</button>
+                </div>
+              ))}
             </div>
           </div>
+        )}
 
-          <div className="card ai-note">
-            <h3><Icon name="sparkles" size={16} /> Multilingual discovery</h3>
-            <p className="muted">Captions in any language are shown in yours on demand. Tap the translate icon on a post to read it in {user.language?.toUpperCase()}.</p>
-          </div>
-        </aside>
+        <div style={{ height: 8 }} />
       </div>
 
       {composer && <Composer onClose={() => setComposer(false)} onCreated={p => { setFeed(f => [p, ...(f || [])]); setExplore(x => [p, ...(x || [])]); }} />}

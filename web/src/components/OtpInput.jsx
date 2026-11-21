@@ -94,12 +94,12 @@ export default function OtpInput({
   };
 
   return (
-    <div className="otp-boxes" role="group" aria-label={ariaLabel} onPaste={handlePaste}>
+    <div className="ux-otp-boxes" role="group" aria-label={ariaLabel} onPaste={handlePaste}>
       {Array.from({ length }).map((_, i) => (
         <input
           key={i}
           ref={(el) => { refs.current[i] = el; }}
-          className={`otp-box${chars[i] ? ' filled' : ''}`}
+          className={`ux-otp-box${chars[i] ? ' filled' : (i === chars.length ? ' active' : ' empty')}`}
           type="text"
           inputMode="numeric"
           pattern="[0-9]*"
