@@ -1,44 +1,26 @@
-# Request AI — Rebuild the real DOM to match the UI/UX team's export (v1.1.1)
+# AZOLVE CHAT — v1.1.2 (buttons + captions)
 
-The v1.1.0 attempt layered a CSS override sheet over the old markup. The user rejected it:
-"the ui/ux which i gave is different and which you gave is totally different". Fix = rewrite the
-JSX structure itself to mirror `/tmp/ux/src/pages/*.tsx`, with `.ux-*` classes carrying the
-export's exact measurements.
+## Request AJ — every button, every API, correct captions
+- [x] Reproduce the "buttons do not navigate" report with a real CDP sweep at 390×844
+- [x] Cause 1: the `Mobile view` device-preview pill (`position:fixed; z-index:70; bottom:18px; right:18px`) sat on top of the bottom nav, so Profile and nearby taps hit the pill
+- [x] Cause 2: `device === 'mobile'` wrapped the whole app in an iframe, so taps changed the iframe hash and never the page
+- [x] Gate the preview behind `?preview=1` only; production renders the app directly
+- [x] Navigation truth test: bottom nav, all-screens sheet and 10 deep links — 21/21 behave correctly
+- [x] People category chips now refetch the directory by keyword (were highlight-only)
+- [x] Explore: For you / Following / Reels are three distinct lists (were one list)
+- [x] Profile: Share profile can no longer fail silently
+- [x] Hear: reports "voices still loading" instead of doing nothing
+- [x] Static API audit: all 84 UI calls resolve to real server routes (119 routes)
+- [x] Fix `/api/social/moments` — handler was not `async` after the translation patch, which crashed the server on boot
+- [x] Moments captions translate per viewer + real "See original" toggle
+- [x] AI captions grounded in the user's own sentence, in their language (was unrelated English templates)
+- [x] AI provider timeout 30s → 8s, model chain capped at 3 (was ~60s per caption)
+- [x] Click sweep: 35 dead buttons → 10; every remaining one is an active tab, an empty-input Send, or a headless-only mic/speech limit
+- [x] `audit-ux.mjs` 32/32 computed-style checks pass
+- [x] `shot-ux.mjs` 14 screens, no horizontal overflow, 0 console errors
+- [x] Version 1.1.2 / versionCode 13 / iOS build 13
+- [x] APK rebuilt and verified (`io.azolve.chat` 1.1.2)
+- [x] Committed `11b06a2`, pushed, Render `dep-dc0v3bos00ms73fvfavg` live, bundle hash matches local
 
-## Foundation
-- [x] Re-extract the UXPilot export to `/tmp/ux`
-- [x] Read Welcome, ChatList, ConversationTranslation, BottomNav, Profile, Discover, OtpVerification, index.css
-- [x] Rewrite `styles-ux.css` as a real design system (tokens, .ux-screen/.ux-scroll/.ux-h1/.ux-round/.ux-search/.ux-filters/.ux-row/.ux-av/.ux-bubble/.ux-orig/.ux-composer/.ux-welcome/.ux-otp/.ux-pf/.mobile-nav)
-- [x] Rebuild ChatList JSX (bell+pen header, persistent search, filter pills, PINNED/ALL MESSAGES)
-- [x] Rebuild conversation header (back, 40px avatar, name/online, HI→EN chip, 2 round buttons)
-- [x] Rebuild composer (plus + pill + mic/send)
-- [x] Rename MessageBubble classes + amber ORIGINAL block
-- [x] OtpInput → .ux-otp-boxes/.ux-otp-box
-- [x] Welcome screen JSX → .ux-welcome
-
-## Remaining screens (JSX, not CSS)
-- [x] Auth: sign-in / create-account panel + OTP step (back, 30px title, boxes, meta, verify, custom keypad)
-- [x] Profile → Profile.tsx (190px cover, glass buttons, 92px avatar, stats card, action row, tabs, grid)
-- [x] People/Discover → Discover.tsx (search + filter icon, category pills, trending chips, creators row)
-- [x] Explore/Updates → SocialFeed.tsx
-- [x] AI → AiAssistantDark.tsx
-- [x] Settings → TranslationSettings.tsx
-- [x] Calls → VideoCall.tsx
-- [x] Communities → GroupChatDark.tsx
-- [x] Moments → StoryViewer.tsx
-- [x] Home → Reels.tsx / feed shell
-
-## Verify by self-testing (user demanded it)
-- [x] Re-check chat pane overflow against new `.ux-cv-head` (hOverflow:false on all 14 screens)
-- [x] Build `dist`, run `node scripts/shot-ux.mjs` (0 console errors)
-- [x] `see_image` every screenshot vs the corresponding .tsx; fix mismatches
-- [x] Objective computed-style audit `scripts/audit-ux.mjs` → 32/32 PASS
-- [x] Fix story-ring inline-span bug (rings were 900px wide on Moments)
-- [x] 0 console errors, nav present on all screens
-
-## Ship v1.1.1
-- [x] Bump versionCode 12 / 1.1.1 + iOS 12 / 1.1.1
-- [x] Build dist, copy to Android assets + iOS public
-- [x] Build APK against https://azolve-chat.onrender.com (1.4 MB)
-- [x] Commit + push main (cd821cc), Render deploy dep-dc0uhm60tb live
-- [x] Deliver APK + screenshots
+## Open
+- none

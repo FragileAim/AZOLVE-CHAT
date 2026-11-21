@@ -679,6 +679,46 @@ html[data-theme='dark'] .ux-cta { background: var(--ux-blue); }
   font-size: 11px; color: var(--text-3);
 }
 
+/* Tapping "Get started" (or "I already have an account") must hand the whole
+   screen over to the form. The welcome hero is 100dvh, so without this the form
+   was rendered *below* it and the tap looked like it did nothing at all. */
+.auth-wrap.started .ux-welcome { display: none !important; }
+
+/* The welcome hero is a phone-first screen. On desktop the branded art column
+   and the form are the two grid columns, so the hero must not claim a cell —
+   it used to sit in column 2 and push the form onto a second row. */
+@media (min-width: 900px) {
+  .ux-welcome { display: none !important; }
+}
+
+@media (max-width: 899px) {
+  .auth-wrap.started .auth-panel {
+    display: flex !important;
+    flex-direction: column;
+    justify-content: flex-start;
+    min-height: 100dvh;
+    width: 100%;
+    padding: calc(20px + env(safe-area-inset-top, 0px)) 24px calc(24px + env(safe-area-inset-bottom, 0px));
+    background: var(--bg);
+  }
+  .auth-wrap.started .auth-card {
+    max-width: 100%;
+    margin: 0 auto;
+    border: 0; background: transparent; box-shadow: none;
+    padding: 0; border-radius: 0;
+  }
+}
+/* A way back to the welcome screen, so the form is never a dead end. */
+.ux-auth-back {
+  display: flex; align-items: center; gap: 8px;
+  margin: 0 0 14px; padding: 0;
+  border: 0; background: none; cursor: pointer;
+  font-family: var(--font); font-size: 13px; font-weight: 700;
+  color: var(--text-2);
+}
+.ux-auth-back:hover { color: var(--text); }
+
+
 /* ---------------------------------- OTP ----------------------------------- */
 .ux-otp-wrap {
   position: fixed; inset: 0; z-index: 60;
