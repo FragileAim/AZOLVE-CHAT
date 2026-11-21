@@ -42,13 +42,24 @@ const SCREEN_LABEL = {
   admin: 'Admin',
 };
 
-const MOBILE = [
-  { id: 'home', label: 'Home', icon: 'home' },
+/* The floating pill nav from the design set: Chats · Discover · + · Updates · Profile.
+   Everything else (Moments, AI, Calls, Communities, Settings, Admin) lives in
+   the "All screens" sheet so no feature loses its way in. */
+const MOBILE_LEFT = [
   { id: 'chats', label: 'Chats', icon: 'chat' },
-  { id: 'people', label: 'People', icon: 'users' },
-  { id: 'explore', label: 'Explore', icon: 'explore' },
-  { id: 'ai', label: 'AI', icon: 'sparkles' },
-  { id: 'profile', label: 'You', icon: 'user' },
+  { id: 'people', label: 'Discover', icon: 'explore' },
+];
+const MOBILE_RIGHT = [
+  { id: 'explore', label: 'Updates', icon: 'eye' },
+  { id: 'profile', label: 'Profile', icon: 'user' },
+];
+const MORE = [
+  { id: 'home', label: 'Home', icon: 'home' },
+  { id: 'moments', label: 'Moments', icon: 'eye' },
+  { id: 'ai', label: 'AZOLVE AI', icon: 'sparkles' },
+  { id: 'calls', label: 'Calls', icon: 'phone' },
+  { id: 'communities', label: 'Communities', icon: 'users' },
+  { id: 'settings', label: 'Settings', icon: 'settings' },
 ];
 
 export default function AppShell() {
@@ -56,6 +67,7 @@ export default function AppShell() {
   const [unread, setUnread] = useState(0);
   const [notifs, setNotifs] = useState(0);
   const [reqCount, setReqCount] = useState(0);
+  const [moreOpen, setMoreOpen] = useState(false);
 
   const loadBadges = async () => {
     try {
@@ -166,17 +178,60 @@ export default function AppShell() {
       </main>
 
       <nav className="mobile-nav">
-        {MOBILE.map(n => (
+        {MOBILE_LEFT.map(n => (
           <button key={n.id} className={page === n.id ? 'active' : ''} onClick={() => navigate(n.id)}>
             <span className="mn-ic">
-              <Icon name={n.id === 'profile' ? 'user' : n.icon} size={22} />
+              <Icon name={n.icon} size={20} />
               {n.id === 'chats' && unread > 0 && <i className="rail-badge">{unread > 9 ? '9+' : unread}</i>}
               {n.id === 'people' && reqCount > 0 && <i className="rail-badge">{reqCount > 9 ? '9+' : reqCount}</i>}
             </span>
             <span>{n.label}</span>
           </button>
         ))}
+
+        <button className="mn-center" onClick={() => setMoreOpen(true)} aria-label="New chat and all screens">
+          <Icon name="plus" size={20} />
+        </button>
+
+        {MOBILE_RIGHT.map(n => (
+          <button key={n.id} className={page === n.id ? 'active' : ''} onClick={() => navigate(n.id)}>
+            <span className="mn-ic"><Icon name={n.icon} size={20} /></span>
+            <span>{n.label}</span>
+          </button>
+        ))}
       </nav>
+
+      {moreOpen && (
+        <div className="more-sheet" onClick={() => setMoreOpen(false)}>
+          <div className="more-sheet-inner" onClick={e => e.stopPropagation()}>
+            <div className="more-grab" />
+            <b className="more-title">All screens</b>
+            <button className="more-new" onClick={() => { setMoreOpen(false); navigate('chats'); }}>
+              <Icon name="plus" size={18} /> New chat
+            </button>
+            <div className="more-grid">
+              {MORE.map(n => (
+                <button key={n.id} className={`more-item ${page === n.id ? 'active' : ''}`}
+                  onClick={() => { setMoreOpen(false); navigate(n.id); }}>
+                  <span className="more-ic"><Icon name={n.icon} size={20} /></span>
+                  <span>{n.label}</span>
+                </button>
+              ))}
+              {isAdmin && (
+                <button className={`more-item ${page === 'admin' ? 'active' : ''}`}
+                  onClick={() => { setMoreOpen(false); navigate('admin'); }}>
+                  <span className="more-ic"><Icon name="shield" size={20} /></span>
+                  <span>Admin</span>
+                </button>
+              )}
+            </div>
+            <button className="more-theme" onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}>
+              <Icon name={theme === 'dark' ? 'sun' : 'moon'} size={18} />
+              {theme === 'dark' ? 'Switch to light' : 'Switch to dark'}
+            </button>
+          </div>
+        </div>
+      )}
     </div>
     </CallHost>
   );

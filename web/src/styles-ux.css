@@ -1,0 +1,670 @@
+/* ============================================================
+   AZOLVE CHAT — UXPILOT UI/UX
+   The visual language supplied by the UI/UX team:
+   Manrope · electric blue #2b50ff · warm paper #f7f5f0 ·
+   deep ink #0d1220 · amber #f5a524 · floating dark pill nav.
+   This file loads LAST and is the single source of truth for looks.
+   ============================================================ */
+
+@import url('https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap');
+
+:root {
+  --ux-primary: #2b50ff;
+  --ux-primary-soft: #7c8cff;
+  --ux-accent: #f5a524;
+  --ux-accent-ink: #b9740a;
+  --ux-success: #1fbf75;
+  --ux-danger: #ff3b4e;
+  --ux-paper: #f7f5f0;
+  --ux-ink: #0d1220;
+  --ux-night: #0b0f1c;
+  --ux-night-deep: #090c16;
+  --ux-night-card: #151b30;
+  --ux-night-line: #edeff7;
+  --ux-r-card: 24px;
+  --ux-r-pill: 999px;
+  --ux-shadow-card: 0 10px 30px -14px rgba(13, 18, 32, .16);
+  --ux-shadow-float: 0 18px 40px -10px rgba(13, 18, 32, .5);
+  --ux-shadow-primary: 0 8px 20px -6px rgba(43, 80, 255, .55);
+}
+
+/* ---------- LIGHT: warm paper ---------- */
+html[data-theme='light'] {
+  --bg: #f7f5f0;
+  --bg-2: #f7f5f0;
+  --surface: #ffffff;
+  --surface-2: #ffffff;
+  --surface-3: #f1efe9;
+  --elevated: #ffffff;
+  --border: rgba(13, 18, 32, .07);
+  --border-strong: rgba(13, 18, 32, .14);
+  --text: #0d1220;
+  --text-2: rgba(13, 18, 32, .58);
+  --text-3: rgba(13, 18, 32, .42);
+  --bubble-in: #ffffff;
+  --bubble-out: #2b50ff;
+  --bubble-out-text: #ffffff;
+  --glass: rgba(247, 245, 240, .88);
+  --shadow-lg: 0 24px 60px -24px rgba(13, 18, 32, .26);
+  --shadow-md: 0 12px 30px -14px rgba(13, 18, 32, .18);
+  --shadow-sm: 0 2px 10px rgba(13, 18, 32, .06);
+  --hover: rgba(13, 18, 32, .04);
+  --active: rgba(13, 18, 32, .07);
+  --skeleton: linear-gradient(90deg, #f1efe9, #f8f6f2, #f1efe9);
+  --violet: #2b50ff;
+  --indigo: #4d6bff;
+  --teal: #1fbf75;
+  --coral: #ff8a7a;
+  --amber: #f5a524;
+  --rose: #ff3b4e;
+  --grad-aurora: linear-gradient(135deg, #2b50ff, #4d6bff);
+  --grad-warm: linear-gradient(135deg, #f5a524, #ff8a7a);
+  --grad-ink: linear-gradient(160deg, #0d1220, #0b0f1c 60%, #151b30);
+}
+
+/* ---------- DARK: deep night ---------- */
+html[data-theme='dark'] {
+  --bg: #0b0f1c;
+  --bg-2: #090c16;
+  --surface: #151b30;
+  --surface-2: #151b30;
+  --surface-3: #1b2340;
+  --elevated: #151b30;
+  --border: rgba(255, 255, 255, .07);
+  --border-strong: rgba(255, 255, 255, .14);
+  --text: #edeff7;
+  --text-2: rgba(237, 239, 247, .62);
+  --text-3: rgba(237, 239, 247, .42);
+  --bubble-in: #151b30;
+  --bubble-out: #2b50ff;
+  --bubble-out-text: #ffffff;
+  --glass: rgba(11, 15, 28, .84);
+  --shadow-lg: 0 24px 60px -20px rgba(0, 0, 0, .85);
+  --shadow-md: 0 12px 30px -14px rgba(0, 0, 0, .7);
+  --shadow-sm: 0 2px 10px rgba(0, 0, 0, .4);
+  --hover: rgba(255, 255, 255, .05);
+  --active: rgba(255, 255, 255, .09);
+  --skeleton: linear-gradient(90deg, #131a2d, #1a2238, #131a2d);
+  --violet: #2b50ff;
+  --indigo: #4d6bff;
+  --teal: #1fbf75;
+  --coral: #ff8a7a;
+  --amber: #f5a524;
+  --rose: #ff3b4e;
+  --grad-aurora: linear-gradient(135deg, #2b50ff, #4d6bff);
+  --grad-warm: linear-gradient(135deg, #f5a524, #ff8a7a);
+  --grad-ink: linear-gradient(160deg, #151b30, #0b0f1c);
+}
+
+/* ============================================================
+   NATIVE APP FEEL — no browser affordances
+   ============================================================ */
+html, body {
+  font-family: 'Manrope', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif !important;
+  -webkit-font-smoothing: antialiased;
+  -webkit-text-size-adjust: 100%;
+  overscroll-behavior: none;
+  background: var(--bg);
+}
+body {
+  -webkit-tap-highlight-color: transparent;
+  -webkit-touch-callout: none;
+  user-select: none;
+}
+input, textarea, [contenteditable] { user-select: text; -webkit-user-select: text; }
+* { -webkit-tap-highlight-color: transparent; }
+::selection { background: rgba(43, 80, 255, .22); }
+::-webkit-scrollbar { width: 0; height: 0; }
+* { scrollbar-width: none; }
+
+/* Rubber-band scrolling belongs to the app, not the page. */
+body, #root { height: 100dvh; overflow: hidden; }
+
+/* ============================================================
+   TYPOGRAPHY — Manrope, tight and bold
+   ============================================================ */
+h1, h2, h3, h4, b, strong, .tb-brand, .clp-title, .ph-name, .pf-name {
+  font-family: 'Manrope', sans-serif;
+  letter-spacing: -.02em;
+}
+
+/* Screen titles: 30px extrabold, the signature of this design set. */
+.page-head h1, .page-title, .clp-title, .ph-title, .moments-title, .ex-title,
+.ai-title, .calls-title, .comm-title, .adm-title {
+  font-size: 30px !important;
+  font-weight: 800 !important;
+  letter-spacing: -.035em !important;
+  line-height: 1.05;
+}
+
+/* ============================================================
+   SHELL
+   ============================================================ */
+.app { background: var(--bg); }
+.main { background: var(--bg); }
+
+/* The thin brand bar is a web artefact — the app has real headers. */
+.topbar { display: none !important; }
+
+.page-wrap { padding: 0 !important; }
+
+/* Desktop keeps a rail, but it wears the new brand. */
+.rail {
+  background: var(--ux-night) !important;
+  border-right: none !important;
+  box-shadow: 0 0 60px -20px rgba(13, 18, 32, .5);
+}
+.rail-item { color: rgba(255, 255, 255, .45) !important; border-radius: 18px !important; }
+.rail-item:hover { background: rgba(255, 255, 255, .07) !important; color: rgba(255, 255, 255, .8) !important; }
+.rail-item.active { background: rgba(255, 255, 255, .11) !important; color: #fff !important; }
+.rail-item.active::before { display: none !important; }
+.rail-label { font-size: 9.5px !important; font-weight: 700 !important; letter-spacing: .02em; }
+.rail-bottom .rail-item { color: rgba(255, 255, 255, .45) !important; }
+
+/* ============================================================
+   FLOATING PILL NAV (mobile) — the centrepiece of the design
+   ============================================================ */
+.mobile-nav {
+  position: fixed !important;
+  left: 16px !important;
+  right: 16px !important;
+  bottom: calc(20px + env(safe-area-inset-bottom, 0px)) !important;
+  height: 68px !important;
+  padding: 0 6px !important;
+  border-radius: 26px !important;
+  background: var(--ux-ink) !important;
+  border: none !important;
+  box-shadow: var(--ux-shadow-float) !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-around !important;
+  z-index: 70 !important;
+  backdrop-filter: none !important;
+}
+html[data-theme='dark'] .mobile-nav { background: #151b30 !important; }
+
+.mobile-nav button {
+  flex: 1;
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 3px !important;
+  height: 56px !important;
+  border-radius: 18px !important;
+  color: rgba(255, 255, 255, .5) !important;
+  font-size: 10px !important;
+  font-weight: 700 !important;
+  background: transparent !important;
+  transition: color .16s var(--ease), background .16s var(--ease);
+}
+.mobile-nav button.active {
+  color: #fff !important;
+  background: rgba(255, 255, 255, .1) !important;
+}
+.mobile-nav button.active svg { color: #fff !important; }
+.mobile-nav .mn-ic { position: relative; display: grid; place-items: center; }
+.mobile-nav .rail-badge {
+  position: absolute; top: -5px; right: -9px;
+  min-width: 16px; height: 16px; padding: 0 4px;
+  border-radius: 99px; background: var(--ux-accent); color: #3a2500;
+  font-size: 9.5px; font-weight: 800; display: grid; place-items: center;
+  border: 2px solid var(--ux-ink);
+}
+
+/* Centre action: raised blue square */
+.mobile-nav .mn-center {
+  flex: 0 0 auto !important;
+  width: 48px !important; height: 48px !important;
+  margin-top: -14px !important;
+  border-radius: 16px !important;
+  background: var(--ux-primary) !important;
+  color: #fff !important;
+  box-shadow: var(--ux-shadow-primary) !important;
+}
+.mobile-nav .mn-center svg { width: 20px; height: 20px; }
+.mobile-nav .mn-center.active { background: var(--ux-primary) !important; }
+
+/* ============================================================
+   CARDS / SURFACES
+   ============================================================ */
+.card {
+  background: var(--surface) !important;
+  border: none !important;
+  border-radius: var(--ux-r-card) !important;
+  box-shadow: var(--ux-shadow-card) !important;
+  padding: 18px !important;
+}
+html[data-theme='dark'] .card { box-shadow: none !important; }
+
+/* ============================================================
+   BUTTONS
+   ============================================================ */
+.btn {
+  border-radius: 16px !important;
+  font-weight: 700 !important;
+  font-size: 14.5px !important;
+  letter-spacing: -.01em;
+  transition: transform .12s var(--ease), box-shadow .18s var(--ease), background .16s;
+}
+.btn:active { transform: scale(.975); }
+.btn.primary {
+  background: var(--ux-primary) !important;
+  color: #fff !important;
+  box-shadow: var(--ux-shadow-primary) !important;
+}
+.btn.ghost {
+  background: var(--surface) !important;
+  color: var(--text) !important;
+  border: none !important;
+  box-shadow: var(--ux-shadow-sm) !important;
+}
+.btn.danger { background: rgba(255, 59, 78, .12) !important; color: #e01f34 !important; border: none !important; }
+.btn.lg { height: 56px !important; border-radius: 18px !important; font-size: 15px !important; font-weight: 700 !important; }
+.btn-block { width: 100%; }
+
+/* The "ink" call to action from the welcome screen */
+.btn.ink { background: var(--ux-ink) !important; color: #fff !important; box-shadow: none !important; }
+
+.icon-btn {
+  border-radius: 999px !important;
+  background: var(--surface) !important;
+  box-shadow: var(--ux-shadow-sm) !important;
+  border: none !important;
+  color: var(--text) !important;
+}
+.icon-btn:hover { background: var(--surface-3) !important; }
+
+/* ============================================================
+   CHIPS / FILTER PILLS
+   ============================================================ */
+.chip {
+  border-radius: 999px !important;
+  background: var(--surface) !important;
+  border: none !important;
+  box-shadow: var(--ux-shadow-sm) !important;
+  font-weight: 700 !important;
+  font-size: 13px !important;
+  color: var(--text) !important;
+  padding: 8px 15px !important;
+}
+.chip.on, .chip.active {
+  background: var(--ux-ink) !important;
+  color: #fff !important;
+  box-shadow: none !important;
+}
+html[data-theme='dark'] .chip.on, html[data-theme='dark'] .chip.active { background: var(--ux-primary) !important; }
+
+/* ============================================================
+   INPUTS
+   ============================================================ */
+.input, .field input, .field textarea, .composer-box textarea, .cc-select {
+  border-radius: 16px !important;
+  background: var(--surface) !important;
+  border: 1.5px solid transparent !important;
+  box-shadow: var(--ux-shadow-sm) !important;
+  font-family: 'Manrope', sans-serif !important;
+  font-size: 15px !important;
+  color: var(--text) !important;
+}
+.input:focus, .field input:focus, .field textarea:focus, .composer-box textarea:focus {
+  border-color: rgba(43, 80, 255, .35) !important;
+  box-shadow: 0 0 0 4px rgba(43, 80, 255, .1) !important;
+  outline: none !important;
+}
+.input::placeholder, .field input::placeholder, .composer-box textarea::placeholder {
+  color: var(--text-3) !important;
+}
+
+/* ============================================================
+   AUTH — welcome screen
+   ============================================================ */
+.auth-wrap { background: var(--ux-paper) !important; }
+html[data-theme='dark'] .auth-wrap { background: var(--ux-night) !important; }
+
+.auth-card {
+  background: var(--surface) !important;
+  border-radius: 28px !important;
+  border: none !important;
+  box-shadow: 0 24px 60px -28px rgba(13, 18, 32, .28) !important;
+}
+.auth-art { background: var(--ux-ink) !important; }
+
+/* Mobile welcome: warm paper, decorative circle, floating demo bubbles */
+.auth-mobile-hero {
+  background: var(--ux-paper) !important;
+  padding: 0 24px !important;
+}
+html[data-theme='dark'] .auth-mobile-hero { background: var(--ux-night) !important; }
+
+.auth-mobile-logo {
+  width: 40px !important; height: 40px !important;
+  border-radius: 14px !important;
+  background: var(--ux-primary) !important;
+  box-shadow: var(--ux-shadow-primary) !important;
+  color: #fff !important;
+}
+
+.auth-hero h1, .auth-mobile-hero h1 {
+  font-size: 34px !important;
+  line-height: 1.08 !important;
+  font-weight: 800 !important;
+  letter-spacing: -.04em !important;
+}
+.auth-hero h1 em, .auth-mobile-hero h1 em {
+  color: var(--ux-primary) !important;
+  font-style: normal !important;
+  font-family: 'Manrope', sans-serif !important;
+}
+
+/* ============================================================
+   CHAT LIST
+   ============================================================ */
+.chats-layout { background: var(--bg) !important; }
+.chat-list-pane { background: var(--bg) !important; border: none !important; }
+.clp-head { padding: 22px 20px 0 !important; border: none !important; background: transparent !important; }
+.clp-title { font-size: 30px !important; font-weight: 800 !important; }
+
+.clp-tabs { padding: 0 20px !important; gap: 8px !important; border: none !important; }
+.clp-tabs button {
+  border-radius: 999px !important;
+  background: var(--surface) !important;
+  border: none !important;
+  box-shadow: var(--ux-shadow-sm) !important;
+  font-weight: 700 !important;
+  font-size: 13px !important;
+  padding: 8px 15px !important;
+  color: var(--text) !important;
+}
+.clp-tabs button.active {
+  background: var(--ux-ink) !important;
+  color: #fff !important;
+  box-shadow: none !important;
+}
+
+.clp-body { padding: 4px 8px 120px !important; }
+
+.conv-item {
+  border-radius: 20px !important;
+  border: none !important;
+  padding: 12px 12px !important;
+  background: transparent !important;
+  margin: 2px 0 !important;
+}
+.conv-item:hover { background: rgba(13, 18, 32, .03) !important; }
+.conv-item.active {
+  background: var(--surface) !important;
+  box-shadow: var(--ux-shadow-card) !important;
+}
+html[data-theme='dark'] .conv-item:hover { background: rgba(255, 255, 255, .04) !important; }
+
+.ci-avatar, .conv-item .avatar, .ci-avatar img {
+  border-radius: 999px !important;
+}
+.ci-name { font-size: 15px !important; font-weight: 700 !important; letter-spacing: -.02em; }
+.ci-sub { font-size: 13.5px !important; color: var(--text-2) !important; }
+.ci-time { font-size: 11.5px !important; font-weight: 600 !important; color: var(--text-3) !important; }
+.ci-group .ci-avatar, .ci-avatar.group { border-radius: 18px !important; background: var(--grad-aurora) !important; }
+
+/* ============================================================
+   CONVERSATION
+   ============================================================ */
+.chat-pane { background: var(--bg) !important; }
+.chat-head {
+  background: var(--bg) !important;
+  border-bottom: 1px solid rgba(13, 18, 32, .05) !important;
+  padding: 14px 14px !important;
+  backdrop-filter: none !important;
+}
+html[data-theme='dark'] .chat-head { border-bottom-color: rgba(255, 255, 255, .06) !important; }
+.cs-identity b { font-size: 15px !important; font-weight: 700 !important; }
+
+.chat-scroll { background: var(--bg) !important; padding: 16px !important; }
+
+/* Bubbles: 20px radius, one squared corner, no borders */
+.bubble {
+  border-radius: 20px 20px 20px 6px !important;
+  background: var(--surface) !important;
+  border: none !important;
+  box-shadow: var(--ux-shadow-sm) !important;
+  padding: 10px 14px !important;
+}
+.msg-row.mine .bubble {
+  border-radius: 20px 20px 6px 20px !important;
+  background: var(--ux-primary) !important;
+  color: #fff !important;
+  box-shadow: 0 8px 20px -8px rgba(43, 80, 255, .55) !important;
+}
+.bubble-text { font-size: 15px !important; line-height: 1.35 !important; }
+.msg-row.mine .bubble-text { color: #fff !important; }
+
+/* The translation strip under a bubble */
+.bubble .bubble-src, .bubble .bubble-translated, .bubble .tx-line {
+  border-left: 3px solid var(--ux-accent) !important;
+  background: rgba(245, 165, 36, .1) !important;
+  border-radius: 10px !important;
+  padding: 6px 9px !important;
+  font-size: 13.5px !important;
+}
+.msg-row.mine .bubble .bubble-src, .msg-row.mine .bubble .tx-line {
+  border-left-color: rgba(255, 255, 255, .5) !important;
+  background: rgba(255, 255, 255, .14) !important;
+}
+
+.chat-day span {
+  background: rgba(13, 18, 32, .05) !important;
+  color: var(--text-3) !important;
+  border-radius: 999px !important;
+  font-size: 11px !important;
+  font-weight: 800 !important;
+  letter-spacing: .08em !important;
+  text-transform: uppercase !important;
+  padding: 5px 12px !important;
+}
+
+/* Composer */
+.chat-composer {
+  background: var(--bg) !important;
+  border-top: none !important;
+  padding: 8px 12px calc(14px + env(safe-area-inset-bottom, 0px)) !important;
+}
+.composer-box {
+  background: var(--surface) !important;
+  border-radius: 22px !important;
+  border: none !important;
+  box-shadow: var(--ux-shadow-sm) !important;
+  padding: 4px 6px !important;
+}
+.composer-box textarea { font-size: 15px !important; }
+.composer-tools button { border-radius: 999px !important; }
+.composer-foot { color: var(--text-3) !important; font-size: 11px !important; }
+
+/* ============================================================
+   CALL SCREEN
+   ============================================================ */
+.cv-root, .call-overlay { background: #000 !important; }
+.cv-chip {
+  border-radius: 999px !important;
+  background: rgba(0, 0, 0, .35) !important;
+  backdrop-filter: blur(14px) !important;
+  border: 1px solid rgba(255, 255, 255, .1) !important;
+  font-weight: 700 !important;
+}
+.cv-chip.live {
+  background: rgba(245, 165, 36, .92) !important;
+  color: #3a2500 !important;
+  border: none !important;
+  font-weight: 800 !important;
+}
+.cv-chip.live.on { background: rgba(245, 165, 36, .92) !important; color: #3a2500 !important; }
+
+.cv-dock {
+  border-radius: 32px !important;
+  background: rgba(255, 255, 255, .15) !important;
+  backdrop-filter: blur(20px) !important;
+  border: 1px solid rgba(255, 255, 255, .1) !important;
+}
+.cv-ctrl { border-radius: 999px !important; background: rgba(255, 255, 255, .15) !important; }
+.cv-ctrl.on { background: #fff !important; color: var(--ux-ink) !important; }
+.cv-ctrl.end, .cv-ctrl.hangup { background: var(--ux-danger) !important; color: #fff !important; box-shadow: 0 8px 18px -4px rgba(255, 59, 78, .7) !important; }
+
+.cv-livebar {
+  border-radius: 18px !important;
+  background: rgba(0, 0, 0, .5) !important;
+  backdrop-filter: blur(16px) !important;
+  border: 1px solid rgba(255, 255, 255, .1) !important;
+}
+.cv-livebar-head { color: var(--ux-accent) !important; font-size: 11px !important; font-weight: 800 !important; letter-spacing: .08em !important; text-transform: uppercase !important; }
+.cv-livebar-text { font-size: 16px !important; font-weight: 600 !important; line-height: 1.3 !important; }
+.cv-livebar-src { font-size: 12px !important; color: rgba(255, 255, 255, .6) !important; }
+
+.cv-self, .call-local {
+  border-radius: 18px !important;
+  box-shadow: 0 18px 40px -14px rgba(0, 0, 0, .8) !important;
+  outline: 2px solid rgba(255, 255, 255, .35) !important;
+}
+
+/* ============================================================
+   PROFILE
+   ============================================================ */
+.pf-cover, .profile-cover { height: 190px !important; }
+.pf-avatar, .profile-avatar {
+  border-radius: 999px !important;
+  border: 4px solid var(--bg) !important;
+  box-shadow: var(--ux-shadow-card) !important;
+}
+.pf-name { font-size: 24px !important; font-weight: 800 !important; }
+.pf-stats, .profile-stats {
+  background: var(--surface) !important;
+  border-radius: 24px !important;
+  border: none !important;
+  box-shadow: var(--ux-shadow-card) !important;
+}
+
+/* ============================================================
+   GENERIC LISTS / ROWS
+   ============================================================ */
+.list-row, .call-item, .contact-card, .acp-row {
+  border-radius: 18px !important;
+  border: none !important;
+  background: transparent !important;
+}
+.list-row:hover, .call-item:hover, .contact-card:hover { background: rgba(13, 18, 32, .03) !important; }
+html[data-theme='dark'] .list-row:hover, html[data-theme='dark'] .call-item:hover { background: rgba(255, 255, 255, .04) !important; }
+
+.section-title, .sec-title {
+  font-size: 11px !important;
+  font-weight: 800 !important;
+  letter-spacing: .12em !important;
+  text-transform: uppercase !important;
+  color: var(--text-3) !important;
+}
+
+/* Badges */
+.badge { border-radius: 999px !important; font-weight: 700 !important; }
+.badge-ai { background: rgba(245, 165, 36, .15) !important; color: var(--ux-accent-ink) !important; }
+
+/* Avatars */
+.avatar { border-radius: 999px; }
+
+/* ============================================================
+   MOBILE FRAME
+   ============================================================ */
+@media (max-width: 899px) {
+  .main { padding-bottom: 0 !important; }
+  .page-wrap { padding-bottom: 0 !important; }
+  .chats-layout { height: 100dvh !important; }
+
+  /* A phone shows ONE pane. `1fr` is `minmax(auto,1fr)`, so the chat pane's
+     min-content width (header buttons + avatar + name) was forcing the grid
+     column to 475px inside a 390px screen. minmax(0,1fr) + min-width:0 lets
+     it actually shrink to the viewport. */
+  .chats-layout {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) !important;
+    grid-template-rows: 1fr !important;
+    width: 100% !important;
+    max-width: 100vw !important;
+    overflow: hidden !important;
+  }
+  .chats-layout > .chat-empty { display: none !important; }
+  .chats-layout.has-active > .chat-list-pane { display: none !important; }
+  .chats-layout.has-active > .chat-pane { display: flex !important; }
+  .chat-pane, .chat-list-pane {
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+  }
+  .chat-head { width: 100% !important; max-width: 100% !important; min-width: 0 !important; }
+  .chat-head .who { min-width: 0 !important; }
+  .chat-head-actions { flex: none !important; }
+
+  .chat-scroll { padding-bottom: 96px !important; }
+
+  /* Big screen titles sit lower, clear of the status bar */
+  .clp-head { padding-top: calc(18px + env(safe-area-inset-top, 0px)) !important; }
+  .page-head { padding-top: calc(18px + env(safe-area-inset-top, 0px)) !important; }
+
+  /* Content clears the floating nav */
+  .page-scroll, .moments-scroll, .ex-scroll, .calls-scroll, .comm-scroll,
+  .ai-scroll, .pf-scroll, .settings-scroll, .people-scroll {
+    padding-bottom: 118px !important;
+  }
+}
+
+/* Tablet / desktop: the phone layout centres instead of stretching */
+@media (min-width: 900px) {
+  .mobile-nav { display: none !important; }
+}
+
+/* ============================================================
+   "ALL SCREENS" SHEET — native bottom sheet
+   ============================================================ */
+.more-sheet {
+  position: fixed; inset: 0; z-index: 90;
+  background: rgba(13, 18, 32, .5);
+  backdrop-filter: blur(6px);
+  display: flex; align-items: flex-end; justify-content: center;
+  animation: uxFade .18s var(--ease);
+}
+.more-sheet-inner {
+  width: 100%; max-width: 480px;
+  background: var(--surface);
+  border-radius: 30px 30px 0 0;
+  padding: 10px 20px calc(26px + env(safe-area-inset-bottom, 0px));
+  animation: uxUp .26s var(--ease-out);
+}
+html[data-theme='dark'] .more-sheet-inner { background: var(--ux-night-card); }
+.more-grab { width: 42px; height: 4px; border-radius: 99px; background: var(--border-strong); margin: 0 auto 14px; }
+.more-title { display: block; font-size: 20px; font-weight: 800; letter-spacing: -.03em; margin-bottom: 12px; }
+.more-new {
+  width: 100%; height: 52px; border-radius: 16px;
+  background: var(--ux-primary); color: #fff;
+  font-weight: 700; font-size: 15px;
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+  box-shadow: var(--ux-shadow-primary);
+  margin-bottom: 16px;
+}
+.more-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+.more-item {
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 7px;
+  padding: 14px 6px; border-radius: 18px;
+  background: var(--bg); color: var(--text);
+  font-size: 11.5px; font-weight: 700;
+}
+.more-item.active { background: rgba(43, 80, 255, .1); color: var(--ux-primary); }
+.more-ic {
+  width: 40px; height: 40px; border-radius: 14px;
+  display: grid; place-items: center;
+  background: var(--surface); color: var(--ux-primary);
+  box-shadow: var(--ux-shadow-sm);
+}
+html[data-theme='dark'] .more-ic { background: rgba(255, 255, 255, .06); }
+.more-theme {
+  width: 100%; height: 48px; margin-top: 14px; border-radius: 16px;
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+  background: var(--bg); color: var(--text-2);
+  font-size: 13.5px; font-weight: 700;
+}
+@keyframes uxUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
+@keyframes uxFade { from { opacity: 0; } to { opacity: 1; } }
