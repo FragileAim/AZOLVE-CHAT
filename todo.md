@@ -1,7 +1,7 @@
 # AZOLVE CHAT — v1.1.4 (APK stuck on "AZOLVE CHAT" splash)
 
 ## Reproduced
-- [x] APK loads `file:///android_asset/www/index.html`; Vite emits ES modules
+- [x] APK loaded `file:///android_asset/www/index.html`; Vite emits ES modules
 - [x] WebView blocks the module + stylesheet over file://: "Cross origin requests are only supported for protocol schemes: http, https…"
 - [x] `onPageFinished` still fires, so the native splash is dismissed and the user is left with the unstyled "AZOLVE CHAT" markup forever
 - [x] Proved the bundle itself is fine: same files over http render the full app, 0 errors
@@ -19,6 +19,8 @@
 - [x] badging: io.azolve.chat, versionCode 15, versionName 1.1.4, minSdk 24, targetSdk 34
 - [x] dex contains appassets host, live URL, text/javascript, watchdog
 - [x] launcher activity = io.azolve.chat.MainActivity
-- [x] live site re-checked at 390x844: login advances, create account → 200 → code screen
+- [x] live site at 412x915 with the app's own user-agent: renders, "Get started" advances to the form, 0 errors
+- [x] live site create-account path: POST /api/auth/email/start 200 → 6-digit code screen
+- [x] deploy dd9b72a live, /api/health reports 1.1.4
 
 Open: none
