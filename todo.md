@@ -1,35 +1,27 @@
-# AZOLVE CHAT — Request AB: match the supplied design set
+# AZOLVE CHAT — Request AC: match the supplied design set, structurally
 
-## 1. Extract the design specification
-- [x] Read all 10 screenshots and OCR every screen
-- [x] Extract the exact palette (cream #F7F5F0, white, ink #0E121F, Azolve Blue #344FF5, lavender #E3E4F1, cream bubble #FDF6EC, gold #F4BC54)
-- [x] Extract the night palette (#0C0F1B page, #181E34 surface, #24293E elevated)
-- [x] Lock the type scale (Display 34/800, Title 26/800, Heading 20/700, Body 15/500, Caption 13)
+## 1. Diagnose the real gap
+- [x] Pixel-histogram all 10 designs — palette was already byte-exact (#F7F5F0, #0C0F1B, #344FF5, #E3E4F1, #FDF6EC, #0E121F)
+- [x] OCR every screen to extract exact geometry (headings, tabs, rows, bubbles)
+- [x] Conclude the mismatch was structure/layout, not colour
 
-## 2. Build the v4 design layer
-- [x] Write `web/src/styles-v4.css` with the exact tokens, radii, shadows and type scale
-- [x] Load it last in `main.jsx` so it wins the cascade
-- [x] Restyle shell, rail, mobile nav, cards, buttons, inputs
-- [x] Restyle chat list, conversation, bubbles, translation banner, original block, composer
-- [x] Restyle Explore (Updates title, For you/Following/Reels, stories row, post cards)
-- [x] Restyle Profile (verified name, handle, bio, Public badge, stats, highlights)
-- [x] Restyle AI (Azolve AI, private subtitle, cards, action chips)
-- [x] Restyle Translation settings (preview card + 4 toggles + language pickers)
-- [x] Restyle Welcome/auth to the design hero (preview chat card, language chips, headline)
+## 2. Rebuild the structure
+- [x] Thin 34px top bar "Azolve Chat — <Screen>" on every screen
+- [x] Chat list: 40px "Chats", compose + search actions, centred Personal/Groups/Work pills, design spacing
+- [x] Conversation: TODAY divider above the lavender auto-translate banner
+- [x] Feed: "Updates" header, underline tabs, story rings, likes above caption
+- [x] Profile: cover, 30px name, Public badge, stats, underline tabs
+- [x] AI: centred header, private subtitle
+- [x] Translation settings: centred title + back, PREVIEW card, four design toggles, language pickers
+- [x] Welcome: phone-only hero (wordmark, preview chat, language chips, "Say it your way. They read it theirs.", Get started)
+- [x] Discover: title, category chips, Trending now hashtags, popular creators
 
-## 3. Add the missing structure from the designs
-- [x] Chats: Personal / Groups / Work pill tabs
-- [x] Conversation: auto-translation banner with Settings link
-- [x] Group messages: "from <language>" tag
-- [x] Explore: Updates header, three feed tabs, stories rail
-- [x] Settings: translation preview + the four design toggles
-
-## 4. Verify
+## 3. Verify
 - [x] Production build succeeds
-- [x] 80-combination UI sweep: no horizontal overflow, 0 console exceptions
-- [x] Token probe confirms cream/night backgrounds, 800-weight headings, ink active pills
-- [x] Conversation renders white incoming bubbles in light and #24293E in dark
+- [x] 80-combination UI sweep: 0 console exceptions, no page overflow
+- [x] Screenshots regenerated and compared against the design set
 
-## 5. Ship
-- [x] Commit and push to main (Render auto-deploy)
-- [x] Rebuild Android APK + iOS project as v1.0.5
+## 4. Ship
+- [x] Commit and push to main (aacb2ad) — Render auto-deploy verified (new CSS + classes live)
+- [x] Rebuild Android APK v1.0.6 (versionCode 7)
+- [x] Rebuild iOS Xcode project v1.0.6 (CURRENT_PROJECT_VERSION 7)

@@ -220,7 +220,7 @@ export default function Auth() {
   ) : null;
 
   return (
-    <div className="auth-wrap">
+    <div className={`auth-wrap ${started ? 'started' : ''}`}>
       <section className="auth-art">
         <div className="auth-art-top">
           <Logo size={46} withWord tagline />
@@ -282,6 +282,9 @@ export default function Auth() {
         <div className="auth-card">
           {step === 'welcome' && (
             <>
+              <div className="auth-mobile-back">
+                <button className="icon-btn" onClick={() => setStarted(false)} aria-label="Back"><Icon name="back" size={18} /></button>
+              </div>
               <div className="auth-mobile-logo"><Logo size={40} withWord /></div>
 
               <div className="auth-mode-switch" role="tablist" aria-label="Sign in or create an account">

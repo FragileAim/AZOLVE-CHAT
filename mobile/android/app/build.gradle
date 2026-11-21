@@ -14,8 +14,8 @@ android {
         applicationId "io.azolve.chat"
         minSdk 24
         targetSdk 34
-        versionCode 6
-        versionName "1.0.5"
+        versionCode 8
+        versionName "1.0.7"
         // -PappUrl=https://your-app.onrender.com  → app talks to your real backend.
         buildConfigField "String", "APP_URL", "\"${project.findProperty('appUrl') ?: ''}\""
     }

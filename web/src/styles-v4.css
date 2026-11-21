@@ -1048,8 +1048,50 @@ html[data-theme='dark'] .ap-tr { background: rgba(227,228,241,.10); color: var(-
   .auth-mobile-hero .auth-actions { padding: 26px 0 10px; }
   .auth-mobile-hero .auth-actions .btn { width: 100%; height: 52px; font-size: 15px; }
   .auth-panel:not(.started) { display: none; }
-  .auth-panel.started { display: block; padding-top: 12px; }
+  /* once the form is open the hero steps aside entirely, so the very first
+     screen a new user sees is Sign in / Create account with no scrolling */
+  .auth-wrap.started .auth-mobile-hero { display: none; }
+  .auth-wrap.started .auth-panel {
+    display: flex; flex-direction: column; justify-content: flex-start;
+    min-height: 100dvh; padding: 0 var(--gutter) 10px;
+  }
+  .auth-wrap.started .auth-card .field .input { height: 46px; }
+  .auth-wrap.started .auth-card .field { margin-bottom: 12px; }
+  .auth-wrap.started .auth-card {
+    max-width: 100%; border: 0; background: transparent;
+    box-shadow: none; padding: 0; border-radius: 0;
+  }
   .auth-panel.started .auth-mobile-logo { display: none; }
+  .auth-mobile-back { display: flex; padding: 2px 0 0; }
+  .auth-mobile-back .icon-btn { width: 36px; height: 36px; }
+  .auth-wrap.started .auth-mode-switch { margin-top: 2px; margin-bottom: 12px; }
+  .auth-wrap.started .auth-card h2 { font-size: 24px; margin: 6px 0 2px; }
+  .auth-wrap.started .auth-card .sub { font-size: 12.5px; line-height: 1.4; margin-bottom: 10px; }
+  .auth-wrap.started .auth-card .btn.lg { height: 48px; }
+  .auth-wrap.started .auth-switch { margin: 8px 0 0; font-size: 12.5px; }
+  .auth-wrap.started .divider { margin: 14px 0 10px; }
+  .auth-wrap.started .oauth-row { gap: 8px; }
+  .auth-wrap.started .oauth-row .btn { height: 44px; }
+  /* the legal footnote is the least important block on the form — drop it on
+     phones so the whole form, OAuth included, lands inside one screen */
+  .auth-wrap.started .auth-fine { display: none; }
+}
+
+/* short phones (iPhone SE, small Androids): keep tabs + fields + primary CTA
+   on the first screen and let the optional extras fall away */
+@media (max-width: 899px) and (max-height: 740px) {
+  .auth-wrap.started .auth-card .sub { display: none; }
+  .auth-wrap.started .divider,
+  .auth-wrap.started .oauth-row { display: none; }
+  .auth-wrap.started .auth-card h2 { font-size: 22px; margin: 4px 0 8px; }
+  .auth-wrap.started .auth-card .field { margin-bottom: 10px; }
+  .auth-wrap.started .auth-mode-switch { margin-bottom: 10px; }
+  .auth-wrap.started .auth-switch { display: none; }
+  .auth-mobile-hero .auth-preview { margin-top: 18px; }
+  .auth-mobile-hero .auth-hero { padding-top: 22px; }
+  .auth-mobile-hero .auth-hero h1 { font-size: 35px; }
+  .auth-mobile-hero .auth-actions { padding: 18px 0 6px; }
+  .auth-mobile-hero .auth-foot { font-size: 12.5px; }
 }
 .auth-chips span.on {
   background: var(--chip-on-bg); color: var(--chip-on-text); border-color: transparent;
