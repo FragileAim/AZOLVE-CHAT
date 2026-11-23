@@ -57,3 +57,14 @@
 - [x] Drop DATA_DIR — no disk exists on this free-plan service
 - [x] Redeploy and verify health / providers / firebase-config / oauth start
 - [x] Verify DeepL key still valid (usage 52,328 / 1,000,000)
+
+## v1.1.9 — recovery after the env-var wipe (done)
+- [x] Recover the Brevo API key from conversation history, verify live via /v3/account
+- [x] Restore EMAIL_PROVIDER=brevo, BREVO_API_KEY, BREVO_FROM, EMAIL_FROM/REPLY_TO
+- [x] Set OTP_DEV_ECHO=0 — real codes are emailed, not printed
+- [x] Prove delivery: Brevo logged "Your AZOLVE CHAT verification code" from production
+- [x] Root-cause "is not defined": Auth.jsx read `me.language`, context exposes `lang`
+- [x] Root-cause dead Google button: it had no onClick; replaced with a real <a href>
+- [x] Root-cause invisible Google button on short phones: `.oauth-row { display:none }`
+- [x] Verified in headless Chromium at 390x844, 375x667, 1440x900 — renders, clicks, reaches Google
+- [x] Use per-variable PUT /env-vars/{key} from now on, never the bulk replace
