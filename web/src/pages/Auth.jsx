@@ -28,6 +28,14 @@ const CODES = [
   ['+351', 'Portugal'], ['+30', 'Greece'], ['+972', 'Israel'], ['+64', 'New Zealand'],
 ];
 
+/* The Android shell injects window.AzolvePush. When it is there we are inside
+   the WebView, where Google will not draw its consent screen, so the app opens
+   the flow in the real browser and the server hands the session back over a
+   deep link. That only works if the start URL says it is the app asking. */
+const IN_APP = typeof window !== 'undefined' && !!window.AzolvePush;
+const googleStart = (lang) =>
+  `/api/auth/oauth/google/start?lang=${encodeURIComponent(lang || 'en')}${IN_APP ? '&mobile=1' : ''}`;
+
 export default function Auth() {
   const { login, notify, lang } = useApp();
   const [step, setStep] = useState('welcome');
@@ -215,7 +223,7 @@ export default function Auth() {
         /* Redirect flow: no third-party script, and it works identically in the
            browser and inside the Android shell's WebView. The session comes
            back in the URL fragment, which never reaches a server log. */
-        window.location.href = `/api/auth/oauth/google/start?lang=${encodeURIComponent(lang || 'en')}`;
+        window.location.href = googleStart(lang);
         return;
       }
       const p = await api(`/auth/providers?t=${Date.now()}`);
@@ -410,7 +418,7 @@ export default function Auth() {
               <div className="oauth-row">
                 <a
                   className="btn"
-                  href={`/api/auth/oauth/google/start?lang=${encodeURIComponent(lang || 'en')}`}
+                  href={googleStart(lang)}
                   onClick={() => { try { sessionStorage.setItem('azolve.oauth.return', '1'); } catch { /* private mode */ } }}
                 ><Icon name="mail" size={16} /> Google</a>
                 <button className="btn" type="button" onClick={() => oauth('apple')}><Icon name="smartphone" size={16} /> Apple</button>

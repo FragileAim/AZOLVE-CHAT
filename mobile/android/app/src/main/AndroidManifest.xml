@@ -42,6 +42,18 @@
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
+
+            <!-- Google sign-in return trip. The consent screen has to run in a
+                 real browser, so the server finishes the exchange there and
+                 redirects to azolve://oauth?token=… . This filter is what lets
+                 the browser hand that back to the app instead of dead-ending
+                 on an unknown scheme. -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="azolve" android:host="oauth" />
+            </intent-filter>
         </activity>
 
         <!-- Firebase Cloud Messaging. The service is what wakes the app when a

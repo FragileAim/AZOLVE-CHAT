@@ -763,8 +763,20 @@ r.post('/oauth/google', async (req, res) => {
 /* ---- 2. Redirect flow ---- */
 r.get('/oauth/google/start', (req, res) => {
   if (!googleConfigured()) return err(res, 501, 'Google sign-in is not configured on this deployment');
+  /* `mobile=1` means the flow was started from the Android shell. Google
+     refuses to render its consent screen inside an embedded WebView
+     ("disallowed_useragent"), so the app hands this URL to the real browser.
+     The browser cannot reach the app's localStorage, so the callback has to
+     come back over a deep link instead of a page redirect. The flag rides in
+     the signed state so a caller cannot turn an ordinary web login into a
+     deep-link redirect after the fact. */
   const state = jwt.sign(
-    { purpose: 'oauth-state', lang: String(req.query.lang || 'en').slice(0, 8), nonce: id('n_') },
+    {
+      purpose: 'oauth-state',
+      lang: String(req.query.lang || 'en').slice(0, 8),
+      mobile: String(req.query.mobile || '') === '1',
+      nonce: id('n_'),
+    },
     process.env.JWT_SECRET || 'dev-only-secret-change-me',
     { expiresIn: '10m' },
   );
@@ -780,7 +792,17 @@ r.get('/oauth/google/start', (req, res) => {
 
 r.get('/oauth/google/callback', async (req, res) => {
   const { code, state, error } = req.query || {};
-  const fail = msg => res.redirect(`/#/auth?error=${encodeURIComponent(msg)}`);
+  /* Decode before verifying only to learn where to send the result. Nothing
+     is trusted from this decode: every branch below still verifies the
+     signature, and a forged state fails that check and lands on the generic
+     web error page. */
+  const peek = (() => { try { return jwt.decode(String(state || '')) || {}; } catch { return {}; } })();
+  const mobile = peek.mobile === true;
+  const fail = msg => res.redirect(
+    mobile
+      ? `azolve://oauth?error=${encodeURIComponent(msg)}`
+      : `/#/auth?error=${encodeURIComponent(msg)}`,
+  );
   if (error) return fail(String(error));
   if (!code || !state) return fail('Google did not return a code');
 
@@ -821,6 +843,10 @@ r.get('/oauth/google/callback', async (req, res) => {
       token: session.token,
       refreshToken: session.refreshToken,
     });
+    /* The Android shell picks this up through an intent filter and replays it
+       into the WebView as the ordinary `#/auth?token=…` fragment, so the SPA
+       has exactly one code path for absorbing a session. */
+    if (mobile) return res.redirect(`azolve://oauth?${frag.toString()}`);
     return res.redirect(`/#/auth?${frag.toString()}`);
   } catch {
     return fail('Could not complete Google sign-in');

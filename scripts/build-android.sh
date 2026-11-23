@@ -30,8 +30,21 @@ echo "==> 3/4  Gradle"
 cd "$ROOT/mobile/android"
 echo "sdk.dir=$SDK" > local.properties
 if [ ! -x ./gradlew ]; then
-  echo "    no wrapper found — using system gradle"
-  GRADLE_BIN="${GRADLE_BIN:-gradle}"
+  # No wrapper in the repo, so fall back to an installed Gradle. Look in the
+  # usual places before giving up, otherwise the script dies with a bare
+  # "gradle: command not found" that says nothing about how to fix it.
+  if [ -z "${GRADLE_BIN:-}" ]; then
+    for c in gradle /opt/gradle-*/bin/gradle /usr/local/gradle/bin/gradle; do
+      if command -v "$c" >/dev/null 2>&1; then GRADLE_BIN="$c"; break; fi
+      if [ -x "$c" ]; then GRADLE_BIN="$c"; break; fi
+    done
+  fi
+  if [ -z "${GRADLE_BIN:-}" ]; then
+    echo "ERROR: no gradlew in the repo and no gradle on PATH." >&2
+    echo "       Install Gradle 8.x or pass GRADLE_BIN=/path/to/gradle." >&2
+    exit 1
+  fi
+  echo "    no wrapper found — using $GRADLE_BIN"
 else
   GRADLE_BIN="./gradlew"
 fi

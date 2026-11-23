@@ -179,6 +179,17 @@ public class MainActivity extends Activity {
             public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
                 Uri uri = request.getUrl();
                 String scheme = uri.getScheme() == null ? "" : uri.getScheme();
+                /* Google refuses to draw its consent screen inside an embedded
+                   WebView and answers with "disallowed_useragent". Anything on
+                   Google's auth host goes to the real browser instead; the
+                   server then returns to the app through azolve://oauth. */
+                String host = uri.getHost() == null ? "" : uri.getHost();
+                if (host.endsWith("accounts.google.com") || host.endsWith("accounts.youtube.com")) {
+                    try {
+                        startActivity(new Intent(Intent.ACTION_VIEW, uri));
+                    } catch (Exception ignored) { }
+                    return true;
+                }
                 // Keep the app inside the WebView; hand external links to the system browser.
                 if (scheme.equals("http") || scheme.equals("https") || scheme.equals("file")) {
                     return false;
@@ -249,6 +260,40 @@ public class MainActivity extends Activity {
         } else {
             web.loadUrl(LIVE_URL != null && LIVE_URL.length() > 0 ? LIVE_URL : LOCAL_URL);
         }
+
+        /* The app may have been launched *by* the Google return trip, in which
+           case the session is already sitting in the intent. */
+        handleOAuthIntent(getIntent());
+    }
+
+    /**
+     * Replay an azolve://oauth?token=… deep link into the WebView.
+     *
+     * The browser that finished the Google exchange is a different process with
+     * its own storage, so the session cannot simply appear in the app. Rewriting
+     * the link into the normal `#/auth?token=…` fragment lets the SPA's existing
+     * absorbOAuthFragment() store it — one code path for web and app, no second
+     * implementation to drift out of sync.
+     */
+    private void handleOAuthIntent(Intent intent) {
+        if (intent == null || intent.getData() == null) return;
+        Uri data = intent.getData();
+        if (!"azolve".equals(data.getScheme()) || !"oauth".equals(data.getHost())) return;
+        if (LIVE_URL == null || LIVE_URL.length() == 0) return;
+
+        String q = data.getQuery();
+        if (q == null || q.length() == 0) return;
+        String base = LIVE_URL.endsWith("/") ? LIVE_URL.substring(0, LIVE_URL.length() - 1) : LIVE_URL;
+        web.loadUrl(base + "/#/auth?" + q);
+        /* Consume it so a rotation or a resume does not replay a stale token. */
+        intent.setData(null);
+    }
+
+    @Override
+    protected void onNewIntent(Intent intent) {
+        super.onNewIntent(intent);
+        setIntent(intent);
+        handleOAuthIntent(intent);
     }
 
     /**
