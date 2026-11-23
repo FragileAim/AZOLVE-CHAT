@@ -401,9 +401,19 @@ export default function Auth() {
               )}
 
               <div className="divider"><span>or continue with</span></div>
+              {/* A real anchor, not a button with a click handler.
+                  The handler version was silently inert in production: the
+                  element rendered but carried no onClick, so tapping Google
+                  did nothing at all. A plain href needs no JavaScript, works
+                  in the Android WebView, survives a React render problem, and
+                  is what a link to another origin should be anyway. */}
               <div className="oauth-row">
-                <button className="btn" onClick={() => oauth('google')}><Icon name="mail" size={16} /> Google</button>
-                <button className="btn" onClick={() => oauth('apple')}><Icon name="smartphone" size={16} /> Apple</button>
+                <a
+                  className="btn"
+                  href={`/api/auth/oauth/google/start?lang=${encodeURIComponent(me?.language || 'en')}`}
+                  onClick={() => { try { sessionStorage.setItem('azolve.oauth.return', '1'); } catch { /* private mode */ } }}
+                ><Icon name="mail" size={16} /> Google</a>
+                <button className="btn" type="button" onClick={() => oauth('apple')}><Icon name="smartphone" size={16} /> Apple</button>
               </div>
 
               <p className="auth-fine">
