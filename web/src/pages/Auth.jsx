@@ -200,12 +200,29 @@ export default function Auth() {
     setStep('login');
   });
 
+  /* The provider list is a single small GET, so a stale answer is cheap to
+     re-check. A free-tier host that has just woken up, or a deploy that is
+     still swapping environment variables, can briefly report `google: false`
+     even though the server is configured. Telling the user "not configured"
+     in that moment is wrong and makes them think the feature is missing, so
+     confirm before giving up. */
+  const providersNow = async (provider) => {
+    let p = await api(`/auth/providers?t=${Date.now()}`);
+    if (p && p[provider]) return p;
+    await new Promise(r => setTimeout(r, 900));
+    return api(`/auth/providers?t=${Date.now()}`);
+  };
+
   const oauth = (provider) => run(async () => {
     try {
-      const p = await api('/auth/providers');
+      const p = await providersNow(provider);
       if (provider === 'google') {
         if (!p.google) {
-          notify('Google sign-in is not configured on this server yet. Use email or phone for now.', 'err');
+          notify(
+            'Google sign-in is not enabled on the server right now. If this keeps happening, '
+            + 'reload the page — the server may still be applying a configuration change.',
+            'err',
+          );
           return;
         }
         /* Redirect flow: no third-party script, and it works identically in the

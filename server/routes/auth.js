@@ -633,6 +633,10 @@ r.post('/2fa/enable', requireAuth, (req, res) => {
    honestly disable the Google/Apple buttons instead of offering a button that
    always fails. */
 r.get('/providers', (req, res) => {
+  /* This answer changes the moment an environment variable is edited, and a
+     cached copy would keep telling the browser that Google is unavailable
+     long after it was switched on. */
+  res.set('Cache-Control', 'no-store');
   res.json({
     google: googleConfigured(),
     apple: !!(process.env.APPLE_CLIENT_ID && process.env.APPLE_TEAM_ID),
