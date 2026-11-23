@@ -62,6 +62,11 @@ services:
         sync: false
       - key: BREVO_API_KEY
         sync: false
+      # The azolve.io domain is authenticated in Brevo (SPF + DKIM verified),
+      # so mail leaves from the brand domain rather than a personal Gmail
+      # address. Brevo only honours a sender on a verified domain.
+      - key: BREVO_FROM
+        value: no-reply@azolve.io
       - key: SENDGRID_API_KEY
         sync: false
       - key: MAILGUN_API_KEY
