@@ -15,12 +15,57 @@
    be reused later without a second worker.
 ============================================================================ */
 
+const ICON = '/logo.svg';
+
 /* Take over immediately: a worker that waits for every old tab to close is a
    worker that misses calls. */
 self.addEventListener('install', () => self.skipWaiting());
 self.addEventListener('activate', (e) => e.waitUntil(self.clients.claim()));
 
-const ICON = '/logo.svg';
+/* ---------------------------------------------------------------------------
+   Firebase Cloud Messaging, merged into this worker on purpose.
+   ---------------------------------------------------------------------------
+   FCM's web SDK wants its own worker at /firebase-messaging-sw.js, but that
+   would sit at the same scope as this one and replace it — taking the Accept
+   and Decline buttons with it. One worker handles both transports instead.
+   The config below is public by design; the secret lives only on the server.
+--------------------------------------------------------------------------- */
+try {
+  importScripts('https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js');
+  importScripts('https://www.gstatic.com/firebasejs/10.12.2/firebase-messaging-compat.js');
+  firebase.initializeApp({
+    apiKey: 'AIzaSyCjl_QNr2ChcorRs4Up8vE4SgZwqN6h7Ic',
+    authDomain: 'azolve-infotech.firebaseapp.com',
+    projectId: 'azolve-infotech',
+    storageBucket: 'azolve-infotech.firebasestorage.app',
+    messagingSenderId: '816829921245',
+    appId: '1:816829921245:web:d1c7e3babdfbe002e62834',
+  });
+  const messaging = firebase.messaging();
+
+  /* Calls arrive data-only (so they can ring), and land here. */
+  messaging.onBackgroundMessage((payload) => {
+    const d = payload.data || {};
+    if (d.kind !== 'call' && d.kind !== 'incoming_call') return;
+    const name = d.fromName || d.title || 'Someone';
+    return self.registration.showNotification(
+      d.type === 'video' ? `${name} is video calling` : `${name} is calling`,
+      {
+        body: d.type === 'video' ? 'Tap Accept to join the video call' : 'Tap Accept to answer',
+        tag: `call-${d.callId || Date.now()}`,
+        renotify: true,
+        requireInteraction: true,
+        icon: d.fromAvatar || ICON,
+        badge: ICON,
+        vibrate: [400, 200, 400, 200, 400, 200, 400],
+        actions: [{ action: 'accept', title: 'Accept' }, { action: 'decline', title: 'Decline' }],
+        data: { ...d, kind: 'call' },
+      },
+    );
+  });
+} catch (e) {
+  /* Offline, or the CDN is blocked. Web push below still works. */
+}
 
 function callTitle(p) {
   const name = p?.from?.displayName || 'Someone';
@@ -28,8 +73,13 @@ function callTitle(p) {
 }
 
 self.addEventListener('push', (event) => {
-  let data = {};
-  try { data = event.data ? event.data.json() : {}; } catch { data = {}; }
+  let data = null;
+  try { data = event.data ? event.data.json() : null; } catch { data = null; }
+
+  /* An FCM push is encrypted, so json() throws. Firebase's own handler above
+     already turned it into a notification; drawing another one here would put
+     an empty "AZOLVE CHAT" card on screen next to the real one. */
+  if (!data) return;
 
   if (data.kind === 'call') {
     const body = data.type === 'video' ? 'Tap Accept to join the video call' : 'Tap Accept to answer';

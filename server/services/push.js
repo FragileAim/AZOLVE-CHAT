@@ -123,6 +123,15 @@ export async function sendToUser(userId, payload) {
 
   /* --- browsers --- */
   if (!vapidKeys()) return sent;
+
+  /* A browser that registered an FCM web token already got this push through
+     FCM. Sending the VAPID copy too would show the same notification twice, so
+     the FCM path wins wherever it is available. */
+  try {
+    const webFcm = all("SELECT 1 FROM device_tokens WHERE user_id = ? AND platform = 'web' LIMIT 1", userId);
+    if (webFcm.length && sent > 0) return sent;
+  } catch { /* table missing on an old database: fall through to web push */ }
+
   const subs = all('SELECT * FROM push_subscriptions WHERE user_id = ?', userId);
   if (!subs.length) return sent;
 

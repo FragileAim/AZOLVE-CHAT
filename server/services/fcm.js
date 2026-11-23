@@ -142,19 +142,28 @@ export async function sendToUserFcm(userId, { title, body, data = {} } = {}) {
      parallel fan-out is fine; allSettled keeps one dead token from hiding the
      successes. */
   const results = await Promise.allSettled(rows.map(async ({ token }) => {
+    /* A call is sent data-only on purpose. A `notification` payload is drawn by
+       the system, and a system-drawn notification cannot carry a full-screen
+       intent, so the phone would buzz in the tray instead of ringing over the
+       lock screen. Data-only reaches AzolveMessagingService, which builds the
+       call notification itself. */
+    const isCall = data.kind === 'call' || data.kind === 'incoming_call';
     const message = {
       token,
-      notification: { title, body },
+      ...(isCall ? {} : { notification: { title, body } }),
       /* `data` values must be strings in FCM v1. */
       data: Object.fromEntries(Object.entries(data).map(([k, v]) => [k, String(v ?? '')])),
       android: {
         priority: 'HIGH',
-        notification: {
-          channel_id: 'azolve_calls',
-          sound: 'default',
-          /* A ringing call must survive the screen being locked. */
-          visibility: 'PUBLIC',
-        },
+        ...(isCall
+          ? { ttl: 45000 }
+          : {
+              notification: {
+                channel_id: 'azolve_messages',
+                sound: 'default',
+                visibility: 'PUBLIC',
+              },
+            }),
       },
     };
     const r = await fetch(`https://fcm.googleapis.com/v1/projects/${project}/messages:send`, {
