@@ -156,9 +156,13 @@ async function whisperListen(wavBuffer, mime, targetLang, sourceHint) {
   const source = String(data.text || '').trim();
   if (!source) return { source: '', srcLang: sourceHint || 'en', translated: '', engine: `openai:${model}` };
 
-  const srcLang = detectLanguage(source) || sourceHint || 'en';
+  const srcLang = detectLanguage(source);
+  const resolved = srcLang === 'und' ? (sourceHint || 'en') : srcLang;
   const tr = await translateText(source, srcLang, targetLang);
-  return { source, srcLang, translated: tr.text || source, engine: `openai:${model}` };
+  return {
+    source, srcLang: resolved, translated: tr.text || source,
+    translatedByProvider: !!tr.translated, engine: `openai:${model}`,
+  };
 }
 
 /**
@@ -210,11 +214,15 @@ export async function listenAndTranslate(buffer, { mime, targetLang = 'en', sour
 export async function translateTranscript(text, from, to) {
   const clean = String(text || '').trim();
   if (!clean) return { ok: false, reason: 'empty' };
-  const src = from || detectLanguage(clean) || 'en';
-  if (src === to) return { ok: true, source: clean, translated: clean, srcLang: src, targetLang: to, engine: 'same-language' };
-  const out = await translateText(clean, src, to);
+  const guess = detectLanguage(clean);
+  const src = guess === 'und' ? (from || 'en') : guess;
+  if (src === to) {
+    return { ok: true, source: clean, translated: clean, srcLang: src, targetLang: to, engine: 'same-language', translatedByProvider: false };
+  }
+  const out = await translateText(clean, guess, to);
   return {
     ok: true, source: clean, translated: out.text || clean,
-    srcLang: src, targetLang: to, engine: out.provider || 'none', translatedByProvider: !!out.translated,
+    srcLang: out.detectedLang || src, targetLang: to,
+    engine: out.provider || 'none', translatedByProvider: !!out.translated,
   };
 }

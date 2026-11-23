@@ -2,6 +2,7 @@ import express from 'express';
 import { requireAuth } from '../auth.js';
 import { err } from '../util.js';
 import { vapidKeys, saveSubscription, removeSubscription, sendToUser, readDeclineToken, pushReady } from '../services/push.js';
+import { saveDeviceToken, removeDeviceToken, deviceTokenCount, fcmStatus, fcmConfigured } from '../services/fcm.js';
 import { get } from '../db.js';
 import { finishCall, emitToUser } from '../realtime.js';
 
@@ -31,6 +32,49 @@ r.post('/subscribe', requireAuth, (req, res) => {
 r.post('/unsubscribe', requireAuth, (req, res) => {
   removeSubscription(req.body?.endpoint);
   res.json({ ok: true });
+});
+
+/* ---------------------------------------------------------------------------
+   Firebase Cloud Messaging
+   ---------------------------------------------------------------------------
+   Web push (VAPID) cannot wake a Capacitor WebView: the Push API does not
+   exist there. FCM is the only transport that rings a closed Android app, so
+   the two live side by side and sendToUser() fans out to both.
+   ------------------------------------------------------------------------- */
+
+/* The public Firebase web config. None of these values are secrets \u2014 they ship
+   inside every Firebase web app bundle. The service-account key, which *is* a
+   secret, never leaves the server. */
+r.get('/firebase-config', (req, res) => {
+  const config = {
+    apiKey: process.env.FIREBASE_API_KEY || '',
+    authDomain: process.env.FIREBASE_AUTH_DOMAIN || '',
+    projectId: process.env.FIREBASE_PROJECT_ID || '',
+    storageBucket: process.env.FIREBASE_STORAGE_BUCKET || '',
+    messagingSenderId: process.env.FIREBASE_MESSAGING_SENDER_ID || '',
+    appId: process.env.FIREBASE_APP_ID || '',
+    vapidKey: process.env.FIREBASE_VAPID_KEY || '',
+  };
+  const ready = !!(config.apiKey && config.projectId && config.messagingSenderId && config.appId && config.vapidKey);
+  res.json({ ready, config, fcmServerReady: fcmConfigured() });
+});
+
+r.post('/fcm/register', requireAuth, (req, res) => {
+  const token = String(req.body?.token || '').trim();
+  if (!token) return err(res, 400, 'A device token is required');
+  const platform = String(req.body?.platform || 'web').slice(0, 20);
+  saveDeviceToken(req.user.id, token, platform, req.headers['user-agent'] || '');
+  res.json({ ok: true, devices: deviceTokenCount(req.user.id) });
+});
+
+r.post('/fcm/unregister', requireAuth, (req, res) => {
+  const token = String(req.body?.token || '').trim();
+  if (token) removeDeviceToken(token);
+  res.json({ ok: true });
+});
+
+r.get('/fcm/status', requireAuth, (req, res) => {
+  res.json({ ...fcmStatus(), devices: deviceTokenCount(req.user.id) });
 });
 
 /* A self-test so a person can prove the notification actually arrives instead

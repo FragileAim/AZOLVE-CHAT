@@ -352,6 +352,16 @@ function CallStageInner({ call, onClose, onRedial }) {
     };
 
     const onCaption = ({ text, lang, source, srcLang }) => {
+      const line = String(source || text || '').trim();
+      if (line) {
+        const norm = line.toLowerCase().replace(/\s+/g, ' ');
+        peerLinesRef.current.set(norm, Date.now());
+        /* keep the guard window small and bounded */
+        if (peerLinesRef.current.size > 40) {
+          const cutoff = Date.now() - 25000;
+          for (const [k, at] of peerLinesRef.current) if (at < cutoff) peerLinesRef.current.delete(k);
+        }
+      }
       addCaption({ text, lang, source, srcLang, mine: false });
     };
     /* our own speech comes back translated so both sides show the same line */
@@ -411,6 +421,17 @@ function CallStageInner({ call, onClose, onRedial }) {
         if (cancelled || !seg?.final) return;
         const source = String(seg.source || '').trim();
         if (!source) return;
+
+        /* Did we just hear this from the peer? Then it is our microphone
+           picking up their speaker, not us speaking. Dropping it is what stops
+           the "captions appear on their own" behaviour. */
+        const norm = source.toLowerCase().replace(/\s+/g, ' ');
+        const seen = peerLinesRef.current.get(norm);
+        if (seen && Date.now() - seen < 20000) {
+          console.debug('[live-caption] dropped echo of peer line');
+          return;
+        }
+
         const socket = getSocket();
         if (seg.engine === 'device') {
           /* Show what we heard immediately, so the speaker can see the engine is
@@ -420,7 +441,17 @@ function CallStageInner({ call, onClose, onRedial }) {
           socket?.emit('call:speech', { to: peerId, callId, text: source, lang: myLang });
         } else {
           const translated = seg.translated || source;
-          const payload = { source, text: translated, srcLang: seg.srcLang || myLang, lang: theirLang };
+          /* Only claim "translated" when it genuinely differs from what was
+             said. A provider that handed the sentence back is not a
+             translation, and the badge must not say otherwise. */
+          const reallyTranslated = seg.translatedByProvider !== false
+            && translated.trim() !== source.trim();
+          const payload = {
+            source, text: translated,
+            srcLang: seg.srcLang || myLang, lang: theirLang,
+            translated: reallyTranslated,
+            unavailable: !reallyTranslated && (seg.srcLang || myLang) !== theirLang,
+          };
           socket?.emit('call:caption', { to: peerId, callId, ...payload });
           addCaption({ ...payload, mine: true });
         }
@@ -832,7 +863,14 @@ function CallStageInner({ call, onClose, onRedial }) {
       {/* caption card */}
       {phase === 'active' && capLine && (
         <div className="ux-call-caps" onClick={() => setPanel(p => p === 'captions' ? null : 'captions')} role="status" aria-live="polite">
-          <div className="lbl">{capWho} · {capLang} · translated</div>
+          <div className="lbl">
+            {capWho} · {capLang}
+            {capLine.provisional
+              ? ' · listening…'
+              : capLine.translated === false
+                ? (capLine.unavailable ? ' · translation unavailable' : '')
+                : ' · translated'}
+          </div>
           <p>{capLine.text}</p>
           {capLine.source && capLine.source !== capLine.text && <div className="src">{capLine.source}</div>}
         </div>

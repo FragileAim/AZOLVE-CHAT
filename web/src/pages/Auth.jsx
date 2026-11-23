@@ -202,6 +202,22 @@ export default function Auth() {
 
   const oauth = (provider) => run(async () => {
     try {
+      const p = await api('/auth/providers');
+      if (provider === 'google') {
+        if (!p.google) {
+          notify('Google sign-in is not configured on this server yet. Use email or phone for now.', 'err');
+          return;
+        }
+        /* Redirect flow: no third-party script, and it works identically in the
+           browser and inside the Android shell's WebView. The session comes
+           back in the URL fragment, which never reaches a server log. */
+        window.location.href = `/api/auth/oauth/google/start?lang=${encodeURIComponent(me?.language || 'en')}`;
+        return;
+      }
+      if (!p.apple) {
+        notify('Apple sign-in needs an Apple Developer account and is not enabled on this deployment.', 'err');
+        return;
+      }
       await api(`/auth/oauth/${provider}`, { method: 'POST', body: {} });
     } catch (e) {
       notify(e.message || `${provider} sign-in is not configured yet`, 'err');

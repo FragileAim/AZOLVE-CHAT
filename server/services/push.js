@@ -101,14 +101,32 @@ function dropDead(endpoint) {
 /**
  * Send one payload to every device registered for a user.
  * Returns the number of endpoints that accepted it.
+ *
+ * Two transports, because they cover different devices:
+ *   - Web Push  : browser tabs, installed PWAs, Android Chrome
+ *   - FCM       : the Capacitor Android shell, which has no Push API at all
+ * A user can legitimately have both, so we fan out to both and add up the
+ * successes rather than treating them as alternatives.
  */
 export async function sendToUser(userId, payload) {
-  if (!vapidKeys()) return 0;
+  let sent = 0;
+
+  /* --- native shell --- */
+  try {
+    const { sendToUserFcm } = await import('./fcm.js');
+    sent += await sendToUserFcm(userId, {
+      title: payload?.title || 'AZOLVE CHAT',
+      body: payload?.body || '',
+      data: payload?.data || {},
+    });
+  } catch { /* FCM is optional; web push still runs */ }
+
+  /* --- browsers --- */
+  if (!vapidKeys()) return sent;
   const subs = all('SELECT * FROM push_subscriptions WHERE user_id = ?', userId);
-  if (!subs.length) return 0;
+  if (!subs.length) return sent;
 
   const body = JSON.stringify(payload);
-  let sent = 0;
   await Promise.all(subs.map(async (s) => {
     try {
       await sendNotification(

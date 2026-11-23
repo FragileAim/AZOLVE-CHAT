@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import bcrypt from 'bcryptjs';
+import jwt from 'jsonwebtoken';
 import { get, run, all } from '../db.js';
 import { id, now, code6, publicUser, err, parseJSON } from '../util.js';
 import { createSession, rotateSession, requireAuth, issueToken } from '../auth.js';
@@ -628,16 +629,214 @@ r.post('/2fa/enable', requireAuth, (req, res) => {
   res.json({ ok: true, twofaEnabled: !!enable });
 });
 
-r.post('/oauth/:provider', (req, res) => {
-  const p = req.params.provider;
-  const configured = (p === 'google' && process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET)
-    || (p === 'apple' && process.env.APPLE_CLIENT_ID && process.env.APPLE_TEAM_ID);
-  if (!configured) {
-    return err(res, 501, `${p} sign-in is not configured on this deployment`, {
-      setup: `Set ${p === 'google' ? 'GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET' : 'APPLE_CLIENT_ID / APPLE_TEAM_ID / APPLE_PRIVATE_KEY'} in the environment, then complete the OAuth exchange in server/routes/auth.js.`,
+/* Which sign-in providers are actually live. The client uses this to enable or
+   honestly disable the Google/Apple buttons instead of offering a button that
+   always fails. */
+r.get('/providers', (req, res) => {
+  res.json({
+    google: googleConfigured(),
+    apple: !!(process.env.APPLE_CLIENT_ID && process.env.APPLE_TEAM_ID),
+    email: true,
+    phone: smsConfigured(),
+    googleMode: googleConfigured() ? (process.env.GOOGLE_CLIENT_SECRET ? 'redirect' : 'idtoken') : null,
+  });
+});
+
+/* ===========================================================================
+   Google sign-in.
+   ---------------------------------------------------------------------------
+   Two real flows, because the app has two clients:
+
+   1. ID-token flow  — POST /oauth/google { idToken }
+      The web and the native shell both obtain a Google ID token (Google
+      Identity Services on web, the Google Sign-In plugin in the app) and post
+      it here. We verify it against Google's tokeninfo endpoint, which checks
+      the signature, expiry and audience for us.
+
+   2. Redirect flow  — GET /oauth/google/start -> Google -> GET /oauth/google/callback
+      For browsers where a popup is blocked. The `state` parameter is a signed
+      JWT so the callback cannot be forged.
+
+   Both end in the same place: find-or-create the account by verified email and
+   issue a normal AZOLVE session. No password is ever stored for these accounts,
+   which is why `password_hash` is left null — password login then simply fails
+   for them, as it should.
+   ========================================================================= */
+
+const googleClientIds = () => String(process.env.GOOGLE_CLIENT_ID || '')
+  .split(',').map(s => s.trim()).filter(Boolean);
+
+const googleConfigured = () => googleClientIds().length > 0;
+
+const baseUrl = req =>
+  process.env.PUBLIC_BASE_URL
+  || `${req.headers['x-forwarded-proto'] || req.protocol || 'https'}://${req.headers['x-forwarded-host'] || req.headers.host}`;
+
+/** Find or create the account behind a verified Google profile. */
+function upsertOAuthUser({ email, name, picture, sub }) {
+  const clean = String(email || '').toLowerCase().trim();
+  if (!clean) return null;
+
+  let user = get('SELECT * FROM users WHERE email = ?', clean);
+  if (user) {
+    /* Never let a linked provider silently take over an unverified address. */
+    if (!user.email_verified) run('UPDATE users SET email_verified = 1 WHERE id = ?', user.id);
+    if (!user.avatar && picture) run('UPDATE users SET avatar = ? WHERE id = ?', picture, user.id);
+    return get('SELECT * FROM users WHERE id = ?', user.id);
+  }
+
+  const uid = id('u_');
+  const local = clean.split('@')[0].replace(/[^a-z0-9._-]/gi, '').slice(0, 20) || 'azolve';
+  let uname = local;
+  for (let i = 0; i < 40 && get('SELECT 1 FROM users WHERE username = ?', uname); i++) {
+    uname = `${local}${Math.floor(Math.random() * 9000) + 1000}`;
+  }
+
+  run(
+    `INSERT INTO users (id, email, phone, password_hash, username, display_name, avatar, language,
+       created_at, last_seen, status, role, phone_verified, email_verified, oauth_sub, prefs, privacy)
+     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+    uid, clean, null, null, uname, name || uname, picture || null,
+    (req_lang_hint() || 'en'), now(), now(), 'active',
+    roleForNewUser({ email: clean, phone: null }), 0, 1, sub || null,
+    JSON.stringify({ autoTranslate: true, notifications: { messages: true, social: true, calls: true } }),
+    JSON.stringify({ profile: 'public', lastSeen: 'contacts', readReceipts: true, storyAudience: 'followers' }),
+  );
+  return get('SELECT * FROM users WHERE id = ?', uid);
+}
+
+/* Language for a brand-new OAuth account. The client may pass a hint; the
+   server never guesses from an IP address. */
+let pendingLangHint = 'en';
+const req_lang_hint = () => pendingLangHint;
+
+function finishOAuth(req, res, profile) {
+  const user = upsertOAuthUser(profile);
+  if (!user) return err(res, 400, 'That Google account did not share an email address');
+  if (user.status === 'suspended' || user.status === 'banned') {
+    return err(res, 403, 'This account is suspended');
+  }
+  const session = createSession(user.id, req);
+  res.json({ ...session, user: publicUser(user), provider: 'google' });
+}
+
+/* ---- 1. ID-token flow ---- */
+r.post('/oauth/google', async (req, res) => {
+  if (!googleConfigured()) {
+    return err(res, 501, 'Google sign-in is not configured on this deployment', {
+      setup: 'Set GOOGLE_CLIENT_ID (and GOOGLE_CLIENT_SECRET for the redirect flow) on the server.',
     });
   }
-  return err(res, 501, 'OAuth exchange hook present but not completed for this deployment');
+  const idToken = req.body?.idToken || req.body?.credential;
+  if (!idToken) return err(res, 400, 'idToken required');
+  pendingLangHint = String(req.body?.language || 'en').slice(0, 8) || 'en';
+
+  let info;
+  try {
+    const r = await fetch(`https://oauth2.googleapis.com/tokeninfo?id_token=${encodeURIComponent(idToken)}`);
+    info = await r.json().catch(() => ({}));
+    if (!r.ok) return err(res, 401, info?.error_description || 'Google rejected that token');
+  } catch {
+    return err(res, 502, 'Could not reach Google to verify the sign-in');
+  }
+
+  if (!googleClientIds().includes(String(info.aud || ''))) {
+    return err(res, 401, 'That token was issued for a different application');
+  }
+  if (String(info.email_verified) !== 'true') {
+    return err(res, 403, 'Google has not verified that email address');
+  }
+  if (Number(info.exp) * 1000 < Date.now()) return err(res, 401, 'That sign-in has expired');
+
+  return finishOAuth(req, res, {
+    email: info.email,
+    name: info.name,
+    picture: info.picture,
+    sub: info.sub,
+  });
+});
+
+/* ---- 2. Redirect flow ---- */
+r.get('/oauth/google/start', (req, res) => {
+  if (!googleConfigured()) return err(res, 501, 'Google sign-in is not configured on this deployment');
+  const state = jwt.sign(
+    { purpose: 'oauth-state', lang: String(req.query.lang || 'en').slice(0, 8), nonce: id('n_') },
+    process.env.JWT_SECRET || 'dev-only-secret-change-me',
+    { expiresIn: '10m' },
+  );
+  const u = new URL('https://accounts.google.com/o/oauth2/v2/auth');
+  u.searchParams.set('client_id', googleClientIds()[0]);
+  u.searchParams.set('redirect_uri', `${baseUrl(req)}/api/auth/oauth/google/callback`);
+  u.searchParams.set('response_type', 'code');
+  u.searchParams.set('scope', 'openid email profile');
+  u.searchParams.set('state', state);
+  u.searchParams.set('prompt', 'select_account');
+  res.redirect(u.toString());
+});
+
+r.get('/oauth/google/callback', async (req, res) => {
+  const { code, state, error } = req.query || {};
+  const fail = msg => res.redirect(`/#/auth?error=${encodeURIComponent(msg)}`);
+  if (error) return fail(String(error));
+  if (!code || !state) return fail('Google did not return a code');
+
+  try {
+    jwt.verify(String(state), process.env.JWT_SECRET || 'dev-only-secret-change-me');
+  } catch {
+    return fail('That sign-in link expired. Please try again.');
+  }
+
+  try {
+    const tokenRes = await fetch('https://oauth2.googleapis.com/token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        code: String(code),
+        client_id: googleClientIds()[0],
+        client_secret: process.env.GOOGLE_CLIENT_SECRET || '',
+        redirect_uri: `${baseUrl(req)}/api/auth/oauth/google/callback`,
+        grant_type: 'authorization_code',
+      }),
+    });
+    const tokens = await tokenRes.json().catch(() => ({}));
+    if (!tokenRes.ok || !tokens.id_token) return fail(tokens?.error_description || 'Google refused the exchange');
+
+    const infoRes = await fetch(`https://oauth2.googleapis.com/tokeninfo?id_token=${encodeURIComponent(tokens.id_token)}`);
+    const info = await infoRes.json().catch(() => ({}));
+    if (!infoRes.ok || !info.email) return fail('Google did not share an email address');
+
+    const decoded = jwt.decode(String(state)) || {};
+    pendingLangHint = decoded.lang || 'en';
+    const user = upsertOAuthUser({ email: info.email, name: info.name, picture: info.picture, sub: info.sub });
+    if (!user) return fail('Could not create an account for that Google profile');
+
+    const session = createSession(user.id, req);
+    /* Hand the session to the SPA through the URL fragment: fragments are not
+       sent to servers, so the token does not land in an access log. */
+    const frag = new URLSearchParams({
+      token: session.token,
+      refreshToken: session.refreshToken,
+    });
+    return res.redirect(`/#/auth?${frag.toString()}`);
+  } catch {
+    return fail('Could not complete Google sign-in');
+  }
+});
+
+/* Apple is still a stub on purpose: it needs a paid Apple Developer account, a
+   Services ID and a .p8 key. The button reports that honestly rather than
+   pretending to work. */
+r.post('/oauth/:provider', (req, res) => {
+  const p = req.params.provider;
+  const configured = p === 'apple' && process.env.APPLE_CLIENT_ID && process.env.APPLE_TEAM_ID;
+  if (!configured) {
+    return err(res, 501, `${p} sign-in is not configured on this deployment`, {
+      setup: p === 'apple'
+        ? 'Set APPLE_CLIENT_ID / APPLE_TEAM_ID / APPLE_PRIVATE_KEY to enable Apple sign-in.'
+        : 'Use POST /api/auth/oauth/google with an idToken.',
+    });
+  }
+  return err(res, 501, 'Apple sign-in needs an Apple Developer account; not enabled for this deployment');
 });
 
 export default r;

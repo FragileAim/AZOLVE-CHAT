@@ -338,7 +338,7 @@ export function startLiveCaption({
   stream, lang = 'en', targetLang = 'en', onSegment, onStatus, preferServer = false, silenceMs = 4000,
 }) {
   const canServer = !!stream && recorderSupported();
-  const canDevice = deviceRecognitionSupported() && !preferServer;
+  const canDevice = deviceRecognitionSupported() && !preferServer && !isNativeShell();
 
   let current = null;
   let stopped = false;

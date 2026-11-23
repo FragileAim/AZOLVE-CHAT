@@ -153,6 +153,13 @@ CREATE TABLE IF NOT EXISTS push_subscriptions (
   ua TEXT, created_at INTEGER, last_ok INTEGER, fails INTEGER DEFAULT 0
 );
 CREATE INDEX IF NOT EXISTS idx_push_user ON push_subscriptions(user_id);
+/* Firebase Cloud Messaging device tokens. A Capacitor WebView has no Push API,
+   so the native shell can only be woken through FCM. One row per device. */
+CREATE TABLE IF NOT EXISTS device_tokens (
+  token TEXT PRIMARY KEY, user_id TEXT, platform TEXT, ua TEXT,
+  created_at INTEGER, last_ok INTEGER, fails INTEGER DEFAULT 0
+);
+CREATE INDEX IF NOT EXISTS idx_device_user ON device_tokens(user_id);
 CREATE TABLE IF NOT EXISTS audit_log (
   id TEXT PRIMARY KEY, actor_id TEXT, action TEXT, target TEXT, meta TEXT, created_at INTEGER
 );
@@ -174,6 +181,9 @@ const migrations = [
   ['calls', 'ended_by', 'TEXT'],
   ['calls', 'ended_reason', 'TEXT'],
   ['calls', 'answered_at', 'INTEGER'],
+  /* Google sign-in: the stable Google subject id, so a person who changes their
+     Google email address still lands on the same AZOLVE account. */
+  ['users', 'oauth_sub', 'TEXT'],
 ];
 for (const [table, column, type] of migrations) {
   try {

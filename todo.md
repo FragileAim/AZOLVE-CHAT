@@ -1,27 +1,42 @@
-# AZOLVE CHAT — v1.1.5 (privacy step cannot scroll)
+# AZOLVE CHAT — v1.1.6 (Phase 1: translation accuracy + Firebase)
 
-## Reproduced
-- [x] Drove a fresh account through onboarding at 390x844 to the Privacy step
-- [x] `.onb` computed `overflow-y: visible`, `scrollHeight == clientHeight` (961/961) — nothing to scroll
-- [x] "Enter AZOLVE CHAT" at y=847 in an 844px viewport: 3px below the fold, unreachable
-- [x] 360x640: step overflowed by 332px with no way to reach it
-- [x] Cause: `html, body, #root` are `100dvh` + `overflow:hidden !important`; `.onb` had no scroll container of its own
+## Translation engine (Phase 1)
+- [x] Rewrite language detector: Romanised Hindi/Gujarati/Tamil/Telugu/Bengali/Marathi markers, return `und` instead of lying with `en`
+- [x] Stop forcing `source_lang=EN` into DeepL so it auto-detects Hinglish (`detected_source_language: OM`)
+- [x] Delete the offline 4-phrase phrasebook that masked failures as translations
+- [x] Reject echoed input and same-language "translations" as `translated: false`
+- [x] Reject MyMemory prose errors instead of showing them as translations
+- [x] `backfillLanguages()` + `POST /api/admin/repair-languages` to repair stored `original_lang`
+- [x] Deferred backfill on server boot
+- [x] Verify 10/10 translation cases via DeepL
 
-## Fix
-- [x] `.onb` is its own scroll container: 100dvh, `overflow-y:auto`, top-aligned (a centred flex box taller than its viewport loses its top)
-- [x] Safe-area padding + iOS momentum scrolling + `overscroll-behavior: contain`
-- [x] Children `flex: 0 0 auto` so the form scrolls instead of squeezing
-- [x] Step buttons sticky to the bottom of the scrollport on a solid backdrop; static on desktop
-- [x] `.onb-card` margin reset (styles.css `margin:auto` fought the scroll position)
+## Live captions
+- [x] Whisper: stop pinning `language` to the profile language
+- [x] Speech engines use the detector, fall back to hint only on `und`
+- [x] APK: run the server caption engine first (WebView has no usable recogniser)
+- [x] Echo guard: drop peer lines captured off the speaker
+- [x] Honest caption badge: `translated` only when it really translated, `translation unavailable` otherwise
+- [x] "Translation unavailable" badge in chat bubbles
 
-## Verify
-- [x] `onb-scroll.mjs`: overflowY auto, max scroll 85, button visible at y=774
-- [x] `onb-steps.mjs`: 8/8 PASS across 390x844 and 360x640, all four steps, 0 fields hidden behind the bar
-- [x] `onb-complete.mjs`: pressing "Enter AZOLVE CHAT" saves and lands in the app, 5 nav buttons
-- [x] `audit-ux.mjs` 32/32 PASS
-- [x] `shot-ux.mjs` 14 screens, no horizontal overflow, `errors []`
-- [x] Live CSS MD5 matches local build and contains the rule
-- [x] APK v1.1.5 / versionCode 16 contains the rule
-- [x] Deploy 98a61f7 live, /api/health → 1.1.5
+## Firebase
+- [x] `device_tokens` table + `oauth_sub` migration
+- [x] `services/fcm.js` — FCM HTTP v1 via signed RS256 JWT, no Admin SDK
+- [x] `push.js` fans out to FCM + web push
+- [x] Routes: `GET /push/firebase-config`, `POST /push/fcm/register`, `POST /push/fcm/unregister`, `GET /push/fcm/status`
+- [x] Client `web/src/lib/fcm.js` (native Capacitor plugin + web SDK, honest reasons)
+- [x] Wire `registerPush()` into `App.jsx` on sign-in
 
-Open: none
+## Google login
+- [x] `GET /api/auth/providers`
+- [x] `POST /api/auth/oauth/google` (ID-token flow)
+- [x] `GET /api/auth/oauth/google/start` + `/callback` (redirect flow, session in URL fragment)
+- [x] `absorbOAuthFragment()` in `main.jsx`
+- [x] `Auth.jsx` uses redirect flow with honest not-configured messaging
+
+## Release
+- [x] Bump to 1.1.6 (package.json, versionCode 17, UA suffix)
+- [ ] Build `web/dist`
+- [ ] Local smoke tests: providers, firebase-config, fcm/status, repair-languages, translation suite
+- [ ] Regression: audit-ux + onboarding steps
+- [ ] Commit + push + deploy to Render, verify `/api/health`
+- [ ] Deliver Firebase setup steps to the user

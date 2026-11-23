@@ -16,6 +16,7 @@ import contactRoutes from './routes/contacts.js';
 import pushRoutes from './routes/push.js';
 import callRoutes from './routes/calls.js';
 import { seedIfEmpty } from './seed.js';
+import * as translateService from './services/translate.js';
 import { db } from './db.js';
 import { startSnapshotLoop, saveSnapshot, snapshotEnabled, bindDb, status as persistStatus } from './services/persist.js';
 
@@ -164,5 +165,23 @@ app.get('/api/health/persist', (req, res) => res.json({
 }));
 
 setInterval(() => { processScheduled().catch(() => {}); }, 20000);
+
+/* ---------------------------------------------------------------------------
+   Language repair (v1.1.6).
+   The old detector labelled every Romanised Indic message as English, so those
+   rows carry a wrong `original_lang` and were never translated for anyone. This
+   re-runs the corrected detector over recent messages and fixes the column. It
+   is idempotent, only touches rows that actually disagree, and is deferred so
+   it never delays the first request after a cold start.
+   ------------------------------------------------------------------------- */
+setTimeout(() => {
+  try {
+    const { backfillLanguages } = translateService;
+    const r = backfillLanguages(5000);
+    if (r.fixed) console.log(`[i18n] repaired original_lang on ${r.fixed}/${r.scanned} messages`);
+  } catch (e) {
+    console.warn('[i18n] language repair skipped:', e?.message || e);
+  }
+}, 8000);
 
 server.listen(PORT, '0.0.0.0', () => console.log(`AZOLVE CHAT server on http://localhost:${PORT}`));

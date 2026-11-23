@@ -3,7 +3,7 @@ import { get, run, all } from '../db.js';
 import { err, now, id, publicUser } from '../util.js';
 import { requireAdmin } from '../auth.js';
 import { engineName } from '../services/ai.js';
-import { translationUsage } from '../services/translate.js';
+import { translationUsage, backfillLanguages } from '../services/translate.js';
 import { integrationStatus } from '../services/integrations.js';
 
 const r = Router();
@@ -95,6 +95,14 @@ r.get('/communities', requireAdmin, (req, res) => {
 
 r.get('/audit', requireAdmin, (req, res) => {
   res.json({ audit: all('SELECT * FROM audit_log ORDER BY created_at DESC LIMIT 100') });
+});
+
+/* Repairs messages whose original_lang was written by the old detector, which
+   claimed every unknown string was English. Idempotent: safe to run twice. */
+r.post('/repair-languages', requireAdmin, (req, res) => {
+  const limit = Math.min(Math.max(parseInt(req.body?.limit, 10) || 5000, 1), 20000);
+  const result = backfillLanguages(limit);
+  res.json(result);
 });
 
 export default r;

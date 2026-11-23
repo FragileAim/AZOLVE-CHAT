@@ -126,6 +126,27 @@ export default function App() {
     return () => {};
   }, [user?.id]);
 
+  /* Push registration. Runs once per signed-in user. It deliberately does not
+     throw or toast on failure: push is an enhancement, and a browser that
+     refuses permission must not break the app. The result is logged so the
+     reason is always discoverable instead of silently swallowed. */
+  useEffect(() => {
+    if (!user?.id) return;
+    let alive = true;
+    (async () => {
+      try {
+        const { registerPush } = await import('./lib/fcm.js');
+        const r = await registerPush();
+        if (!alive) return;
+        if (r.ok) console.log(`[push] registered via ${r.transport}`);
+        else console.log(`[push] not registered: ${r.reason}`);
+      } catch (e) {
+        console.warn('[push] registration error:', e?.message || e);
+      }
+    })();
+    return () => { alive = false; };
+  }, [user?.id]);
+
   const lang = user?.language || 'en';
   const t = useMemo(() => makeT(lang), [lang]);
 

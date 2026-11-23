@@ -825,6 +825,15 @@ function MessageBubble({ m, mine, sender, showName, isGroup, me, participants, o
               />
             </div>
           )}
+          {/* Every provider failed. Say so, rather than letting the reader
+              assume the message was already in their language. */}
+          {!translated && m.translationUnavailable && (
+            <div className="ux-bubble-meta">
+              <span className="ux-linkbtn" style={{ opacity: 0.65, cursor: 'default' }} title="No translation provider could reach this message. The original is shown unchanged.">
+                <Icon name="warning" size={11} /> Translation unavailable
+              </span>
+            </div>
+          )}
           {origOpen && translated && (
             <div className="ux-orig" dir={isRTL(m.originalLang) ? 'rtl' : 'ltr'}>
               <div className="ux-orig-h">Original · {langOf(m.originalLang).native}</div>
