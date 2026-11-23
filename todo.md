@@ -109,3 +109,15 @@
 - [x] Confirm live site serves the same bundle hash
 - [x] Push release commit and confirm /api/health = 1.1.10
 - [x] Confirm /api/health/persist backend=postgres, restored=true
+
+## v1.1.11 — Google sign-in return trip in the APK
+- [x] Root cause 1: Chrome refuses a 302 to azolve:// (unknown-scheme dead end)
+- [x] Root cause 2: hash-only loadUrl never re-ran absorbOAuthFragment()
+- [x] Server returns over https to /oauth/app with the session in the fragment
+- [x] Served /.well-known/assetlinks.json with the debug cert fingerprint
+- [x] Added autoVerify App Link filter for https://azolve-chat.onrender.com/oauth/app
+- [x] Shell forces a real document load (?r= cache-buster) before replaying the token
+- [x] Intercept /api/auth/oauth/google/start directly, not only Google's hosts
+- [x] Surface OAuth errors instead of silently returning to the login form
+- [x] Verified live: callback 302 → https://…/oauth/app#error=access_denied
+- [x] Verified APK: versionCode 22, assetlinks cert matches signing cert, bundle hash matches live
