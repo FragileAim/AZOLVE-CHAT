@@ -200,44 +200,32 @@ export default function Auth() {
     setStep('login');
   });
 
-  /* The provider list is a single small GET, so a stale answer is cheap to
-     re-check. A free-tier host that has just woken up, or a deploy that is
-     still swapping environment variables, can briefly report `google: false`
-     even though the server is configured. Telling the user "not configured"
-     in that moment is wrong and makes them think the feature is missing, so
-     confirm before giving up. */
-  const providersNow = async (provider) => {
-    let p = await api(`/auth/providers?t=${Date.now()}`);
-    if (p && p[provider]) return p;
-    await new Promise(r => setTimeout(r, 900));
-    return api(`/auth/providers?t=${Date.now()}`);
-  };
-
+  /* Google sign-in goes straight to the server.
+     -------------------------------------------------------------------------
+     This used to ask /auth/providers first and refuse if the answer said
+     `google: false`. That check caused a real bug: a GET with no cache headers
+     can be cached by the browser, so a single stale answer made the button
+     claim "not configured" forever, even after the server was fixed. The
+     server already answers 501 with a clear message when it truly cannot do
+     the exchange, so the honest thing is to let it decide. No cached answer,
+     no false negative. */
   const oauth = (provider) => run(async () => {
     try {
-      const p = await providersNow(provider);
       if (provider === 'google') {
-        if (!p.google) {
-          notify(
-            'Google sign-in is not enabled on the server right now. If this keeps happening, '
-            + 'reload the page — the server may still be applying a configuration change.',
-            'err',
-          );
-          return;
-        }
         /* Redirect flow: no third-party script, and it works identically in the
            browser and inside the Android shell's WebView. The session comes
            back in the URL fragment, which never reaches a server log. */
         window.location.href = `/api/auth/oauth/google/start?lang=${encodeURIComponent(me?.language || 'en')}`;
         return;
       }
+      const p = await api(`/auth/providers?t=${Date.now()}`);
       if (!p.apple) {
         notify('Apple sign-in needs an Apple Developer account and is not enabled on this deployment.', 'err');
         return;
       }
       await api(`/auth/oauth/${provider}`, { method: 'POST', body: {} });
     } catch (e) {
-      notify(e.message || `${provider} sign-in is not configured yet`, 'err');
+      notify(e.message || `${provider} sign-in could not start`, 'err');
     }
   });
 
@@ -383,8 +371,9 @@ export default function Auth() {
                 <div className="otp-hint">
                   <Icon name="info" size={14} />
                   <span>
-                    Mail delivery is not configured on this server (provider: <b>{otpInfo.emailProvider}</b>).
-                    Your code will appear in the server log.
+                    {otpInfo.echo
+                      ? 'No mail provider is connected yet, so your 6-digit code is shown on the next screen instead of being emailed. This is test mode.'
+                      : `Mail delivery is not configured on this server (provider: ${otpInfo.emailProvider}). Your code will appear in the server log.`}
                   </span>
                 </div>
               )}
@@ -452,8 +441,9 @@ export default function Auth() {
                 <div className="otp-hint">
                   <Icon name="info" size={14} />
                   <span>
-                    Mail delivery is not configured on this server (provider: <b>{otpInfo.emailProvider}</b>).
-                    Your code will appear in the server log.
+                    {otpInfo.echo
+                      ? 'No mail provider is connected yet, so your 6-digit code is shown on the next screen instead of being emailed. This is test mode.'
+                      : `Mail delivery is not configured on this server (provider: ${otpInfo.emailProvider}). Your code will appear in the server log.`}
                   </span>
                 </div>
               )}
