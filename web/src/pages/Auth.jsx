@@ -29,7 +29,7 @@ const CODES = [
 ];
 
 export default function Auth() {
-  const { login, notify } = useApp();
+  const { login, notify, lang } = useApp();
   const [step, setStep] = useState('welcome');
   /* 'signin' or 'create'. Drives the copy and is sent to the server so an
      existing address is never silently turned into a second account. */
@@ -215,7 +215,7 @@ export default function Auth() {
         /* Redirect flow: no third-party script, and it works identically in the
            browser and inside the Android shell's WebView. The session comes
            back in the URL fragment, which never reaches a server log. */
-        window.location.href = `/api/auth/oauth/google/start?lang=${encodeURIComponent(me?.language || 'en')}`;
+        window.location.href = `/api/auth/oauth/google/start?lang=${encodeURIComponent(lang || 'en')}`;
         return;
       }
       const p = await api(`/auth/providers?t=${Date.now()}`);
@@ -410,7 +410,7 @@ export default function Auth() {
               <div className="oauth-row">
                 <a
                   className="btn"
-                  href={`/api/auth/oauth/google/start?lang=${encodeURIComponent(me?.language || 'en')}`}
+                  href={`/api/auth/oauth/google/start?lang=${encodeURIComponent(lang || 'en')}`}
                   onClick={() => { try { sessionStorage.setItem('azolve.oauth.return', '1'); } catch { /* private mode */ } }}
                 ><Icon name="mail" size={16} /> Google</a>
                 <button className="btn" type="button" onClick={() => oauth('apple')}><Icon name="smartphone" size={16} /> Apple</button>
