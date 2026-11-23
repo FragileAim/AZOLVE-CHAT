@@ -48,3 +48,12 @@
 
 ## Needs the user
 - [ ] Real Google OAuth **Client Secret** (`GOCSPX-…`), not the Client ID
+
+## v1.1.9 — Google OAuth secret (done)
+- [x] Read uploaded client_secret JSON, confirm `GOCSPX-` prefix is real
+- [x] Push GOOGLE_CLIENT_SECRET to Render
+- [x] Prove credentials with oauth2.googleapis.com/token (invalid_grant, not invalid_client)
+- [x] Restore the full Render env set after the PUT /env-vars replace wiped it
+- [x] Drop DATA_DIR — no disk exists on this free-plan service
+- [x] Redeploy and verify health / providers / firebase-config / oauth start
+- [x] Verify DeepL key still valid (usage 52,328 / 1,000,000)
