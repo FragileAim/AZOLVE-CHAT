@@ -149,7 +149,7 @@ if (snapshotEnabled()) {
      there was nothing to restore yet. If a restore errored, saving now would
      overwrite a good snapshot with this empty database. */
   const r = persistStatus.lastRestore;
-  if (!r || r.restored || r.reason === 'no-snapshot-yet') {
+  if (!r || r.restored || r.reason === 'no-snapshot-yet' || r.reason === 'reset-by-operator') {
     saveSnapshot(db, { force: true }).catch(() => {});
   } else {
     console.warn('[persist] restore did not succeed — leaving the stored snapshot untouched');

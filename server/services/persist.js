@@ -89,6 +89,9 @@ const pgGet = async () => {
   const r = await (await pg()).query('SELECT data, bytes, updated_at FROM azolve_snapshot WHERE id = $1', ['db']);
   return r.rows[0] || null;
 };
+const pgDelete = async () => {
+  await (await pg()).query('DELETE FROM azolve_snapshot WHERE id = $1', ['db']);
+};
 const pgPut = async (buf) => {
   await (await pg()).query(
     `INSERT INTO azolve_snapshot (id, data, bytes, updated_at) VALUES ($1, $2, $3, now())
@@ -129,6 +132,16 @@ const ghPut = async (buf, existing) => {
   if (!r.ok) throw new Error(`GitHub ${r.status}: ${(await r.text()).slice(0, 160)}`);
 };
 
+const ghDelete = async () => {
+  const cur = await ghGet();
+  if (!cur?.sha) return;
+  await fetch(ghApi(FILE), {
+    method: 'DELETE',
+    headers: { ...ghHeaders(), 'Content-Type': 'application/json' },
+    body: JSON.stringify({ message: 'discard snapshot (SNAPSHOT_RESET)', sha: cur.sha }),
+  });
+};
+
 /* -------------------------------------------------------------------- public */
 
 export const status = {
@@ -145,6 +158,17 @@ export async function restoreSnapshot(dbPath) {
   status.backend = b;
   if (!b) return { restored: false, reason: 'not-configured' };
   try {
+    /* Escape hatch for a snapshot that cannot be decrypted — for example one
+       written by an earlier deployment whose SNAPSHOT_KEY has since changed.
+       Such a snapshot is unreadable, so it can never be restored; leaving it
+       in place would block every future save. This is deliberately opt-in and
+       one-shot: set SNAPSHOT_RESET=1, boot once, then remove the variable. */
+    if (String(process.env.SNAPSHOT_RESET || '') === '1') {
+      if (b === 'postgres') await pgDelete(); else await ghDelete();
+      console.warn('[persist] SNAPSHOT_RESET=1 — discarded the stored snapshot and starting fresh');
+      status.lastRestore = { at: Date.now(), restored: false, reason: 'reset-by-operator' };
+      return { restored: false, reason: 'reset-by-operator' };
+    }
     const row = b === 'postgres' ? await pgGet() : await ghGet();
     if (!row) {
       status.lastRestore = { at: Date.now(), restored: false, reason: 'no-snapshot-yet' };
