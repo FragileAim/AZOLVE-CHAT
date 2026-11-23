@@ -7,9 +7,15 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 SDK="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-$HOME/Android/Sdk}}"
 APP_URL="${APP_URL:-}"
 
-echo "==> 1/4  Building the web bundle (offline/demo build)"
+echo "==> 1/4  Building the web bundle"
 cd "$ROOT/web"
-VITE_DEMO=1 npx vite build --outDir dist-demo --base ./
+# A live build talks to a real backend, so it must NOT carry the "demo data"
+# banner. Only the offline bundle sets VITE_DEMO.
+if [ -n "$APP_URL" ]; then
+  npx vite build --outDir dist-demo --base ./
+else
+  VITE_DEMO=1 npx vite build --outDir dist-demo --base ./
+fi
 
 echo "==> 2/4  Copying bundle into the Android assets"
 rm -rf "$ROOT/mobile/android/app/src/main/assets/www"
