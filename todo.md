@@ -77,3 +77,14 @@
 - [x] Redeploy dep-dc210gl6e07s73eku740 — live
 - [x] App OTP send confirmed in Brevo log: from no-reply@azolve.io
 - [x] Declare BREVO_FROM in render.yaml, commit dac7bca
+
+## v1.1.9 — APK rebuild + Google sign-in inside the app (done)
+- [x] Bump versionCode 20 / versionName 1.1.9
+- [x] server: oauth start accepts mobile=1 in signed state; callback returns azolve://oauth
+- [x] android: azolve://oauth intent filter, Google hosts open in real browser, deep link replayed as #/auth?token=
+- [x] web: googleStart() adds mobile=1 only when window.AzolvePush exists
+- [x] build-android.sh locates gradle instead of failing
+- [x] APK built, signed with same debug cert as v1.1.8 (upgrades in place)
+- [x] Verified: mobile callback -> azolve://oauth?error=, web callback -> #/auth?error=
+- [x] Deployed dep-dc212rk3eqjs7388bv1g live; site + APK share bundle index-C-xuItZp.js
+- [x] Deliverable outputs/AZOLVE-CHAT-v1.1.9.apk (sha256 9b839f66…)
