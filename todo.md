@@ -68,3 +68,12 @@
 - [x] Root-cause invisible Google button on short phones: `.oauth-row { display:none }`
 - [x] Verified in headless Chromium at 390x844, 375x667, 1440x900 — renders, clicks, reaches Google
 - [x] Use per-variable PUT /env-vars/{key} from now on, never the bulk replace
+
+## v1.1.9 — Brevo sender on the azolve.io domain (done)
+- [x] Query Brevo /v3/senders/domains — azolve.io authenticated:true verified:true
+- [x] Direct API send from no-reply@azolve.io — HTTP 201, messageId returned
+- [x] Update BREVO_FROM, EMAIL_FROM, EMAIL_REPLY_TO, EMAIL_FROM_NAME one key at a time
+- [x] Confirm 37 env vars intact after the edits (no repeat of the bulk-PUT wipe)
+- [x] Redeploy dep-dc210gl6e07s73eku740 — live
+- [x] App OTP send confirmed in Brevo log: from no-reply@azolve.io
+- [x] Declare BREVO_FROM in render.yaml, commit dac7bca
