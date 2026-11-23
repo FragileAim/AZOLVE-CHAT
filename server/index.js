@@ -123,6 +123,76 @@ app.use((e, req, res, next) => {
   });
 });
 
+/* ---------------------------------------------------------------------------
+   Android App Links.
+
+   Google sign-in has to run in a real browser (Google refuses embedded
+   WebViews). Getting the session back into the app therefore needs a URL the
+   operating system itself knows how to route. A `azolve://` redirect is not
+   reliable — Chrome declines to follow a 302 to an unregistered scheme — so the
+   callback returns over https to /oauth/app, and this file tells Android that
+   this host owns that path for our package.
+
+   The fingerprint below is the debug signing certificate. A Play-signed release
+   build has a different one; add it to the array before shipping to the store.
+   ------------------------------------------------------------------------- */
+const ANDROID_CERT_SHA256 = [
+  'D3:23:37:7C:F2:D1:A9:39:30:85:EB:55:D2:94:C9:4A:41:95:5A:4E:06:0A:55:99:1F:76:34:2E:62:95:7E:31',
+];
+
+app.get('/.well-known/assetlinks.json', (req, res) => {
+  res.type('application/json').set('Cache-Control', 'public, max-age=300').send(JSON.stringify([{
+    relation: ['delegate_permission/common.handle_all_urls'],
+    target: {
+      namespace: 'android_app',
+      package_name: 'io.azolve.chat',
+      sha256_cert_fingerprints: ANDROID_CERT_SHA256,
+    },
+  }]));
+});
+
+/* Fallback for browsers that did not hand the link to the app. It keeps the
+   credentials in the fragment, so they are never sent to this server, and it
+   offers a tap target because Chrome only follows a custom scheme from a real
+   user gesture. */
+app.get('/oauth/app', (req, res) => {
+  res.type('html').set('Cache-Control', 'no-store').send(`<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>AZOLVE CHAT</title>
+<style>
+  :root{color-scheme:light dark}
+  body{margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;
+       font:16px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+       background:#0b1020;color:#eef1ff;padding:24px}
+  .card{max-width:420px;width:100%;background:#151b33;border:1px solid #2a3358;
+        border-radius:20px;padding:28px;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,.45)}
+  .mark{width:56px;height:56px;border-radius:16px;margin:0 auto 18px;
+        background:linear-gradient(135deg,#5b6cff,#8b5cf6);display:flex;align-items:center;
+        justify-content:center;font-weight:700;font-size:22px;letter-spacing:.5px}
+  h1{font-size:19px;margin:0 0 8px}
+  p{margin:0 0 20px;color:#a9b2d6;font-size:14px}
+  a.btn{display:block;padding:14px 18px;border-radius:14px;text-decoration:none;
+        font-weight:600;color:#fff;background:linear-gradient(135deg,#5b6cff,#8b5cf6)}
+  .hint{margin-top:16px;font-size:12px;color:#6f7aa3}
+</style></head>
+<body><div class="card">
+  <div class="mark">AZ</div>
+  <h1>Finishing sign-in…</h1>
+  <p>Taking you back to AZOLVE CHAT.</p>
+  <a class="btn" id="go" href="#">Open AZOLVE CHAT</a>
+  <div class="hint">If nothing happens, the app may not be installed on this device.</div>
+</div>
+<script>
+  var q = location.hash.replace(/^#/, '');
+  var link = 'azolve://oauth' + (q ? '?' + q : '');
+  document.getElementById('go').setAttribute('href', link);
+  /* The App Link should have opened the app before this page rendered. If we
+     are here, try the custom scheme once; the button above is the fallback. */
+  if (q) { try { location.replace(link); } catch (e) {} }
+</script></body></html>`);
+});
+
 const webDist = path.join(process.cwd(), 'web', 'dist');
 if (fs.existsSync(webDist)) {
   app.use(express.static(webDist, { index: false }));

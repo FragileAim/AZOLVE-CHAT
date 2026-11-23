@@ -43,11 +43,21 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
 
-            <!-- Google sign-in return trip. The consent screen has to run in a
-                 real browser, so the server finishes the exchange there and
-                 redirects to azolve://oauth?token=… . This filter is what lets
-                 the browser hand that back to the app instead of dead-ending
-                 on an unknown scheme. -->
+            <!-- Google sign-in return trip.
+                 The consent screen has to run in a real browser, so the server
+                 finishes the exchange there and sends the session back to
+                 https://azolve-chat.onrender.com/oauth/app#token=… .
+                 Chrome will NOT follow a 302 to a custom scheme — it dead-ends
+                 on an unknown-scheme page — so the primary route is a verified
+                 App Link, which the OS opens directly. The azolve:// filter
+                 stays as a secondary route for the fallback page. -->
+            <intent-filter android:autoVerify="true">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="https" android:host="azolve-chat.onrender.com"
+                    android:pathPrefix="/oauth/app" />
+            </intent-filter>
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />

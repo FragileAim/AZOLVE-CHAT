@@ -179,12 +179,19 @@ public class MainActivity extends Activity {
             public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
                 Uri uri = request.getUrl();
                 String scheme = uri.getScheme() == null ? "" : uri.getScheme();
-                /* Google refuses to draw its consent screen inside an embedded
-                   WebView and answers with "disallowed_useragent". Anything on
-                   Google's auth host goes to the real browser instead; the
-                   server then returns to the app through azolve://oauth. */
                 String host = uri.getHost() == null ? "" : uri.getHost();
-                if (host.endsWith("accounts.google.com") || host.endsWith("accounts.youtube.com")) {
+                String path = uri.getPath() == null ? "" : uri.getPath();
+
+                /* Google refuses to draw its consent screen inside an embedded
+                   WebView and answers with "disallowed_useragent". Hand the
+                   sign-in start off to the real browser before it ever loads
+                   here. Intercepting the start URL as well as Google's own
+                   hosts matters: not every WebView build reports a server
+                   redirect through this callback, and if the redirect is
+                   missed the consent page opens inside the shell and fails. */
+                boolean googleAuthStart = path.startsWith("/api/auth/oauth/google/start");
+                boolean googleHost = host.endsWith("accounts.google.com") || host.endsWith("accounts.youtube.com");
+                if (request.isForMainFrame() && (googleAuthStart || googleHost)) {
                     try {
                         startActivity(new Intent(Intent.ACTION_VIEW, uri));
                     } catch (Exception ignored) { }
@@ -278,13 +285,32 @@ public class MainActivity extends Activity {
     private void handleOAuthIntent(Intent intent) {
         if (intent == null || intent.getData() == null) return;
         Uri data = intent.getData();
-        if (!"azolve".equals(data.getScheme()) || !"oauth".equals(data.getHost())) return;
+        String scheme = data.getScheme() == null ? "" : data.getScheme().toLowerCase();
+        String host = data.getHost() == null ? "" : data.getHost().toLowerCase();
+        String path = data.getPath() == null ? "" : data.getPath();
+
+        /* Two ways in: the verified App Link (https://…/oauth/app#token=…) and
+           the legacy custom scheme (azolve://oauth?token=…). */
+        boolean custom = "azolve".equals(scheme) && "oauth".equals(host);
+        boolean appLink = "https".equals(scheme) && path.startsWith("/oauth/app");
+        if (!custom && !appLink) return;
         if (LIVE_URL == null || LIVE_URL.length() == 0) return;
 
-        String q = data.getQuery();
+        /* An App Link carries the session in the fragment, the custom scheme in
+           the query. Accept either, whichever is present. */
+        String q = appLink ? data.getFragment() : data.getQuery();
+        if (q == null || q.length() == 0) q = data.getQuery();
+        if (q == null || q.length() == 0) q = data.getFragment();
         if (q == null || q.length() == 0) return;
+        if (q.startsWith("?")) q = q.substring(1);
+
         String base = LIVE_URL.endsWith("/") ? LIVE_URL.substring(0, LIVE_URL.length() - 1) : LIVE_URL;
-        web.loadUrl(base + "/#/auth?" + q);
+        /* The unique query is load-bearing. Navigating to the same URL with only
+           a different hash is a same-document change: the bundle never re-runs,
+           absorbOAuthFragment() never reads the token, and the person is left
+           staring at the login form. A fresh query forces a real page load. */
+        String target = base + "/?r=" + System.currentTimeMillis() + "#/auth?" + q;
+        web.loadUrl(target);
         /* Consume it so a rotation or a resume does not replay a stale token. */
         intent.setData(null);
     }

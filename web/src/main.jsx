@@ -29,7 +29,9 @@ function removeHostBadge() {
    ------------------------------------------------------------------------- */
 function absorbOAuthFragment() {
   const raw = window.location.hash || '';
-  if (!raw.includes('token=')) return;
+  /* An error return has no token, so gating on 'token=' here silently swallowed
+     every failed Google sign-in and just re-showed the login form. */
+  if (!raw.includes('token=') && !raw.includes('error=')) return;
   const qIndex = raw.indexOf('?');
   if (qIndex === -1) return;
   const params = new URLSearchParams(raw.slice(qIndex + 1));

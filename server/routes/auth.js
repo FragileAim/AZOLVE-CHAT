@@ -798,9 +798,15 @@ r.get('/oauth/google/callback', async (req, res) => {
      web error page. */
   const peek = (() => { try { return jwt.decode(String(state || '')) || {}; } catch { return {}; } })();
   const mobile = peek.mobile === true;
+  /* Chrome will not follow a server-side 302 to a custom scheme: it stops on an
+     "unknown URL scheme" page instead of launching the app, which is what sent
+     people back to the login screen. So the app return trip goes over https to
+     a verified Android App Link, which the OS opens directly. The fallback page
+     there re-tries azolve:// for browsers that do not support App Links. */
+  const appReturn = (req, hash) => `${baseUrl(req)}/oauth/app#${hash}`;
   const fail = msg => res.redirect(
     mobile
-      ? `azolve://oauth?error=${encodeURIComponent(msg)}`
+      ? appReturn(req, new URLSearchParams({ error: msg }).toString())
       : `/#/auth?error=${encodeURIComponent(msg)}`,
   );
   if (error) return fail(String(error));
@@ -843,10 +849,10 @@ r.get('/oauth/google/callback', async (req, res) => {
       token: session.token,
       refreshToken: session.refreshToken,
     });
-    /* The Android shell picks this up through an intent filter and replays it
-       into the WebView as the ordinary `#/auth?token=…` fragment, so the SPA
-       has exactly one code path for absorbing a session. */
-    if (mobile) return res.redirect(`azolve://oauth?${frag.toString()}`);
+    /* The Android shell picks this up as an App Link and replays it into the
+       WebView as the ordinary `#/auth?token=…` fragment, so the SPA has exactly
+       one code path for absorbing a session. */
+    if (mobile) return res.redirect(appReturn(req, frag.toString()));
     return res.redirect(`/#/auth?${frag.toString()}`);
   } catch {
     return fail('Could not complete Google sign-in');

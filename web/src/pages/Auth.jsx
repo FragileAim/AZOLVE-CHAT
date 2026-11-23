@@ -58,6 +58,19 @@ export default function Auth() {
   /* Ask the server whether a real SMS will actually arrive, so the UI never
      promises a text message that no provider is going to send. */
   useEffect(() => {
+    /* A Google return trip that failed leaves its reason here (see main.jsx).
+       Without this the person was simply dropped back on the form with no
+       explanation of what went wrong. */
+    try {
+      const e = sessionStorage.getItem('azolve.oauth.error');
+      if (e) {
+        sessionStorage.removeItem('azolve.oauth.error');
+        setError(e);
+      }
+    } catch { /* private mode */ }
+  }, []);
+
+  useEffect(() => {
     API.otpStatus().then(setOtpInfo).catch(() => {});
   }, []);
 
