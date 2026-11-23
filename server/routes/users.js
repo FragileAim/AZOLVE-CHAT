@@ -26,6 +26,12 @@ r.patch('/me', requireAuth, (req, res) => {
       run(`UPDATE users SET ${col} = ? WHERE id = ?`, val, req.user.id);
     }
   }
+  /* Onboarding is finished when the client says so, not when a bio happens to
+     be non-empty. Stamping it once means the form is never shown again, even
+     to someone who chose to leave a field blank. */
+  if (b.onboarded === true) {
+    run('UPDATE users SET onboarded_at = ? WHERE id = ? AND onboarded_at IS NULL', now(), req.user.id);
+  }
   if (b.privacy) run('UPDATE users SET privacy = ? WHERE id = ?', JSON.stringify(b.privacy), req.user.id);
   if (b.prefs) {
     const cur = parseJSON(req.user.prefs, {});

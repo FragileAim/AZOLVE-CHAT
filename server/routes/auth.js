@@ -266,7 +266,7 @@ r.post('/phone/verify', async (req, res) => {
   res.json({
     ...s,
     user: publicUser(fresh, fresh.id),
-    needsOnboarding: !fresh.country || !fresh.bio,
+    needsOnboarding: !fresh.onboarded_at,
     isNew: !fresh.country && !fresh.bio,
   });
 });
@@ -430,7 +430,7 @@ r.post('/email/verify', async (req, res) => {
   res.json({
     ...s,
     user: publicUser(fresh, fresh.id),
-    needsOnboarding: !fresh.country || !fresh.bio,
+    needsOnboarding: !fresh.onboarded_at,
     isNew: !fresh.country && !fresh.bio,
   });
 });
@@ -523,7 +523,7 @@ r.post('/otp/verify', (req, res) => {
   run("UPDATE users SET status = 'active' WHERE id = ? AND status = 'pending'", userId);
   const user = get('SELECT * FROM users WHERE id = ?', userId);
   const s = createSession(user.id, req);
-  res.json({ ...s, user: publicUser(user, user.id), needsOnboarding: !user.country || !user.bio });
+  res.json({ ...s, user: publicUser(user, user.id), needsOnboarding: !user.onboarded_at });
 });
 
 r.post('/login', async (req, res) => {
@@ -577,7 +577,7 @@ r.post('/logout-all', requireAuth, (req, res) => {
 
 r.get('/me', requireAuth, (req, res) => {
   const u = get('SELECT * FROM users WHERE id = ?', req.user.id);
-  res.json({ user: publicUser(u, u.id), needsOnboarding: !u.country || !u.bio });
+  res.json({ user: publicUser(u, u.id), needsOnboarding: !u.onboarded_at });
 });
 
 r.post('/forgot', async (req, res) => {

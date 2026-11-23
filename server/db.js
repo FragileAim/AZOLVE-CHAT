@@ -184,6 +184,11 @@ const migrations = [
   /* Google sign-in: the stable Google subject id, so a person who changes their
      Google email address still lands on the same AZOLVE account. */
   ['users', 'oauth_sub', 'TEXT'],
+  /* Onboarding used to be inferred from "has a country and a bio". That is a
+     guess, not a fact: someone who deliberately left the bio blank was asked
+     to fill the whole form again on every single login. An explicit timestamp
+     records that they actually finished it, once. */
+  ['users', 'onboarded_at', 'INTEGER'],
 ];
 for (const [table, column, type] of migrations) {
   try {
@@ -192,6 +197,20 @@ for (const [table, column, type] of migrations) {
   } catch (e) {
     console.warn(`[db] migration ${table}.${column} skipped:`, e.message);
   }
+}
+
+/* Everyone who already filled in a country and a bio has plainly finished
+   onboarding, so mark them done rather than marching them through the form
+   again after this upgrade. Idempotent: only rows still NULL are touched. */
+try {
+  db.exec(`
+    UPDATE users SET onboarded_at = COALESCE(created_at, 0)
+    WHERE onboarded_at IS NULL
+      AND country IS NOT NULL AND country != ''
+      AND bio IS NOT NULL AND bio != ''
+  `);
+} catch (e) {
+  console.warn('[db] onboarding backfill skipped:', e.message);
 }
 
 

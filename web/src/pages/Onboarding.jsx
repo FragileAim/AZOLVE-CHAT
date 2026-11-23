@@ -52,6 +52,9 @@ export default function Onboarding() {
         displayName: form.displayName, username: form.username, bio: form.bio, dob: form.dob,
         country: form.country, avatar: form.avatar, language: form.language, isPrivate: form.isPrivate,
         privacy: form.privacy, prefs: form.prefs,
+        /* Only on the last step: this is what tells the server the form is
+           genuinely finished, so it is never shown again. */
+        ...(final ? { onboarded: true } : {}),
       });
       setUser(d.user);
       if (final) { setNeedsOnboarding(false); notify('Your profile is ready. Welcome to AZOLVE CHAT.'); }
