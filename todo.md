@@ -98,3 +98,14 @@
 - [x] Proven: full redeploy -> restored:true, same token valid, needsOnboarding false
 - [x] Test account deleted (404, token 401)
 - [x] OTP_DEV_ECHO back to 0
+
+## v1.1.10 — APK rebuild after onboarding fix
+- [x] Bump versionCode 21 / versionName 1.1.10
+- [x] Rebuild web bundle (index-1MXspT-Q.js) and APK in live mode
+- [x] Verify versionCode/versionName via aapt2
+- [x] Verify signing cert unchanged (upgrades in place)
+- [x] Verify `onboarded:!0` present in the bundled JS
+- [x] Verify azolve://oauth intent filter + Google host handoff in dex
+- [x] Confirm live site serves the same bundle hash
+- [x] Push release commit and confirm /api/health = 1.1.10
+- [x] Confirm /api/health/persist backend=postgres, restored=true
