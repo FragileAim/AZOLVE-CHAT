@@ -88,3 +88,13 @@
 - [x] Verified: mobile callback -> azolve://oauth?error=, web callback -> #/auth?error=
 - [x] Deployed dep-dc212rk3eqjs7388bv1g live; site + APK share bundle index-C-xuItZp.js
 - [x] Deliverable outputs/AZOLVE-CHAT-v1.1.9.apk (sha256 9b839f66…)
+
+## v1.1.10 — onboarding asks once; database survives restarts (done)
+- [x] Root cause 1: needsOnboarding inferred from "no country or no bio" -> users.onboarded_at stamp + backfill
+- [x] Root cause 2: no durable storage (backend null) -> every restart wiped accounts
+- [x] SNAPSHOT_PG_URL pointed at the account's Postgres (internal URL; external was dropped)
+- [x] SNAPSHOT_RESET=1 used once to discard an undecryptable old snapshot, then removed
+- [x] Proven: signup -> onboarding (blank bio) -> needsOnboarding false
+- [x] Proven: full redeploy -> restored:true, same token valid, needsOnboarding false
+- [x] Test account deleted (404, token 401)
+- [x] OTP_DEV_ECHO back to 0
