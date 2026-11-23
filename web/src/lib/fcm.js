@@ -31,6 +31,17 @@ const nativePush = () => {
   }
 };
 
+/* The Android shell is a plain Activity + WebView, not a Capacitor bridge, so
+   the Capacitor plugin is absent there. It exposes window.AzolvePush instead. */
+const androidBridge = () => {
+  try {
+    const b = window.AzolvePush;
+    return b && typeof b.getToken === 'function' ? b : null;
+  } catch {
+    return null;
+  }
+};
+
 async function serverConfig() {
   if (cachedConfig !== null) return cachedConfig;
   try {
@@ -74,6 +85,24 @@ async function registerNative(plugin) {
       })
       .catch(e => { lastReason = String(e?.message || e); done(reject, e); });
   });
+}
+
+/* ---------------------------- android bridge ---------------------------- */
+
+/* Polls the bridge until a token appears. Firebase fetches it over the network
+   on first run, so it is not there instantly; 12 tries at 500 ms is generous
+   without leaving a spinner running forever. */
+async function registerAndroidBridge(bridge) {
+  bridge.requestToken?.();
+  for (let i = 0; i < 12; i++) {
+    const token = String(bridge.getToken?.() || '');
+    if (token) {
+      await api('/push/fcm/register', { method: 'POST', body: { token, platform: 'android' } });
+      return { ok: true, transport: 'fcm-android' };
+    }
+    await new Promise(r => setTimeout(r, 500));
+  }
+  throw new Error('Firebase did not issue a device token');
 }
 
 /* -------------------------------- web path -------------------------------- */
@@ -122,15 +151,24 @@ export function registerPush() {
   registering = (async () => {
     const cfg = await serverConfig();
     const plugin = nativePush();
+    const bridge = androidBridge();
 
-    /* Native first: the WebView cannot use the web SDK, but it may still have
-       the plugin available. */
+    /* The Android shell first: it is the only path that can ring a closed app. */
+    if (bridge) {
+      try {
+        return await registerAndroidBridge(bridge);
+      } catch (e) {
+        lastReason = String(e?.message || e);
+        /* fall through — the page may still register for web push */
+      }
+    }
+
+    /* A Capacitor build with the plugin installed. */
     if (plugin) {
       try {
         return await registerNative(plugin);
       } catch (e) {
         lastReason = lastReason || String(e?.message || e);
-        /* fall through to web push, which still works for the PWA build */
       }
     }
 

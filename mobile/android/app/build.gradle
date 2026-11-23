@@ -1,5 +1,6 @@
 plugins {
     id 'com.android.application'
+    id 'com.google.gms.google-services'
 }
 
 android {
@@ -14,8 +15,8 @@ android {
         applicationId "io.azolve.chat"
         minSdk 24
         targetSdk 34
-        versionCode 17
-        versionName "1.1.6"
+        versionCode 18
+        versionName "1.1.7"
         // -PappUrl=https://your-app.onrender.com  → app talks to your real backend.
         buildConfigField "String", "APP_URL", "\"${project.findProperty('appUrl') ?: ''}\""
     }
@@ -51,6 +52,9 @@ android {
 }
 
 dependencies {
-    // Intentionally none: the shell is a plain android.app.Activity + WebView so the APK
-    // stays tiny and has no Kotlin/AndroidX transitive baggage.
+    // Firebase Cloud Messaging only. The shell stays a plain Activity + WebView;
+    // FCM is the one thing a WebView genuinely cannot do, because the browser
+    // Push API does not exist inside one. Everything else stays hand-rolled.
+    implementation platform('com.google.firebase:firebase-bom:33.5.1')
+    implementation 'com.google.firebase:firebase-messaging'
 }

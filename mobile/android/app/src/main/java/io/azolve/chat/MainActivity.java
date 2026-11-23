@@ -90,6 +90,27 @@ public class MainActivity extends Activity {
 
         WebSettings s = web.getSettings();
         s.setJavaScriptEnabled(true);
+
+        /* Firebase has to be up before the page loads so a token exists by the
+           time the app asks for one. A failure here is not fatal: the app works
+           without push, it just will not ring when closed. */
+        try {
+            com.google.firebase.FirebaseApp.initializeApp(this);
+            AzolveMessagingService.ensureChannels(this);
+        } catch (Throwable t) {
+            android.util.Log.w("AzolvePush", "Firebase init failed: " + t.getMessage());
+        }
+
+        /* Push bridge. The page calls window.AzolvePush.getToken() etc. */
+        web.addJavascriptInterface(new PushBridge(this), "AzolvePush");
+
+        /* Android 13+ requires the runtime notification permission before any
+           notification can be posted. Asking on first launch is the only time
+           the prompt makes sense. */
+        if (Build.VERSION.SDK_INT >= 33
+                && checkSelfPermission("android.permission.POST_NOTIFICATIONS") != PackageManager.PERMISSION_GRANTED) {
+            requestPermissions(new String[]{"android.permission.POST_NOTIFICATIONS"}, 7001);
+        }
         s.setDomStorageEnabled(true);
         s.setDatabaseEnabled(true);
         s.setMediaPlaybackRequiresUserGesture(false);
@@ -101,7 +122,7 @@ public class MainActivity extends Activity {
         s.setBuiltInZoomControls(false);
         s.setMixedContentMode(WebSettings.MIXED_CONTENT_COMPATIBILITY_MODE);
         s.setCacheMode(WebSettings.LOAD_DEFAULT);
-        s.setUserAgentString(s.getUserAgentString() + " AzolveChatApp/1.1.6");
+        s.setUserAgentString(s.getUserAgentString() + " AzolveChatApp/1.1.7");
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             s.setSafeBrowsingEnabled(true);
         }

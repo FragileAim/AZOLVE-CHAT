@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "816829921245",
+    "project_id": "azolve-infotech",
+    "storage_bucket": "azolve-infotech.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:816829921245:android:efbb3ceed7151cd1e62834",
+        "android_client_info": {
+          "package_name": "io.azolve.chat"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyB07jTBVhIp406kapFQHWsJuwi01_IrAUg"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
