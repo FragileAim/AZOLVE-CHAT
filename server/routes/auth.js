@@ -763,18 +763,24 @@ r.post('/oauth/google', async (req, res) => {
 /* ---- 2. Redirect flow ---- */
 r.get('/oauth/google/start', (req, res) => {
   if (!googleConfigured()) return err(res, 501, 'Google sign-in is not configured on this deployment');
-  /* `mobile=1` means the flow was started from the Android shell. Google
-     refuses to render its consent screen inside an embedded WebView
-     ("disallowed_useragent"), so the app hands this URL to the real browser.
-     The browser cannot reach the app's localStorage, so the callback has to
-     come back over a deep link instead of a page redirect. The flag rides in
-     the signed state so a caller cannot turn an ordinary web login into a
-     deep-link redirect after the fact. */
+  /* `mobile` says which shell started the flow. Google refuses to render its
+     consent screen inside an embedded WebView ("disallowed_useragent"), so the
+     app hands this URL to the real browser. The browser cannot reach the app's
+     localStorage, so the callback has to come back over a deep link instead of
+     a page redirect. The flag rides in the signed state so a caller cannot turn
+     an ordinary web login into a deep-link redirect after the fact.
+       'android' — Chrome will not follow a 302 to a custom scheme, so the
+                   return trip goes over https to a verified App Link.
+       'ios'     — Safari does follow it, and ASWebAuthenticationSession
+                   captures azolve:// directly, so the custom scheme is used. */
+  const mobileRaw = String(req.query.mobile || '');
+  const platform = mobileRaw === '1' ? 'android' : (mobileRaw === 'ios' ? 'ios' : '');
   const state = jwt.sign(
     {
       purpose: 'oauth-state',
       lang: String(req.query.lang || 'en').slice(0, 8),
-      mobile: String(req.query.mobile || '') === '1',
+      mobile: !!platform,
+      platform,
       nonce: id('n_'),
     },
     process.env.JWT_SECRET || 'dev-only-secret-change-me',
@@ -798,12 +804,16 @@ r.get('/oauth/google/callback', async (req, res) => {
      web error page. */
   const peek = (() => { try { return jwt.decode(String(state || '')) || {}; } catch { return {}; } })();
   const mobile = peek.mobile === true;
+  const platform = peek.platform === 'ios' ? 'ios' : (mobile ? 'android' : '');
   /* Chrome will not follow a server-side 302 to a custom scheme: it stops on an
      "unknown URL scheme" page instead of launching the app, which is what sent
-     people back to the login screen. So the app return trip goes over https to
-     a verified Android App Link, which the OS opens directly. The fallback page
-     there re-tries azolve:// for browsers that do not support App Links. */
-  const appReturn = (req, hash) => `${baseUrl(req)}/oauth/app#${hash}`;
+     people back to the login screen. So the Android return trip goes over https
+     to a verified Android App Link, which the OS opens directly. Safari does
+     follow a custom scheme, and ASWebAuthenticationSession intercepts it, so
+     iOS keeps the azolve:// route. */
+  const appReturn = (req, hash) => platform === 'ios'
+    ? `azolve://oauth?${hash}`
+    : `${baseUrl(req)}/oauth/app#${hash}`;
   const fail = msg => res.redirect(
     mobile
       ? appReturn(req, new URLSearchParams({ error: msg }).toString())
@@ -849,9 +859,9 @@ r.get('/oauth/google/callback', async (req, res) => {
       token: session.token,
       refreshToken: session.refreshToken,
     });
-    /* The Android shell picks this up as an App Link and replays it into the
-       WebView as the ordinary `#/auth?token=…` fragment, so the SPA has exactly
-       one code path for absorbing a session. */
+    /* The shell picks this up as a deep link and replays it into the WebView as
+       the ordinary `#/auth?token=…` fragment, so the SPA has exactly one code
+       path for absorbing a session. */
     if (mobile) return res.redirect(appReturn(req, frag.toString()));
     return res.redirect(`/#/auth?${frag.toString()}`);
   } catch {

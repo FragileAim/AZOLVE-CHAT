@@ -28,13 +28,18 @@ const CODES = [
   ['+351', 'Portugal'], ['+30', 'Greece'], ['+972', 'Israel'], ['+64', 'New Zealand'],
 ];
 
-/* The Android shell injects window.AzolvePush. When it is there we are inside
-   the WebView, where Google will not draw its consent screen, so the app opens
-   the flow in the real browser and the server hands the session back over a
-   deep link. That only works if the start URL says it is the app asking. */
+/* Both native shells inject a marker. Google will not draw its consent screen
+   inside an embedded WebView, so the app opens the flow in the real browser and
+   the server hands the session back over a deep link. That only works if the
+   start URL says which shell is asking: Android needs the https App Link route
+   (Chrome ignores a 302 to a custom scheme), iOS uses azolve:// so
+   ASWebAuthenticationSession can capture it. */
 const IN_APP = typeof window !== 'undefined' && !!window.AzolvePush;
-const googleStart = (lang) =>
-  `/api/auth/oauth/google/start?lang=${encodeURIComponent(lang || 'en')}${IN_APP ? '&mobile=1' : ''}`;
+const IN_IOS = typeof window !== 'undefined' && !!window.AzolveIOS;
+const googleStart = (lang) => {
+  const p = IN_IOS ? 'ios' : (IN_APP ? '1' : '');
+  return `/api/auth/oauth/google/start?lang=${encodeURIComponent(lang || 'en')}${p ? `&mobile=${p}` : ''}`;
+};
 
 export default function Auth() {
   const { login, notify, lang } = useApp();

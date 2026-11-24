@@ -1,5 +1,6 @@
 import UIKit
 import WebKit
+import AuthenticationServices
 
 /**
  AZOLVE CHAT — native iOS shell.
@@ -36,6 +37,17 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
         self.window = window
         return true
     }
+
+    /// The Google return trip arrives here as azolve://oauth?token=… .
+    /// ASWebAuthenticationSession usually captures it before this is reached,
+    /// but Safari and a cold launch both come through this delegate, so the
+    /// session is replayed from here too.
+    func application(_ app: UIApplication, open url: URL,
+                     options: [UIApplication.OpenURLOptionsKey: Any] = [:]) -> Bool {
+        guard url.scheme?.lowercased() == "azolve", url.host?.lowercased() == "oauth" else { return false }
+        (window?.rootViewController as? AzolveViewController)?.handleDeepLink(url)
+        return true
+    }
 }
 
 final class AzolveViewController: UIViewController, WKNavigationDelegate, WKUIDelegate {
@@ -53,6 +65,16 @@ final class AzolveViewController: UIViewController, WKNavigationDelegate, WKUIDe
         config.allowsInlineMediaPlayback = true
         config.mediaTypesRequiringUserActionForPlayback = []
         config.websiteDataStore = .default()
+
+        /* Tell the bundle it is running inside the iOS shell. Google will not
+           draw its consent screen in a WKWebView, so the app has to hand the
+           sign-in to the real browser; the web code only asks for that when it
+           knows a shell is present. */
+        let marker = WKUserScript(
+            source: "window.AzolveIOS = true;",
+            injectionTime: .atDocumentStart,
+            forMainFrameOnly: true)
+        config.userContentController.addUserScript(marker)
 
         webView = WKWebView(frame: .zero, configuration: config)
         webView.navigationDelegate = self
@@ -160,6 +182,19 @@ final class AzolveViewController: UIViewController, WKNavigationDelegate, WKUIDe
             decisionHandler(.allow); return
         }
         let scheme = url.scheme?.lowercased() ?? ""
+
+        /* Google sign-in must run in a real browser: Google answers an embedded
+           WKWebView with "disallowed_useragent". Catch the start URL here and
+           run the whole flow in ASWebAuthenticationSession, which is a genuine
+           browser context and hands the azolve:// return straight back. */
+        if navigationAction.navigationType == .linkActivated || navigationAction.targetFrame?.isMainFrame == true {
+            if url.path.hasPrefix("/api/auth/oauth/google/start") {
+                decisionHandler(.cancel)
+                startGoogleSignIn(url)
+                return
+            }
+        }
+
         if scheme == "http" || scheme == "https" || scheme == "file" || scheme == "about" {
             if let host = url.host, host != AZOLVE_URL.host, navigationAction.navigationType == .linkActivated {
                 UIApplication.shared.open(url)
@@ -169,9 +204,71 @@ final class AzolveViewController: UIViewController, WKNavigationDelegate, WKUIDe
             decisionHandler(.allow)
             return
         }
+        // azolve:// is our own return trip — never hand it to the system.
+        if scheme == "azolve" {
+            decisionHandler(.cancel)
+            handleDeepLink(url)
+            return
+        }
         // mailto:, tel:, whatsapp:, etc.
         UIApplication.shared.open(url)
         decisionHandler(.cancel)
+    }
+
+    // MARK: - Google sign-in
+
+    private var authSession: ASWebAuthenticationSession?
+
+    private func startGoogleSignIn(_ url: URL) {
+        /* The session needs an absolute URL; the page hands us a relative one. */
+        let start = URL(string: url.absoluteString, relativeTo: AZOLVE_URL)?.absoluteURL ?? url
+        let session = ASWebAuthenticationSession(
+            url: start,
+            callbackURLScheme: "azolve"
+        ) { [weak self] callback, error in
+            self?.authSession = nil
+            guard let self = self else { return }
+            if let callback = callback {
+                self.handleDeepLink(callback)
+                return
+            }
+            /* A cancel is the person closing the sheet — say nothing. Anything
+               else is a real failure and must be visible, otherwise the login
+               form just reappears with no explanation. */
+            if let e = error as? ASWebAuthenticationSessionError, e.code == .canceledLogin { return }
+            if let e = error {
+                self.replaySession("error=" + (e.localizedDescription.addingPercentEncoding(
+                    withAllowedCharacters: .alphanumerics) ?? "sign-in-failed"))
+            }
+        }
+        session.presentationContextProvider = self
+        session.prefersEphemeralWebBrowserSession = false
+        authSession = session
+        session.start()
+    }
+
+    /// Replay an azolve://oauth?token=… deep link into the WebView.
+    func handleDeepLink(_ url: URL) {
+        guard url.scheme?.lowercased() == "azolve", url.host?.lowercased() == "oauth" else { return }
+        /* The custom scheme carries the session in the query; accept a fragment
+           too so either shape works. */
+        var q = url.query ?? ""
+        if q.isEmpty, let frag = URLComponents(url: url, resolvingAgainstBaseURL: false)?.fragment {
+            q = frag
+        }
+        if q.hasPrefix("?") { q = String(q.dropFirst()) }
+        guard !q.isEmpty else { return }
+        replaySession(q)
+    }
+
+    private func replaySession(_ query: String) {
+        /* The unique query is load-bearing. Navigating to the same URL with only
+           a different hash is a same-document change: the bundle never re-runs,
+           the OAuth fragment is never absorbed, and the person is left on the
+           login form with a valid session sitting unused in the URL. */
+        let stamp = Int(Date().timeIntervalSince1970 * 1000)
+        guard let target = URL(string: "\(AZOLVE_URL.absoluteString)/?r=\(stamp)#/auth?\(query)") else { return }
+        webView.load(URLRequest(url: target, cachePolicy: .reloadIgnoringLocalCacheData, timeoutInterval: 90))
     }
 
     // MARK: - Permissions (camera / microphone for WebRTC)
@@ -208,6 +305,12 @@ extension UIDocumentPickerViewController {
     var presentCompletion: (([URL]?) -> Void)? {
         get { Holder.completion }
         set { Holder.completion = newValue }
+    }
+}
+
+extension AzolveViewController: ASWebAuthenticationPresentationContextProviding {
+    func presentationAnchor(for session: ASWebAuthenticationSession) -> ASPresentationAnchor {
+        return view.window ?? ASPresentationAnchor()
     }
 }
 
