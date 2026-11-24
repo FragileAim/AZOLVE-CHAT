@@ -86,3 +86,29 @@ toolchain — that is an Apple restriction, not a limitation of this project.
 | "Untrusted Developer" | Free Apple ID | Trust the developer in Settings |
 | "No signing certificate" | No Team selected | Pick a Team in Signing & Capabilities |
 | Blank white screen | Server unreachable | Check the URL in `AppDelegate.swift` |
+
+---
+
+## Google sign-in (added in v1.1.11)
+
+Google refuses to draw its consent screen inside an embedded WebView and answers
+with `disallowed_useragent`. This build therefore runs the whole sign-in flow in
+`ASWebAuthenticationSession`, which is a real browser context, and receives the
+session back through the `azolve://oauth` URL scheme.
+
+Two pieces make that work, and both are already set up in this project:
+
+- `Info.plist` registers the `azolve` URL scheme under `CFBundleURLTypes`.
+- `AppDelegate.swift` catches `/api/auth/oauth/google/start`, opens the session,
+  and replays the returned token into the WebView with a forced document load.
+
+You do not need to configure anything for this. It does mean Google sign-in only
+works in the **native build** (Option B below). If you install the app from
+Safari via *Add to Home Screen* (Option A), Google sign-in opens a separate
+Safari window and cannot hand the session back — use email or phone OTP there,
+or build the native app.
+
+## Version
+
+This archive is **v1.1.11** (build 22), matching the Android APK and the live
+server at `https://azolve-chat.onrender.com`.

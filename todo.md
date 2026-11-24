@@ -121,3 +121,14 @@
 - [x] Surface OAuth errors instead of silently returning to the login form
 - [x] Verified live: callback 302 → https://…/oauth/app#error=access_denied
 - [x] Verified APK: versionCode 22, assetlinks cert matches signing cert, bundle hash matches live
+
+## v1.1.11 — iOS Xcode project (was missing / stale at 1.1.0)
+- [x] Rebuilt the web bundle and refreshed App/App/public
+- [x] Google sign-in: ASWebAuthenticationSession + azolve URL scheme in Info.plist
+- [x] Intercept /api/auth/oauth/google/start in WKWebView before Google loads
+- [x] Force a real document load (?r=) before replaying the session
+- [x] Surface sign-in errors instead of silently returning to the login form
+- [x] Server picks the return route per platform: https App Link (Android), azolve:// (iOS)
+- [x] Verified live: ios state → azolve://oauth?error=…, android state → https://…/oauth/app#error=…
+- [x] Version 1.1.11 / build 22 in project.pbxproj
+- [x] Packaged outputs/AZOLVE-CHAT-iOS-1.1.11.zip (46 files) and validated Info.plist
