@@ -34,6 +34,7 @@ const P = {
   lock: <><rect x="4.5" y="10" width="15" height="10.5" rx="2.5"/><path d="M8 10V7.5a4 4 0 0 1 8 0V10"/></>,
   logout: <><path d="M14 4.5H6.5a2 2 0 0 0-2 2v11a2 2 0 0 0 2 2H14"/><path d="M17 8.5 20.5 12 17 15.5"/><path d="M10 12h10.5"/></>,
   back: <><path d="M20 12H4"/><path d="m10 6-6 6 6 6"/></>,
+  chevron: <><path d="m9 5 7 7-7 7"/></>,
   close: <><path d="m6 6 12 12M18 6 6 18"/></>,
   camera: <><path d="M4 8.5h3l1.5-2.5h7L17 8.5h3a1.5 1.5 0 0 1 1.5 1.5v8A1.5 1.5 0 0 1 20 19.5H4A1.5 1.5 0 0 1 2.5 18v-8A1.5 1.5 0 0 1 4 8.5Z"/><circle cx="12" cy="13.5" r="3.5"/></>,
   sun: <><circle cx="12" cy="12" r="4"/><path d="M12 2v2.5M12 19.5V22M2 12h2.5M19.5 12H22M4.9 4.9l1.8 1.8M17.3 17.3l1.8 1.8M19.1 4.9l-1.8 1.8M6.7 17.3l-1.8 1.8"/></>,
@@ -156,8 +157,14 @@ export function Modal({ open, onClose, title, children, wide, footer }) {
           <h3>{title}</h3>
           <button className="icon-btn sm" onClick={onClose} aria-label="Close"><Icon name="close" size={17} /></button>
         </div>
-        {children}
-        {footer && <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 20 }}>{footer}</div>}
+        {/* Children used to be dropped straight into `.modal`, which is
+            `overflow: hidden` with a `max-height`. Any modal taller than the
+            screen therefore had its bottom — usually the action buttons —
+            clipped with no way to scroll to it. That is why "New
+            conversation" showed a people list and no visible controls.
+            A scrollable body fixes every modal at once. */}
+        <div className="modal-body">{children}</div>
+        {footer && <div className="modal-foot" style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>{footer}</div>}
       </div>
     </div>
   );

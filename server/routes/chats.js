@@ -89,10 +89,12 @@ r.post('/dm', requireAuth, (req, res) => {
 });
 
 r.post('/group', requireAuth, (req, res) => {
-  const { title, userIds = [], languageOverride } = req.body || {};
+  const { title, userIds = [], languageOverride, avatar } = req.body || {};
   if (!title) return err(res, 400, 'Group title is required');
   const cid = id('c_');
-  run('INSERT INTO conversations (id, type, title, created_by, created_at) VALUES (?,?,?,?,?)', cid, 'group', title, req.user.id, now());
+  /* `avatar` is the URL returned by /api/ai/upload. Optional: a group with no
+     photo falls back to the generated initials tile in the UI. */
+  run('INSERT INTO conversations (id, type, title, avatar, created_by, created_at) VALUES (?,?,?,?,?,?)', cid, 'group', title, avatar || null, req.user.id, now());
   const members = [...new Set([req.user.id, ...userIds])];
   for (const uid of members) run('INSERT INTO participants (conversation_id, user_id, role, joined_at) VALUES (?,?,?,?)', cid, uid, uid === req.user.id ? 'owner' : 'member', now());
   const conv = get('SELECT * FROM conversations WHERE id = ?', cid);

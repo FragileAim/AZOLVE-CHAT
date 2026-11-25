@@ -143,3 +143,14 @@
 - [x] Commit a049b71 pushed; Render redeploy triggered
 - [x] iOS zip refreshed to 1.1.12
 - [x] Verify live site serves 1.1.12 with fix (bundle index-CyYoTGNS.js, css index-DJqy9w6O.css)
+
+## v1.1.13 — "correct OTP" rejected with circular-JSON error (fixed)
+- [x] Root-caused: onClick={verifyEmail}/{verifyPhone}/{doVerify} passed the DOM click event as `code`
+- [x] `code || form.code` forwarded the event to the API layer, which JSON.stringify'd it
+- [x] Added pickCode(): only a non-empty string is an explicit code
+- [x] Call sites use arrows: onClick={() => verifyEmail()}
+- [x] Audited every other onClick={fn} in the app — all zero-arg, no other instances
+- [x] Playwright end-to-end: email OTP 689274 verified -> onboarding, 0 page errors
+- [x] Bump 1.1.13 / versionCode 24; APK built, cert unchanged
+- [x] Commit 8da264b pushed; live verified 1.1.13 with fix in index-BzrsZDFr.js
+- [x] iOS zip refreshed to 1.1.13

@@ -178,6 +178,9 @@ function NewChatModal({ open, onClose }) {
   const [loading, setLoading] = useState(false);
   const [picked, setPicked] = useState([]);
   const [title, setTitle] = useState('');
+  const [avatar, setAvatar] = useState('');
+  const [photoBusy, setPhotoBusy] = useState(false);
+  const photoRef = useRef(null);
   const [busy, setBusy] = useState(false);
   const [pending, setPending] = useState({});
   const [incoming, setIncoming] = useState({});
@@ -259,10 +262,21 @@ function NewChatModal({ open, onClose }) {
     if (picked.length < 1) return notify('Pick at least one person', 'err');
     setBusy(true);
     try {
-      const d = await API.createGroup({ title, userIds: picked.map(p => p.id) });
+      const d = await API.createGroup({ title, userIds: picked.map(p => p.id), avatar: avatar || undefined });
       onClose(); navigate('chats', d.conversation.id);
     } catch (e) { notify(e.message, 'err'); }
     finally { setBusy(false); }
+  };
+
+  const pickGroupPhoto = async (e) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    if (!file.type.startsWith('image/')) return notify('Pick an image file', 'err');
+    setPhotoBusy(true);
+    try { const up = await uploadFile(file); setAvatar(up.url); }
+    catch (err) { notify(err.message, 'err'); }
+    finally { setPhotoBusy(false); }
   };
 
   return (
@@ -272,9 +286,19 @@ function NewChatModal({ open, onClose }) {
         <button className={tab === 'group' ? 'active' : ''} onClick={() => setTab('group')}>Group</button>
       </div>
       {tab === 'group' && (
-        <label className="field" style={{ marginBottom: 12 }}><span>Group name</span>
-          <input className="input" value={title} onChange={e => setTitle(e.target.value)} placeholder="Global Founders 🌍" />
-        </label>
+        <div className="group-setup">
+          <button type="button" className="gs-photo" onClick={() => photoRef.current?.click()} disabled={photoBusy}
+            aria-label={avatar ? 'Change group photo' : 'Add a group photo'}>
+            {avatar
+              ? <img src={avatar} alt="" />
+              : <span className="gs-photo-empty"><Icon name="camera" size={18} /><em>{photoBusy ? 'Uploading…' : 'Photo'}</em></span>}
+          </button>
+          <input ref={photoRef} type="file" accept="image/*" hidden onChange={pickGroupPhoto} />
+          <label className="field" style={{ flex: 1, minWidth: 0 }}>
+            <span>Group name</span>
+            <input className="input" value={title} onChange={e => setTitle(e.target.value)} placeholder="Global Founders 🌍" />
+          </label>
+        </div>
       )}
       {tab === 'group' && picked.length > 0 && (
         <div className="picked-row">
@@ -566,15 +590,20 @@ function ChatView({ id }) {
     <section className="chat-pane ux-screen cv">
       <header className="ux-cv-head">
         <button className="ux-cv-back" onClick={() => navigate('chats')} aria-label="Back"><Icon name="back" size={20} /></button>
-        <div style={{ position: 'relative', flex: 'none' }}>
+        {/* The identity block is the settings entry. `settingsOpen` was declared
+            but never set anywhere, so Chat settings — including the group photo,
+            members list, mute/pin/archive and disappearing messages — could not
+            be opened from anywhere in the app. */}
+        <button className="ux-cv-id" onClick={() => setSettingsOpen(true)} aria-label="Chat settings">
           <Avatar user={{ displayName: title, avatar: conv?.avatar }} size={40} showStatus online={conv?.other?.online} />
-        </div>
-        <div className="ux-cv-who">
-          <b>{title}</b>
-          <span className={conv?.other?.online ? '' : 'off'}>
-            {typing.length > 0 ? 'typing…' : (conv?.other?.online ? 'online' : subtitle)}
+          <span className="ux-cv-who">
+            <b>{title}</b>
+            <span className={conv?.other?.online ? '' : 'off'}>
+              {typing.length > 0 ? 'typing…' : (conv?.other?.online ? 'online' : subtitle)}
+            </span>
           </span>
-        </div>
+          <Icon name="chevron" size={14} />
+        </button>
         <span className="ux-langchip">
           <Icon name="translate" size={12} />
           {conv?.other?.language ? `${langOf(conv.other.language).code?.toUpperCase() || 'HI'} → ${langOf(me.language).code?.toUpperCase() || 'EN'}` : `${langOf(me.language).code?.toUpperCase() || 'EN'}`}
@@ -888,12 +917,32 @@ function MessageBubble({ m, mine, sender, showName, isGroup, me, participants, o
 function ChatSettings({ open, onClose, conv, onSaved }) {
   const { notify } = useApp();
   const [form, setForm] = useState({});
+  const [photoBusy, setPhotoBusy] = useState(false);
+  const photoRef = useRef(null);
   useEffect(() => { if (conv) setForm({ muted: conv.muted, archived: conv.archived, pinned: conv.pinned, locked: conv.locked, disappearSeconds: conv.disappearSeconds, wallpaper: conv.wallpaper || '', languageOverride: conv.languageOverride || '' }); }, [conv, open]);
 
   const patch = async (k, v) => {
     setForm(f => ({ ...f, [k]: v }));
     try { await API.patchChat(conv.id, { [k]: v }); onSaved?.(); }
     catch (e) { notify(e.message, 'err'); }
+  };
+
+  /* Group photo. The backend has accepted `avatar` on PATCH /chats/:id for a
+     while, but nothing in the UI ever sent it, so a group could never get a
+     picture. Upload first, then point the conversation at the returned URL. */
+  const uploadGroupPhoto = async (e) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    if (!file.type.startsWith('image/')) return notify('Pick an image file', 'err');
+    setPhotoBusy(true);
+    try {
+      const up = await uploadFile(file);
+      await API.patchChat(conv.id, { avatar: up.url });
+      notify('Group photo updated', 'ok');
+      onSaved?.();
+    } catch (err) { notify(err.message, 'err'); }
+    finally { setPhotoBusy(false); }
   };
 
   if (!conv) return null;
@@ -904,6 +953,15 @@ function ChatSettings({ open, onClose, conv, onSaved }) {
           <Avatar user={{ displayName: conv.title, avatar: conv.avatar }} size={54} />
           <div><b>{conv.title}</b><span>{conv.type === 'group' ? `${conv.participants.length} members` : `@${conv.other?.username}`}</span></div>
         </div>
+        {conv.type === 'group' && (
+          <div className="cs-photo">
+            <button type="button" className="btn ghost btn-sm" disabled={photoBusy} onClick={() => photoRef.current?.click()}>
+              <Icon name="camera" size={14} /> {photoBusy ? 'Uploading…' : conv.avatar ? 'Change group photo' : 'Add group photo'}
+            </button>
+            <input ref={photoRef} type="file" accept="image/*" hidden onChange={uploadGroupPhoto} />
+            <span className="hint">Everyone in the group sees this picture.</span>
+          </div>
+        )}
         <div className="setting-row"><div><div className="t">Mute notifications</div><div className="d">Stay in the chat without alerts.</div></div><Switch on={!!form.muted} onChange={v => patch('muted', v)} /></div>
         <div className="setting-row"><div><div className="t">Pin to top</div><div className="d">Keep this conversation above the rest.</div></div><Switch on={!!form.pinned} onChange={v => patch('pinned', v)} /></div>
         <div className="setting-row"><div><div className="t">Archive</div><div className="d">Hide from the main list.</div></div><Switch on={!!form.archived} onChange={v => patch('archived', v)} /></div>
