@@ -110,8 +110,16 @@ export default function Auth() {
     setStep('phoneotp');
   });
 
+  /* `onClick={verifyPhone}` used to hand this function the click *event* as
+     its first argument. `code || form.code` then forwarded that DOM event to
+     the API layer, which JSON.stringify'd it — producing React's
+     "Converting circular structure to JSON ... HTMLButtonElement" error instead
+     of verifying a perfectly good code. Only a real string is an explicit code;
+     anything else (an event, undefined) means "use what's typed". */
+  const pickCode = (c) => (typeof c === 'string' && c.trim() ? c.trim() : form.code);
+
   const verifyPhone = (code) => run(async () => {
-    const d = await API.phoneVerify(pending.userId, code || form.code);
+    const d = await API.phoneVerify(pending.userId, pickCode(code));
     await login(d);
     notify(d.isNew ? 'Welcome to AZOLVE CHAT' : 'Welcome back');
   });
@@ -166,7 +174,7 @@ export default function Auth() {
   });
 
   const verifyEmail = (code) => run(async () => {
-    const d = await API.emailVerify(pending.userId, code || form.code);
+    const d = await API.emailVerify(pending.userId, pickCode(code));
     await login(d);
     notify(d.isNew ? 'Welcome to AZOLVE CHAT' : 'Welcome back');
   });
@@ -206,7 +214,7 @@ export default function Auth() {
   });
 
   const doVerify = (code) => run(async () => {
-    const d = await API.verifyOtp(pending.userId, code || form.code);
+    const d = await API.verifyOtp(pending.userId, pickCode(code));
     await login(d);
     notify('Verified — welcome to AZOLVE CHAT');
   });
@@ -605,7 +613,7 @@ export default function Auth() {
               <button
                 className="ux-otp-verify"
                 disabled={busy || form.code.length < 6}
-                onClick={pending.channel === 'email' ? verifyEmail : verifyPhone}
+                onClick={() => (pending.channel === 'email' ? verifyEmail() : verifyPhone())}
               >
                 {busy ? 'Verifying…' : 'Verify'}
               </button>
@@ -706,7 +714,7 @@ export default function Auth() {
                 </div>
               )}
               {error && <div className="form-error"><Icon name="warning" size={15} />{error}</div>}
-              <button className="btn primary block lg" disabled={busy || form.code.length < 6} onClick={doVerify}>
+              <button className="btn primary block lg" disabled={busy || form.code.length < 6} onClick={() => doVerify()}>
                 {busy ? 'Verifying…' : 'Verify & continue'}
               </button>
               <p className="auth-switch">Didn't get it? <button className="link-btn" onClick={() => run(async () => {

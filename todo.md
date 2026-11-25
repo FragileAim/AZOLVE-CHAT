@@ -132,3 +132,14 @@
 - [x] Verified live: ios state → azolve://oauth?error=…, android state → https://…/oauth/app#error=…
 - [x] Version 1.1.11 / build 22 in project.pbxproj
 - [x] Packaged outputs/AZOLVE-CHAT-iOS-1.1.11.zip (46 files) and validated Info.plist
+
+## v1.1.12 — bottom-centre "+" button stuck (fixed)
+- [x] Root-caused: FAB only called setMoreOpen(true); no toggle
+- [x] Root-caused: .more-sheet outranked by `.app > :not(.rail){position:relative}` so backdrop never covered page
+- [x] Added web/src/lib/back.js + installBackBridge so hardware back closes overlays
+- [x] FAB toggles; X, grab handle, backdrop, Escape, navigate, back all dismiss
+- [x] Playwright: 6 consecutive taps toggle correctly, 0 page errors
+- [x] Bump 1.1.12 / versionCode 23; APK built, cert unchanged
+- [x] Commit a049b71 pushed; Render redeploy triggered
+- [x] iOS zip refreshed to 1.1.12
+- [x] Verify live site serves 1.1.12 with fix (bundle index-CyYoTGNS.js, css index-DJqy9w6O.css)
