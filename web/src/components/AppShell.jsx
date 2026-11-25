@@ -3,6 +3,7 @@ import { useApp, navigate } from '../App.jsx';
 import { Icon, Avatar, Logo } from './UI.jsx';
 import { API } from '../lib/api.js';
 import { getSocket } from '../lib/socket.js';
+import { pushBackHandler } from '../lib/back.js';
 import Home from '../pages/Home.jsx';
 import Chats from '../pages/Chats.jsx';
 import Moments from '../pages/Moments.jsx';
@@ -81,6 +82,29 @@ export default function AppShell() {
   };
 
   useEffect(() => { loadBadges(); }, [route.page, route.param]);
+
+  /* The sheet is a modal, so it must be dismissible the way a phone user
+     expects: Escape on a desktop keyboard, and the hardware/gesture back on
+     Android. Without this the only way out was tapping the dimmed area, and on
+     a short screen the sheet covered nearly all of it. */
+  useEffect(() => {
+    if (!moreOpen) return;
+    const onKey = (e) => { if (e.key === 'Escape') setMoreOpen(false); };
+    window.addEventListener('keydown', onKey);
+    /* Android hardware back closes the sheet instead of navigating away. */
+    const off = pushBackHandler(() => { setMoreOpen(false); return true; });
+    /* Stop the page behind the sheet from scrolling while it is open. */
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      window.removeEventListener('keydown', onKey);
+      off();
+      document.body.style.overflow = prev;
+    };
+  }, [moreOpen]);
+
+  /* Any navigation dismisses it, so it can never be left covering a new page. */
+  useEffect(() => { setMoreOpen(false); }, [route.page, route.param]);
 
   /* Pages that change request state (accept, cancel, send) ask for a badge
      refresh instead of waiting for a navigation. */
@@ -189,8 +213,12 @@ export default function AppShell() {
           </button>
         ))}
 
-        <button className="mn-center" onClick={() => setMoreOpen(true)} aria-label="New chat and all screens">
-          <Icon name="plus" size={20} />
+        <button
+          className={`mn-center${moreOpen ? ' open' : ''}`}
+          onClick={() => setMoreOpen(v => !v)}
+          aria-label={moreOpen ? 'Close menu' : 'New chat and all screens'}
+          aria-expanded={moreOpen}>
+          <Icon name={moreOpen ? 'close' : 'plus'} size={20} />
         </button>
 
         {MOBILE_RIGHT.map(n => (
@@ -202,10 +230,15 @@ export default function AppShell() {
       </nav>
 
       {moreOpen && (
-        <div className="more-sheet" onClick={() => setMoreOpen(false)}>
+        <div className="more-sheet below-nav" onClick={() => setMoreOpen(false)}>
           <div className="more-sheet-inner" onClick={e => e.stopPropagation()}>
-            <div className="more-grab" />
-            <b className="more-title">All screens</b>
+            <div className="more-grab" onClick={() => setMoreOpen(false)} />
+            <div className="more-head">
+              <b className="more-title">All screens</b>
+              <button className="more-close" onClick={() => setMoreOpen(false)} aria-label="Close">
+                <Icon name="close" size={18} />
+              </button>
+            </div>
             <button className="more-new" onClick={() => { setMoreOpen(false); navigate('chats'); }}>
               <Icon name="plus" size={18} /> New chat
             </button>

@@ -1,6 +1,7 @@
 import React from 'react';
 import { createRoot } from 'react-dom/client';
 import App from './App.jsx';
+import { installBackBridge } from './lib/back.js';
 import './styles.css';
 import './styles-v2.css';
 import './styles-v3.css';
@@ -49,6 +50,7 @@ function absorbOAuthFragment() {
 
 async function boot() {
   removeHostBadge();
+  installBackBridge();
   absorbOAuthFragment();
   if (DEMO) {
     const { installDemo } = await import('./lib/demo.js');
