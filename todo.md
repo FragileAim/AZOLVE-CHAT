@@ -154,3 +154,14 @@
 - [x] Bump 1.1.13 / versionCode 24; APK built, cert unchanged
 - [x] Commit 8da264b pushed; live verified 1.1.13 with fix in index-BzrsZDFr.js
 - [x] iOS zip refreshed to 1.1.13
+
+## v1.1.14 — UI overlap, invisible buttons, group photo
+- [x] Fix `.up-main` having no CSS (28px text/pill overlap in New conversation)
+- [x] Make `Modal` scrollable (`.modal-body`) + reserve bottom-nav clearance
+- [x] Make Chat settings reachable (avatar/title button in chat header)
+- [x] Add group photo upload to Create group and Chat settings
+- [x] Accept `avatar` on POST /api/chats/group
+- [x] Fix composer placeholder wrapping out of the pill at 320px
+- [x] Verify 320/360/390/430 widths: no overflow, all buttons in view
+- [x] Bump to 1.1.14 / versionCode 25, rebuild web + APK + iOS zip
+- [x] Push, confirm Render live on 1.1.14 with new bundle
