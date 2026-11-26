@@ -1,0 +1,211 @@
+# =============================================================================
+#  AZOLVE CHAT - sovereign on-premises stack
+#
+#  Services:
+#    edge        nginx - TLS termination, WebSocket upgrade, rate limiting
+#    app         the Node application (API + built web client + Socket.IO)
+#    db          PostgreSQL - stores the encrypted database snapshots
+#    turn        coturn - WebRTC relay, required for calls on mobile networks
+#    ai          Ollama - optional, only with `--profile offline-ai`
+#    translate   LibreTranslate - optional, only with `--profile offline-ai`
+#
+#  The live data store is SQLite inside the app's /data volume. PostgreSQL is
+#  NOT the live database: it is the durable, off-host copy of the encrypted
+#  snapshot, so a lost volume costs at most SNAPSHOT_EVERY seconds of data.
+#
+#  Usage:
+#    ./init.sh                                  # generate .env with real secrets
+#    docker compose up -d --build
+#    docker compose --profile offline-ai up -d  # fully air-gapped AI
+# =============================================================================
+
+name: azolve-chat
+
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "20m"
+    max-file: "5"
+
+services:
+
+  # ---------------------------------------------------------------------------
+  # Reverse proxy / TLS terminator
+  # ---------------------------------------------------------------------------
+  edge:
+    image: nginx:1.27-alpine
+    restart: unless-stopped
+    depends_on:
+      app:
+        condition: service_healthy
+    ports:
+      - "${HTTP_PORT:-80}:80"
+      - "${HTTPS_PORT:-443}:443"
+    volumes:
+      - ./nginx/azolve.conf:/etc/nginx/nginx.conf:ro
+      - ./certs:/etc/nginx/certs:ro
+    networks:
+      - edge
+    security_opt:
+      - no-new-privileges:true
+    logging: *default-logging
+
+  # ---------------------------------------------------------------------------
+  # Application
+  # ---------------------------------------------------------------------------
+  app:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+    image: azolve-chat:${APP_VERSION:-1.1.14}
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      NODE_ENV: production
+      PORT: "3000"
+      DATA_DIR: /data
+    volumes:
+      - azolve-data:/data
+    expose:
+      - "3000"
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 40s
+    # The app needs no Linux capabilities at all.
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    # Uncomment once a clean boot is confirmed. It makes the container
+    # filesystem immutable, which is the strongest protection against a
+    # compromised process writing a persistence payload.
+    # read_only: true
+    # tmpfs:
+    #   - /tmp:size=64m,mode=1777
+    deploy:
+      resources:
+        limits:
+          cpus: "${APP_CPUS:-2}"
+          memory: ${APP_MEMORY:-2g}
+    networks:
+      - edge
+      - internal
+    logging: *default-logging
+
+  # ---------------------------------------------------------------------------
+  # PostgreSQL - durable store for encrypted snapshots
+  # ---------------------------------------------------------------------------
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-azolve}
+      POSTGRES_USER: ${POSTGRES_USER:-azolve}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?run ./init.sh to generate one}
+      # Arabic / Urdu / Hindi text must survive the round trip unchanged.
+      POSTGRES_INITDB_ARGS: "--encoding=UTF8 --locale=C"
+    volumes:
+      - azolve-db:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-azolve} -d ${POSTGRES_DB:-azolve}"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 20s
+    security_opt:
+      - no-new-privileges:true
+    networks:
+      - internal
+    logging: *default-logging
+
+  # ---------------------------------------------------------------------------
+  # coturn - WebRTC relay
+  # Without this, calls fail for anyone behind a symmetric NAT or a mobile
+  # carrier CGNAT, which is most phones on du / Etisalat.
+  # ---------------------------------------------------------------------------
+  turn:
+    image: coturn/coturn:4.6.3-alpine
+    restart: unless-stopped
+    # host networking is the reliable way to publish the relay UDP range;
+    # bridge mode with 200 mapped ports is slower and more fragile.
+    network_mode: host
+    command:
+      - --log-file=stdout
+      - --listening-port=${TURN_PORT:-3478}
+      - --fingerprint
+      - --lt-cred-mech
+      - --use-auth-secret
+      - --static-auth-secret=${TURN_STATIC_AUTH_SECRET:?run ./init.sh to generate one}
+      - --realm=${TURN_REALM:-azolve.local}
+      - --min-port=${TURN_MIN_PORT:-49160}
+      - --max-port=${TURN_MAX_PORT:-49200}
+      - --total-quota=200
+      - --stale-nonce=600
+      - --no-cli
+      - --no-multicast-peers
+      - --no-loopback-peers
+      # Refuse to relay into private address space, so the TURN server cannot
+      # be abused to reach the authority's internal network.
+      - --denied-peer-ip=10.0.0.0-10.255.255.255
+      - --denied-peer-ip=172.16.0.0-172.31.255.255
+      - --denied-peer-ip=192.168.0.0-192.168.255.255
+      - --denied-peer-ip=127.0.0.0-127.255.255.255
+      - --denied-peer-ip=169.254.0.0-169.254.255.255
+    security_opt:
+      - no-new-privileges:true
+    logging: *default-logging
+
+  # ---------------------------------------------------------------------------
+  # OPTIONAL - fully offline AI. Enable with: --profile offline-ai
+  # Use this when message content must not leave the jurisdiction.
+  # ---------------------------------------------------------------------------
+  ai:
+    image: ollama/ollama:latest
+    profiles: ["offline-ai"]
+    restart: unless-stopped
+    volumes:
+      - azolve-models:/root/.ollama
+    expose:
+      - "11434"
+    networks:
+      - internal
+    logging: *default-logging
+
+  translate:
+    image: libretranslate/libretranslate:latest
+    profiles: ["offline-ai"]
+    restart: unless-stopped
+    environment:
+      # Arabic and Hindi matter most for this client; the rest are the
+      # languages already configured in the app's 27-language catalogue.
+      LT_LOAD_ONLY: "en,ar,hi,ur,fr,tl,ml"
+      LT_DISABLE_WEB_UI: "true"
+      LT_UPDATE_MODELS: "false"
+    volumes:
+      - azolve-lt:/home/libretranslate/.local
+    expose:
+      - "5000"
+    networks:
+      - internal
+    logging: *default-logging
+
+networks:
+  edge:
+    driver: bridge
+  internal:
+    driver: bridge
+    # No route to the internet: only the edge network is published.
+    internal: true
+
+volumes:
+  azolve-data:
+  azolve-db:
+  azolve-models:
+  azolve-lt:

@@ -165,3 +165,20 @@
 - [x] Verify 320/360/390/430 widths: no overflow, all buttons in view
 - [x] Bump to 1.1.14 / versionCode 25, rebuild web + APK + iOS zip
 - [x] Push, confirm Render live on 1.1.14 with new bundle
+
+## v1.1.15 — Sovereign on-premises Docker package (Government of Dubai)
+- [x] Inspect real runtime requirements (node:sqlite, web/dist, DATA_DIR, Socket.IO, /api/health, TURN strategies, translation providers)
+- [x] Two-stage Dockerfile: non-root `node`, dumb-init, HEALTHCHECK via node fetch, no secrets in layers
+- [x] docker-compose.yml: edge (nginx) + app + db (snapshot store) + turn (coturn) + optional offline-ai profile
+- [x] nginx/azolve.conf: TLS 1.2/1.3, WebSocket upgrade map, rate limits, HSTS/CSP/nosniff — validated with `nginx -t`
+- [x] .env.example: government profile, SMTP relay, libre translation, Firebase/Google/Apple blank
+- [x] init.sh: generates JWT_SECRET, SNAPSHOT_KEY, POSTGRES_PASSWORD, TURN_STATIC_AUTH_SECRET; never overwrites
+- [x] scripts/issue-cert.sh: self / csr / check modes — all three exercised, incl. key-cert mismatch detection
+- [x] scripts/fetch-models.sh: downloads Ollama + LibreTranslate models with egress into the sealed services' volumes
+- [x] scripts/backup.sh + scripts/restore.sh: checksummed backup, verified restore with recoverable previous state
+- [x] README.md: runbook, port table, air-gapped mode, sovereignty honesty section, troubleshooting
+- [x] Harden .dockerignore: `deploy/.env` and `deploy/certs` were reachable by `COPY . .` (patterns are root-anchored)
+- [x] Validate compose YAML parse + network/volume/depends_on referential integrity (pyyaml)
+- [x] Confirm every `${VAR}` in compose exists in .env.example (13/13)
+- [x] Confirm server imports never escape server/ so `COPY server` is complete
+- [x] Confirm `pg` is a runtime dependency for the snapshot backend

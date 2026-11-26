@@ -1,0 +1,6 @@
+# Never commit real secrets or issued keys.
+.env
+certs/*
+!certs/.gitkeep
+backups/
+*.log

@@ -1,12 +1,24 @@
+# --- dependencies and build output -------------------------------------------
 node_modules
 web/node_modules
+web/dist
 data
+
+# --- secrets -----------------------------------------------------------------
+# Patterns are matched against the path relative to the build context root, so
+# `.env` alone would only catch the top-level file. `deploy/.env` and the TLS
+# private key would otherwise be copied into the build stage by `COPY . .`.
 .env
 .env.*
-!.env.example
+**/.env
+**/.env.*
+deploy/certs
+deploy/backups
+
+# --- things that must never enter an image -----------------------------------
 screenshots
+docs
 *.log
 .git
 .gitignore
-docs
 README.md
