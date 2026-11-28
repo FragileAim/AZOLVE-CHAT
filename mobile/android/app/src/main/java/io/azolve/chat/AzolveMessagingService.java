@@ -163,6 +163,16 @@ public class AzolveMessagingService extends FirebaseMessagingService {
             b.setCategory(Notification.CATEGORY_MESSAGE);
         }
 
-        nm.notify((int) System.currentTimeMillis(), b.build());
+        /* A call notification gets a stable id derived from the callId so that
+           IncomingCallActivity can dismiss it the moment the user accepts or
+           declines on the native ring screen. Anything else keeps a unique id
+           so two messages never overwrite each other. */
+        int id = (isCall && callId != null) ? callId.hashCode() : (int) System.currentTimeMillis();
+        nm.notify(id, b.build());
+    }
+
+    /** Notification id for a call, shared with IncomingCallActivity. */
+    public static int callNotificationId(String callId) {
+        return callId == null ? 0 : callId.hashCode();
     }
 }

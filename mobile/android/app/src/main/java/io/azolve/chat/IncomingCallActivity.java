@@ -1,6 +1,7 @@
 package io.azolve.chat;
 
 import android.app.Activity;
+import android.app.NotificationManager;
 import android.content.Intent;
 import android.graphics.Color;
 import android.graphics.Typeface;
@@ -61,7 +62,7 @@ public class IncomingCallActivity extends Activity {
 
     private final Handler handler = new Handler(Looper.getMainLooper());
     private final Runnable timeout = new Runnable() {
-        @Override public void run() { finish(); }
+        @Override public void run() { dismissNotification(); finish(); }
     };
 
     private String callId;
@@ -268,6 +269,7 @@ public class IncomingCallActivity extends Activity {
         if (fromName != null) open.putExtra("fromName", fromName);
         if (type != null) open.putExtra("type", type);
         startActivity(open);
+        dismissNotification();
         finish();
     }
 
@@ -278,7 +280,16 @@ public class IncomingCallActivity extends Activity {
                 @Override public void run() { postDecline(token); }
             }).start();
         }
+        dismissNotification();
         finish();
+    }
+
+    /** Clear the ringing tray entry that raised this screen. */
+    private void dismissNotification() {
+        try {
+            NotificationManager nm = (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
+            if (nm != null) nm.cancel(AzolveMessagingService.callNotificationId(callId));
+        } catch (Throwable ignored) { /* not fatal */ }
     }
 
     /**
