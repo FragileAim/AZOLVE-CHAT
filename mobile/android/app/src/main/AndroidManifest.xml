@@ -66,6 +66,26 @@
             </intent-filter>
         </activity>
 
+        <!-- The incoming-call screen.
+             A full-screen intent launches this instead of MainActivity. It is
+             pure framework Views, so it paints on the first frame with no
+             network and no WebView boot, and showWhenLocked/turnScreenOn make it
+             visible over the keyguard with the screen off. Pointing the
+             full-screen intent at MainActivity was the blank-screen bug: the
+             WebView window was drawn behind the keyguard and had to cold-boot
+             before anything appeared. -->
+        <activity
+            android:name=".IncomingCallActivity"
+            android:exported="false"
+            android:excludeFromRecents="true"
+            android:launchMode="singleInstance"
+            android:noHistory="true"
+            android:showWhenLocked="true"
+            android:turnScreenOn="true"
+            android:taskAffinity=""
+            android:configChanges="orientation|screenSize|screenLayout|keyboardHidden|uiMode|smallestScreenSize|density"
+            android:theme="@style/AzolveTheme.Call" />
+
         <!-- Firebase Cloud Messaging. The service is what wakes the app when a
              call arrives and the app is closed or the phone is locked. -->
         <service

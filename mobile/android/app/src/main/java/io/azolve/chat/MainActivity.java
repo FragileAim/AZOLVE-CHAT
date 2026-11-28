@@ -6,6 +6,7 @@ import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.net.Uri;
 import android.os.Build;
+import android.view.WindowManager;
 import android.os.Bundle;
 import android.graphics.drawable.GradientDrawable;
 import android.view.Gravity;
@@ -84,6 +85,19 @@ public class MainActivity extends Activity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
+        /* A call notification can start this activity while the phone is locked
+           or the screen is off. Without these the WebView window is drawn behind
+           the keyguard and the user sees a blank screen. The ring itself is
+           IncomingCallActivity's job; this is the second half of the handoff,
+           after Accept. */
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1) {
+            setShowWhenLocked(true);
+            setTurnScreenOn(true);
+        } else {
+            getWindow().addFlags(WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED
+                    | WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON);
+        }
+
         FrameLayout root = new FrameLayout(this);
         root.setBackgroundColor(0xFF07070C);
         web = new WebView(this);
@@ -126,7 +140,7 @@ public class MainActivity extends Activity {
         s.setBuiltInZoomControls(false);
         s.setMixedContentMode(WebSettings.MIXED_CONTENT_COMPATIBILITY_MODE);
         s.setCacheMode(WebSettings.LOAD_DEFAULT);
-        s.setUserAgentString(s.getUserAgentString() + " AzolveChatApp/1.1.16");
+        s.setUserAgentString(s.getUserAgentString() + " AzolveChatApp/1.1.17");
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             s.setSafeBrowsingEnabled(true);
         }

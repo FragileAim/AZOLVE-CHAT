@@ -84,13 +84,14 @@ public class AzolveMessagingService extends FirebaseMessagingService {
         show(this, title, body == null ? "" : body,
                 isCall ? CHANNEL_CALLS : CHANNEL_MESSAGES,
                 data.get("callId"), isCall,
-                data.get("fromId"), data.get("type"), data.get("fromName"));
+                data.get("fromId"), data.get("type"), data.get("fromName"),
+                data.get("declineToken"));
     }
 
     /** Draws the notification. Also used by MainActivity for a cold-start push. */
     static void show(Context ctx, String title, String body, String channel,
                      String callId, boolean isCall) {
-        show(ctx, title, body, channel, callId, isCall, null, null, null);
+        show(ctx, title, body, channel, callId, isCall, null, null, null, null);
     }
 
     /**
@@ -104,7 +105,8 @@ public class AzolveMessagingService extends FirebaseMessagingService {
      */
     static void show(Context ctx, String title, String body, String channel,
                      String callId, boolean isCall,
-                     String fromId, String callType, String fromName) {
+                     String fromId, String callType, String fromName,
+                     String declineToken) {
         ensureChannels(ctx);
         NotificationManager nm = ctx.getSystemService(NotificationManager.class);
         if (nm == null) return;
@@ -123,6 +125,22 @@ public class AzolveMessagingService extends FirebaseMessagingService {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) flags |= PendingIntent.FLAG_IMMUTABLE;
         PendingIntent pi = PendingIntent.getActivity(ctx, (int) System.currentTimeMillis(), open, flags);
 
+        /* The full-screen intent must NOT be the WebView. See
+           IncomingCallActivity: a full-screen intent aimed at MainActivity is
+           drawn behind the keyguard and has to cold-boot the bundle, which is
+           exactly the blank screen people were seeing when a call arrived. */
+        PendingIntent fullScreen = null;
+        if (isCall && callId != null) {
+            Intent ring = new Intent(ctx, IncomingCallActivity.class);
+            ring.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
+            ring.putExtra(IncomingCallActivity.EXTRA_CALL_ID, callId);
+            if (fromId != null) ring.putExtra(IncomingCallActivity.EXTRA_FROM_ID, fromId);
+            if (callType != null) ring.putExtra(IncomingCallActivity.EXTRA_TYPE, callType);
+            if (fromName != null) ring.putExtra(IncomingCallActivity.EXTRA_FROM_NAME, fromName);
+            if (declineToken != null) ring.putExtra(IncomingCallActivity.EXTRA_DECLINE_TOKEN, declineToken);
+            fullScreen = PendingIntent.getActivity(ctx, (int) (System.currentTimeMillis() + 1), ring, flags);
+        }
+
         Notification.Builder b = Build.VERSION.SDK_INT >= Build.VERSION_CODES.O
                 ? new Notification.Builder(ctx, channel)
                 : new Notification.Builder(ctx);
@@ -138,8 +156,8 @@ public class AzolveMessagingService extends FirebaseMessagingService {
             b.setCategory(Notification.CATEGORY_CALL);
             b.setOngoing(true);
             b.setPriority(Notification.PRIORITY_MAX);
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                b.setFullScreenIntent(pi, true);
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && fullScreen != null) {
+                b.setFullScreenIntent(fullScreen, true);
             }
         } else {
             b.setCategory(Notification.CATEGORY_MESSAGE);

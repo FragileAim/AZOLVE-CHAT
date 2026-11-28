@@ -10,4 +10,17 @@
     <style name="AzolveTheme.Splash" parent="AzolveTheme">
         <item name="android:windowBackground">@drawable/splash</item>
     </style>
+
+    <!-- The incoming-call screen. Dark, no title bar, no window animation, so it
+         is on screen before the ringtone has finished its first cycle. -->
+    <style name="AzolveTheme.Call" parent="android:Theme.Material.NoActionBar">
+        <item name="android:windowBackground">#FF0A0D18</item>
+        <item name="android:statusBarColor">#FF0A0D18</item>
+        <item name="android:navigationBarColor">#FF0A0D18</item>
+        <item name="android:windowLightStatusBar">false</item>
+        <item name="android:windowNoTitle">true</item>
+        <item name="android:windowIsTranslucent">false</item>
+        <item name="android:windowDisablePreview">true</item>
+        <item name="android:windowContentOverlay">@null</item>
+    </style>
 </resources>

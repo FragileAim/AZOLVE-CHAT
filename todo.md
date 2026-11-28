@@ -196,3 +196,19 @@
 - [x] (9) Edit profile UI — rebuilt as a full-screen `ux-*` editor: cover + camera affordance, centred avatar with edit badge, grouped field cards, live bio counter, `ux-switch` for private profile, sticky Save footer; nav hidden while editing
 - [x] Bump 1.1.16 / versionCode 26, rebuild web + APK + iOS zip
 - [x] Playwright verify all fixes, commit and push
+
+## v1.1.17 — Incoming call blank screen, real root cause
+- [x] Reproduced with two live sessions (Ada → Grace) in Chromium: the web call stage renders on both sides, so the bug is Android-shell-only, not the call logic
+- [x] Root cause 1 — keyguard: `setFullScreenIntent()` pointed at `MainActivity`, which never opted into `showWhenLocked`/`turnScreenOn`. Android 8+ launches the activity from a full-screen intent while locked, but draws it *behind* the keyguard → black screen
+- [x] Root cause 2 — cold boot: the full-screen target was a WebView that must boot the React bundle and reach the server before `CallStage` can paint. Seconds of nothing, and nothing at all if the request fails
+- [x] New native `IncomingCallActivity` — pure framework Views, no WebView, no network, paints on the first frame; gradient initials disc, caller name, call type, Decline / Accept
+- [x] `setShowWhenLocked(true)` + `setTurnScreenOn(true)` (API 27+) with `FLAG_SHOW_WHEN_LOCKED`/`FLAG_TURN_SCREEN_ON` fallback for older releases; `FLAG_KEEP_SCREEN_ON`
+- [x] Manifest: `showWhenLocked`, `turnScreenOn`, `singleInstance`, `noHistory`, `taskAffinity=""`, `excludeFromRecents`, dedicated `AzolveTheme.Call` (no window preview flash)
+- [x] `AzolveMessagingService` now builds a separate full-screen PendingIntent to `IncomingCallActivity` (callId/fromId/type/fromName/declineToken) while `setContentIntent` still points at `MainActivity` for the tray tap
+- [x] Decline works without opening the app — posts the short-lived per-call token to `/api/push/decline`
+- [x] `onNewIntent` re-reads extras and rebuilds, so a second caller replaces the ring screen instead of showing the previous caller
+- [x] 45s auto-dismiss matches `CALL_RING_TIMEOUT_MS`
+- [x] `MainActivity` also opts into the keyguard as a second line of defence (warm-start path)
+- [x] Verified merged manifest with `aapt2 dump xmltree`: `showWhenLocked=true`, `turnScreenOn=true`, activity present; class present in `classes3.dex`
+- [x] Re-ran the two-user Playwright call test: caller stage renders, callee shows "Incoming video call"
+- [x] Bump 1.1.17 / versionCode 27, rebuild web + APK + iOS zip
