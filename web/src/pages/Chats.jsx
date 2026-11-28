@@ -6,7 +6,7 @@ import { Icon, Avatar, Modal, Switch, Empty, Skeleton, Verified, LangTag } from 
 import { timeAgo, clock, dayLabel, groupByDay, isRTL, bytes } from '../lib/utils.js';
 import { LANGS, langOf } from '../lib/i18n.js';
 import Hear, { SpeakingBars } from '../components/Hear.jsx';
-import { useSpeech, speechSupported, resolveVoice } from '../lib/speech.js';
+import { useSpeech, speechSupported, resolveVoice, nativeTtsAvailable, webSpeechSupported } from '../lib/speech.js';
 import { useCall } from '../components/CallHost.jsx';
 
 /* ============================== list ===================================== */
@@ -749,10 +749,15 @@ function MessageBubble({ m, mine, sender, showName, isGroup, me, participants, o
      the UI instead of leaving a tap that silently does nothing. */
   const hear = () => {
     if (!speechSupported()) {
-      onUnavailable?.('This browser has no speech engine. Try Chrome, Edge, Safari or Firefox.');
+      /* Neither the native bridge nor the web engine exists. Say what to do
+         about it rather than blaming the "browser" inside an app. */
+      onUnavailable?.('This device has no speech engine installed, so messages cannot be read aloud.');
       return;
     }
-    if (resolveVoice(hearLang).quality === 'none') {
+    /* The voice-list check only applies to the web engine. The native Android
+       engine keeps its own voice data and reports availability itself, so
+       asking the browser for voices there would wrongly block the tap. */
+    if (!nativeTtsAvailable() && webSpeechSupported() && resolveVoice(hearLang).quality === 'none') {
       onUnavailable?.(`No speech voices are installed on this device, so ${langOf(hearLang).native} cannot be spoken here.`);
       return;
     }

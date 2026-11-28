@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Icon } from './UI.jsx';
-import { useSpeech, whenVoicesReady, resolveVoice, speechSupported } from '../lib/speech.js';
+import { useSpeech, whenVoicesReady, whenNativeReady, resolveVoice, speechSupported, nativeTtsAvailable, webSpeechSupported } from '../lib/speech.js';
 import { langOf } from '../lib/i18n.js';
 
 /* animated equalizer shown while a clip is playing */
@@ -31,18 +31,31 @@ export default function Hear({
   const playing = sp.isPlaying(id);
   const language = langOf(lang);
 
-  useEffect(() => { whenVoicesReady().then(() => setReady(true)); }, []);
+  /* The native Android engine keeps its own voice data and never appears in the
+     Web Speech voice list, so waiting for `voiceschanged` there would leave the
+     button permanently "loading". */
+  const [native, setNative] = useState(nativeTtsAvailable());
+  useEffect(() => {
+    if (native) { setReady(true); return; }
+    /* Native engine warming up, or a real browser: whichever resolves first. */
+    let live = true;
+    whenNativeReady().then(ok => { if (live && ok) { setNative(true); setReady(true); } });
+    whenVoicesReady().then(() => { if (live) setReady(true); });
+    return () => { live = false; };
+  }, [native]);
 
-  const quality = ready ? resolveVoice(lang).quality : 'unknown';
+  const quality = native ? 'native' : (ready ? resolveVoice(lang).quality : 'unknown');
   const approximate = quality === 'approximate';
 
   const onClick = (e) => {
     e.stopPropagation();
     if (!speechSupported()) {
-      onUnavailable?.('This browser does not support speech. Try Chrome, Edge, Safari or Firefox.');
+      onUnavailable?.('This device has no speech engine installed, so messages cannot be read aloud. On Android, enable "Speech Services by Google" in system settings.');
       return;
     }
-    if (quality === 'none') {
+    /* Only the web engine can be missing a language. The native engine falls
+       back to the device default rather than refusing. */
+    if (!native && webSpeechSupported() && quality === 'none') {
       onUnavailable?.(`No speech voices are installed on this device, so ${language.native} cannot be spoken here.`);
       return;
     }

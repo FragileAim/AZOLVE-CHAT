@@ -212,3 +212,15 @@
 - [x] Verified merged manifest with `aapt2 dump xmltree`: `showWhenLocked=true`, `turnScreenOn=true`, activity present; class present in `classes3.dex`
 - [x] Re-ran the two-user Playwright call test: caller stage renders, callee shows "Incoming video call"
 - [x] Bump 1.1.17 / versionCode 27, rebuild web + APK + iOS zip
+
+## v1.1.18 — "blank when picked" + "no speech engine"
+- [x] Reproduced the real bug: tapping **Accept** threw `ReferenceError: isNativeShell is not defined` inside `startLiveCaption()`, the error escaped the effect and unmounted the whole call stage → blank screen. Confirmed with a two-user Playwright test (PAGEERROR captured at the exact moment of accept).
+- [x] `isNativeShell` was called in `livecaption.js` but never defined or imported anywhere. Added `web/src/lib/shell.js` with real detection (AzolvePush/AzolveTts bridge, Capacitor, `AzolveChatApp/` UA, iOS WKWebView) and imported it.
+- [x] Captions are now non-fatal: `startLiveCaption()` is wrapped in try/catch inside `CallStage`, so a caption failure reports `liveStatus: error` instead of taking the call down.
+- [x] Verified both call types end-to-end after the fix: video → callee `In call · 0:01 → 0:07`, remote audio+video streams attached, captions live; voice → same with audio only. Caller and callee both stay mounted.
+- [x] "This browser has no speech engine. Try Chrome, Edge, Safari or Firefox." — Android WebView exposes `speechSynthesis` but has no voices bound, so tap-to-hear was dead in the app. Added a native `TtsBridge` (`window.AzolveTts`) on Android's TextToSpeech engine, registered in `MainActivity`, with `isReady/status/error/hasLanguage/speak/stop/platform` and an utterance-complete callback.
+- [x] `speech.js` now routes to the native engine first, waits for it to warm up (`whenNativeReady`), and falls back to `speechSynthesis` in a real browser. Split the web path into `speakWeb()` so both engines are explicit.
+- [x] `Hear.jsx` no longer blocks on the Web Speech voice list when the native engine is present, and polls for the engine becoming ready.
+- [x] Reworded the failure copy: it now says the *device* has no speech engine and tells Android users to enable "Speech Services by Google", instead of blaming the browser inside an app.
+- [x] Verified the routing in isolation: native bridge → 1 native call, `ok:true`; browser → 1 web utterance, `ok:true`; no engine → clean `novoice` with no throw.
+- [x] Bump 1.1.18 / versionCode 28, rebuild web + APK + iOS zip

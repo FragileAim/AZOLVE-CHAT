@@ -26,6 +26,7 @@
    `unsupported`, and the caption bar stays empty.
    ========================================================================== */
 import { api } from './api.js';
+import { isNativeShell } from './shell.js';
 
 const LANG_TAG = {
   en: 'en-US', hi: 'hi-IN', ar: 'ar-SA', gu: 'gu-IN', es: 'es-ES', fr: 'fr-FR',

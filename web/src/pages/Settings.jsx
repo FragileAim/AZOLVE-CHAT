@@ -75,7 +75,7 @@ function VoicePanel({ notify }) {
 
       {!supported && (
         <div className="voice-warn">
-          <Icon name="warning" size={15} /> This browser has no speech engine, so tap-to-hear is unavailable here.
+          <Icon name="warning" size={15} /> This device has no speech engine, so tap-to-hear is unavailable here. On Android, install or enable "Speech Services by Google" in system settings.
         </div>
       )}
 

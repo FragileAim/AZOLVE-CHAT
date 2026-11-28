@@ -430,7 +430,13 @@ function CallStageInner({ call, onClose, onRedial }) {
     const theirLang = call.peer?.language || 'en';
     let cancelled = false;
 
-    const engine = startLiveCaption({
+    /* Captions are an enhancement, never a dependency. A throw in here used to
+       propagate out of the effect and unmount the entire call stage — the
+       "screen goes blank when I pick up" report. Whatever goes wrong, the call
+       itself must keep rendering. */
+    let engine = { stop() {} };
+    try {
+      engine = startLiveCaption({
       stream: streamRef.current,
       lang: myLang,
       targetLang: theirLang,
@@ -475,6 +481,11 @@ function CallStageInner({ call, onClose, onRedial }) {
         }
       },
     });
+    } catch (err) {
+      console.warn('[call] live captions could not start:', err?.message || err);
+      if (!cancelled) setLiveStatus({ state: 'error', engine: null, error: String(err?.message || err) });
+      return undefined;
+    }
     liveRef.current = engine;
     return () => { cancelled = true; engine.stop?.(); liveRef.current = null; };
   }, [phase, liveOn, muted, peerId, callId, user.language, call.peer?.language, addCaption]);

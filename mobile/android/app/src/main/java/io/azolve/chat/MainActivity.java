@@ -72,7 +72,12 @@ public class MainActivity extends Activity {
     private static final long AUTO_RETRY_MS = 7000;
     private static final int MAX_AUTO_RETRIES = 8;
 
+    /* The live instance, so bridges can reach the page without holding a
+       Context that outlives the Activity. */
+    public static MainActivity current;
+
     private WebView web;
+    private TtsBridge tts;
     private ValueCallback<Uri[]> filePathCallback;
     private PermissionRequest pendingWebPermission;
     private View splash;
@@ -84,6 +89,7 @@ public class MainActivity extends Activity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        current = this;
 
         /* A call notification can start this activity while the phone is locked
            or the screen is off. Without these the WebView window is drawn behind
@@ -122,6 +128,16 @@ public class MainActivity extends Activity {
         /* Push bridge. The page calls window.AzolvePush.getToken() etc. */
         web.addJavascriptInterface(new PushBridge(this), "AzolvePush");
 
+        /* Native text-to-speech. Android WebView has no usable speechSynthesis
+           voices, so "tap to hear" was failing with "this browser has no speech
+           engine". The phone's own TTS engine is used instead. */
+        try {
+            tts = new TtsBridge(this);
+            web.addJavascriptInterface(tts, "AzolveTts");
+        } catch (Throwable t) {
+            android.util.Log.w("AzolveTts", "TTS bridge unavailable: " + t.getMessage());
+        }
+
         /* Android 13+ requires the runtime notification permission before any
            notification can be posted. Asking on first launch is the only time
            the prompt makes sense. */
@@ -140,7 +156,7 @@ public class MainActivity extends Activity {
         s.setBuiltInZoomControls(false);
         s.setMixedContentMode(WebSettings.MIXED_CONTENT_COMPATIBILITY_MODE);
         s.setCacheMode(WebSettings.LOAD_DEFAULT);
-        s.setUserAgentString(s.getUserAgentString() + " AzolveChatApp/1.1.17");
+        s.setUserAgentString(s.getUserAgentString() + " AzolveChatApp/1.1.18");
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             s.setSafeBrowsingEnabled(true);
         }
@@ -714,10 +730,19 @@ public class MainActivity extends Activity {
 
     @Override
     protected void onDestroy() {
+        if (current == this) current = null;
+        if (tts != null) { tts.shutdown(); tts = null; }
         if (web != null) {
             web.loadUrl("about:blank");
             web.destroy();
         }
         super.onDestroy();
+    }
+
+    /** Run a snippet in the page. Used by the native bridges to report back. */
+    public void evalJs(String js) {
+        try {
+            if (web != null) web.evaluateJavascript(js, null);
+        } catch (Throwable ignored) { /* page is gone */ }
     }
 }

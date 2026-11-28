@@ -1,8 +1,16 @@
 /* ============================================================================
    AZOLVE SPEECH — "tap to hear"
    ----------------------------------------------------------------------------
-   Real text-to-speech on top of the Web Speech API (speechSynthesis). No API
-   keys, no network round-trip: the voice comes from the device.
+   Two real engines, picked at runtime:
+
+   1. The native bridge (`window.AzolveTts`). Inside the Android app the WebView
+      exposes speechSynthesis but almost never has a voice list bound to it, so
+      every tap failed with "this browser has no speech engine" even though the
+      phone can obviously talk. The bridge hands the text to Android's own
+      TextToSpeech engine, which is the engine that actually exists there.
+
+   2. The Web Speech API (speechSynthesis) in a real browser. No API keys, no
+      network round-trip: the voice comes from the device.
 
    Design rules:
    - One utterance at a time, app-wide. Starting a new one stops the old one.
@@ -11,6 +19,38 @@
    - We never pretend a language is available. `resolveVoice` reports whether
      the match is native, approximate, or missing, and the UI says so.
    ========================================================================== */
+import { isNativeShell } from './shell.js';
+
+/* The native bridge is injected before the page loads, but the TTS engine
+   initialises asynchronously, so `ready` can flip a moment after boot. */
+const nativeTts = () => {
+  if (typeof window === 'undefined') return null;
+  const b = window.AzolveTts;
+  if (!b) return null;
+  try { return typeof b.speak === 'function' ? b : null; } catch { return null; }
+};
+
+export const nativeTtsAvailable = () => {
+  const b = nativeTts();
+  if (!b) return false;
+  try { return b.isReady() === true; } catch { return false; }
+};
+
+/* The Android engine initialises asynchronously and can take a moment on a cold
+   start. Poll briefly so the button flips to "ready" instead of staying dead. */
+export const whenNativeReady = (timeout = 3000) => new Promise(resolve => {
+  const b = nativeTts();
+  if (!b) return resolve(false);
+  const started = Date.now();
+  const tick = () => {
+    let ok = false;
+    try { ok = b.isReady() === true; } catch { ok = false; }
+    if (ok) return resolve(true);
+    if (Date.now() - started >= timeout) return resolve(false);
+    setTimeout(tick, 150);
+  };
+  tick();
+});
 
 const LANG_TAG = {
   en: 'en-US', hi: 'hi-IN', ar: 'ar-SA', gu: 'gu-IN', es: 'es-ES', fr: 'fr-FR',
@@ -20,7 +60,17 @@ const LANG_TAG = {
   he: 'he-IL', fa: 'fa-IR', sw: 'sw-KE',
 };
 
-export const speechSupported = () =>
+/* "Can this device speak at all?" — true for either engine, so the UI never
+   hides the button on a phone that has a perfectly good TTS engine. */
+export const speechSupported = () => {
+  if (typeof window === 'undefined') return false;
+  if (nativeTts()) return true;
+  return 'speechSynthesis' in window && 'SpeechSynthesisUtterance' in window;
+};
+
+/* True when the *web* engine is what will be used. The UI uses this to explain
+   why a language may be missing. */
+export const webSpeechSupported = () =>
   typeof window !== 'undefined' && 'speechSynthesis' in window && 'SpeechSynthesisUtterance' in window;
 
 /* ------------------------------- voices ---------------------------------- */
@@ -126,10 +176,85 @@ function splitChunks(text, max = 180) {
 export function stopSpeech() {
   queue = [];
   playing = false;
-  if (speechSupported()) {
-    try { window.speechSynthesis.cancel(); } catch {}
+  nativeToken += 1;          // invalidates any in-flight native utterance
+  nativeFinish = null;
+  const bridge = nativeTts();
+  if (bridge) { try { bridge.stop(); } catch { /* already stopped */ } }
+  if (webSpeechSupported()) {
+    try { window.speechSynthesis.cancel(); } catch { /* nothing queued */ }
   }
   emit({ id: null, lang: null, status: 'idle', error: null });
+}
+
+/* --------------------------- native engine ------------------------------- */
+/* Android's TextToSpeech speaks one utterance at a time and reports completion
+   back through `window.__azolveTtsDone(id, ok)`. We feed the chunks one after
+   another so long messages are not truncated, and we keep a single global
+   resolver so a new tap can cancel the previous one cleanly. */
+let nativeFinish = null;
+let nativeToken = 0;
+
+if (typeof window !== 'undefined') {
+  window.__azolveTtsDone = (id, ok) => {
+    if (nativeFinish) nativeFinish(id, ok);
+  };
+}
+
+function speakNative({ bridge, chunks, lang, id, rate, pitch, onDone }) {
+  stopSpeech();
+  playing = true;
+  emit({ id, lang, status: 'speaking', quality: 'native', error: null });
+
+  const myToken = ++nativeToken;
+
+  return new Promise(resolve => {
+    let idx = 0;
+    let alive = true;
+
+    const finish = (result) => {
+      if (!alive) return;
+      alive = false;
+      nativeFinish = null;
+      playing = false;
+      if (result.ok) {
+        emit({ id: null, lang: null, status: 'idle', error: null });
+        onDone?.();
+      } else {
+        emit({ id: null, lang: null, status: 'error', error: result.error || null });
+      }
+      resolve(result);
+    };
+
+    /* The bridge reports back with the utterance id it was given, so we tag
+       each chunk and only advance on a match. */
+    nativeFinish = (doneId, ok) => {
+      if (!alive || myToken !== nativeToken) return;
+      if (doneId !== `${id}#${idx - 1}`) return;
+      if (!ok) return finish({ ok: false, error: 'The speech engine stopped.' });
+      next();
+    };
+
+    const next = () => {
+      if (!alive || myToken !== nativeToken) return;
+      if (idx >= chunks.length) return finish({ ok: true });
+      const part = chunks[idx];
+      const uid = `${id}#${idx}`;
+      idx += 1;
+      let started = '';
+      try {
+        started = bridge.speak(part, lang, rate, pitch, uid) || '';
+      } catch (e) {
+        return finish({ ok: false, error: String(e?.message || e) });
+      }
+      if (!started) {
+        let err = '';
+        try { err = bridge.error?.() || ''; } catch { /* optional */ }
+        return finish({ ok: false, error: err || 'The speech engine could not speak this.' });
+      }
+    };
+
+    next();
+  });
 }
 
 /**
@@ -138,7 +263,7 @@ export function stopSpeech() {
  */
 export function speak({ text, lang = 'en', id = 'default', rate = 1, pitch = 1, onDone }) {
   if (!speechSupported()) {
-    emit({ id, lang, status: 'unsupported', quality: 'none', error: 'This browser has no speech engine.' });
+    emit({ id, lang, status: 'unsupported', quality: 'none', error: 'This device has no speech engine.' });
     return Promise.resolve({ ok: false, reason: 'unsupported' });
   }
 
@@ -150,6 +275,31 @@ export function speak({ text, lang = 'en', id = 'default', rate = 1, pitch = 1, 
 
   const chunks = splitChunks(text);
   if (!chunks.length) return Promise.resolve({ ok: false, reason: 'empty' });
+
+  /* Native engine first: inside the app it is the only one that works. */
+  const bridge = nativeTts();
+  if (bridge) {
+    let ready = false;
+    try { ready = bridge.isReady() === true; } catch { ready = false; }
+    if (ready) return speakNative({ bridge, chunks, lang, id, rate, pitch, onDone });
+    /* Engine still warming up. Wait for it rather than silently falling back to
+       a web engine that has no voices on this platform. */
+    emit({ id, lang, status: 'loading', quality: 'native', error: null });
+    return whenNativeReady(2500).then(ok => {
+      if (ok) return speakNative({ bridge, chunks, lang, id, rate, pitch, onDone });
+      return speakWeb({ chunks, lang, id, rate, pitch, onDone });
+    });
+  }
+
+  return speakWeb({ chunks, lang, id, rate, pitch, onDone });
+}
+
+/* --------------------------- web engine ---------------------------------- */
+function speakWeb({ chunks, lang, id, rate, pitch, onDone }) {
+  if (!webSpeechSupported()) {
+    emit({ id, lang, status: 'unsupported', quality: 'none', error: 'This device has no speech engine.' });
+    return Promise.resolve({ ok: false, reason: 'unsupported' });
+  }
 
   const { voice, quality } = resolveVoice(lang);
   if (quality === 'none') {
