@@ -55,8 +55,18 @@ function announce(detail) {
   try { window.dispatchEvent(new CustomEvent('azolve:server-waking', { detail })); } catch { /* noop */ }
 }
 
+/* A 502/503/504 means the platform accepted the connection but the app was not
+   running yet — worth waiting out. A thrown TypeError means the request never
+   reached anything at all: no radio, no DNS, no route. Waiting 42 seconds for
+   that is what made the app sit on the splash screen forever with no signal,
+   so network-level failures get a much shorter budget and then fall through to
+   the offline cache. */
+const NET_DELAYS = [700, 1400];
+const NET_MAX_FAILS = NET_DELAYS.length;
+
 async function fetchWithWakeUp(url, opts) {
   let lastErr = null;
+  let netFails = 0;
   for (let attempt = 0; attempt <= BOOT_DELAYS.length; attempt++) {
     try {
       const res = await fetch(url, opts);
@@ -71,9 +81,12 @@ async function fetchWithWakeUp(url, opts) {
       return res;
     } catch (e) {
       lastErr = e;
+      netFails += 1;
+      const offline = typeof navigator !== 'undefined' && navigator.onLine === false;
+      if (offline || netFails > NET_MAX_FAILS) break;
       if (attempt < BOOT_DELAYS.length) {
         announce({ attempt: attempt + 1, total: BOOT_DELAYS.length });
-        await sleep(BOOT_DELAYS[attempt]);
+        await sleep(NET_DELAYS[Math.min(netFails - 1, NET_DELAYS.length - 1)]);
         continue;
       }
     }
@@ -85,13 +98,84 @@ async function fetchWithWakeUp(url, opts) {
   throw err;
 }
 
+/* ---------------------------------------------------------------------------
+   Offline read cache
+   ---------------------------------------------------------------------------
+   A phone on a lift, a train tunnel, a plane, or simply a host that has gone to
+   sleep used to mean a blank app: every screen waited on a request that could
+   not complete. Nothing was ever kept locally, so "offline" was the same as
+   "broken".
+
+   Every successful GET is now mirrored into localStorage (small responses
+   only), and when the network cannot be reached at all the cached copy is
+   returned instead. The app boots, the last conversation list renders, the
+   profile loads — read-only, clearly marked as offline, and honest about it.
+   Writes are never faked: they fail loudly, as they should.
+--------------------------------------------------------------------------- */
+const CACHE_PREFIX = 'azolve.cache:';
+const CACHE_MAX_BYTES = 200 * 1024;
+const CACHE_MAX_KEYS = 60;
+
+function cacheGet(path) {
+  try {
+    const raw = localStorage.getItem(CACHE_PREFIX + path);
+    if (!raw) return null;
+    const rec = JSON.parse(raw);
+    return rec && rec.data !== undefined ? rec : null;
+  } catch { return null; }
+}
+
+function pruneCache() {
+  try {
+    const keys = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (k && k.startsWith(CACHE_PREFIX)) keys.push(k);
+    }
+    if (keys.length <= CACHE_MAX_KEYS) return;
+    const stamped = keys.map((k) => {
+      let at = 0;
+      try { at = JSON.parse(localStorage.getItem(k)).at || 0; } catch { /* skip */ }
+      return { k, at };
+    }).sort((a, b) => a.at - b.at);
+    stamped.slice(0, keys.length - CACHE_MAX_KEYS).forEach(({ k }) => localStorage.removeItem(k));
+  } catch { /* storage unavailable: caching is optional */ }
+}
+
+function cachePut(path, data) {
+  try {
+    const json = JSON.stringify({ at: Date.now(), data });
+    if (json.length > CACHE_MAX_BYTES) return;
+    localStorage.setItem(CACHE_PREFIX + path, json);
+    pruneCache();
+  } catch { /* quota exceeded: drop the cache write, never the request */ }
+}
+
+/** Tell the shell that what is on screen came from disk, not the server. */
+export function announceOffline() {
+  try { window.dispatchEvent(new CustomEvent('azolve:offline')); } catch { /* noop */ }
+}
+
 export async function api(path, { method = 'GET', body, headers = {}, raw = false, retry = true } = {}) {
   const token = getToken();
   const opts = { method, headers: { ...headers } };
   if (token) opts.headers.Authorization = `Bearer ${token}`;
   if (body instanceof FormData) opts.body = body;
   else if (body !== undefined) { opts.headers['Content-Type'] = 'application/json'; opts.body = JSON.stringify(body); }
-  const res = await fetchWithWakeUp(`/api${path}`, opts);
+
+  let res;
+  try {
+    res = await fetchWithWakeUp(`/api${path}`, opts);
+  } catch (e) {
+    /* Only reads can be served from disk. A write that did not reach the server
+       must fail, otherwise the user believes a message was sent when it was not. */
+    if (method === 'GET') {
+      const hit = cacheGet(path);
+      if (hit) { announceOffline(); return hit.data; }
+    }
+    throw e;
+  }
+
   if (res.status === 401 && retry && getRefresh() && !NO_RETRY.test(path)) {
     const peek = await res.clone().json().catch(() => ({}));
     try {
@@ -110,6 +194,7 @@ export async function api(path, { method = 'GET', body, headers = {}, raw = fals
     Object.assign(e, data, { status: res.status });
     throw e;
   }
+  if (method === 'GET') cachePut(path, data);
   return data;
 }
 

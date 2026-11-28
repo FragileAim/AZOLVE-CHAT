@@ -283,18 +283,34 @@ function CommunityDetail({ id, onBack }) {
 }
 
 export default function Communities() {
-  const { notify } = useApp();
   const [list, setList] = useState(null);
   const [q, setQ] = useState('');
   const [cat, setCat] = useState('All');
+  /* "For you" is a real, server-ranked feed — not a label over the same list.
+     It used to not exist at all, and the only thing that ever said "For you"
+     was the People directory, so tapping it here surfaced a network error. */
+  const [feed, setFeed] = useState('for-you');
+  const [err, setErr] = useState(null);
   const [creating, setCreating] = useState(false);
   const [selected, setSelected] = useState(null);
 
   const load = async () => {
-    try { const r = await API.communities(q ? `?q=${encodeURIComponent(q)}` : ''); setList(r.communities || []); }
-    catch (e) { notify(e.message, 'err'); setList([]); }
+    setErr(null);
+    try {
+      const query = q
+        ? `?q=${encodeURIComponent(q)}`
+        : (feed === 'for-you' ? '?feed=for-you' : '');
+      const r = await API.communities(query);
+      setList(r.communities || []);
+    } catch (e) {
+      /* Say what actually happened. The old code toasting the raw error text is
+         where "server not found" came from — a failed request described in
+         transport terms instead of human ones. */
+      setErr(e?.network ? 'Could not reach AZOLVE. Check your connection and try again.' : (e?.message || 'Could not load communities.'));
+      setList([]);
+    }
   };
-  useEffect(() => { const t = setTimeout(load, 300); return () => clearTimeout(t); }, [q]);
+  useEffect(() => { const t = setTimeout(load, 300); return () => clearTimeout(t); }, [q, feed]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (selected) return <CommunityDetail id={selected} onBack={() => { setSelected(null); load(); }} />;
 
@@ -320,13 +336,34 @@ export default function Communities() {
           </div>
         </div>
 
+        <div className="ux-seg" role="tablist" aria-label="Community feed">
+          <button
+            role="tab"
+            aria-selected={feed === 'for-you'}
+            className={feed === 'for-you' ? 'on' : ''}
+            onClick={() => { setFeed('for-you'); setCat('All'); }}
+          >
+            ✨ For you
+          </button>
+          <button
+            role="tab"
+            aria-selected={feed === 'all'}
+            className={feed === 'all' ? 'on' : ''}
+            onClick={() => setFeed('all')}
+          >
+            All spaces
+          </button>
+        </div>
+
         <div className="ux-cats">
           {CATEGORIES.map(c => (
             <button key={c} className={`ux-cat ${cat === c ? 'on' : ''}`} onClick={() => setCat(c)}>{c}</button>
           ))}
         </div>
 
-        <p className="ux-sub">Your spaces <span>{filtered.length}</span></p>
+        <p className="ux-sub">
+          {feed === 'for-you' ? 'Picked for you' : 'Your spaces'} <span>{filtered.length}</span>
+        </p>
 
         {list === null && (
           <div className="ux-comm-list">
@@ -334,10 +371,18 @@ export default function Communities() {
           </div>
         )}
 
-        {list && filtered.length === 0 && (
+        {err && (
+          <div className="ux-pf-empty">
+            <b>Couldn’t load communities</b>
+            <p>{err}</p>
+            <button className="ux-set-btn" style={{ marginTop: 14 }} onClick={load}>Try again</button>
+          </div>
+        )}
+
+        {!err && list && filtered.length === 0 && (
           <div className="ux-pf-empty">
             <b>No communities found</b>
-            <p>Try another category, or start one for your people.</p>
+            <p>{feed === 'for-you' ? 'Join a space or two and this feed fills up.' : 'Try another category, or start one for your people.'}</p>
             <button className="ux-set-btn" style={{ marginTop: 14 }} onClick={() => setCreating(true)}>Create a community</button>
           </div>
         )}

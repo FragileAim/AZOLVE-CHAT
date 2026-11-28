@@ -110,15 +110,45 @@ function dropDead(endpoint) {
  */
 export async function sendToUser(userId, payload) {
   let sent = 0;
+  const p = payload || {};
+  const isCall = p.kind === 'call' || p.kind === 'incoming_call';
 
-  /* --- native shell --- */
+  /* --- native shell ---
+     FCM v1 can only carry flat string key/value data, so a nested payload like
+     {kind:'call', from:{id,name}} has to be flattened here. This used to be
+     skipped entirely: sendToUser passed `payload.data`, which a call payload
+     does not have, so the phone received a data-only message with an empty data
+     map. AzolveMessagingService then saw no `kind`, drew a generic "AZOLVE
+     CHAT" tray entry with no body, and tapping it opened the app without ever
+     joining the call. Flattening fixes both the ringing and the tap-through. */
+  const flat = { ...(p.data || {}) };
+  if (isCall) {
+    flat.kind = 'call';
+    flat.callId = p.callId || '';
+    flat.type = p.type || 'audio';
+    flat.conversationId = p.conversationId || '';
+    flat.fromId = p.from?.id || '';
+    flat.fromName = p.from?.displayName || 'Someone';
+    flat.fromAvatar = p.from?.avatar || '';
+    flat.fromLanguage = p.from?.language || 'en';
+    flat.declineToken = p.declineToken || '';
+  } else {
+    if (p.kind) flat.kind = p.kind;
+    if (p.tag) flat.tag = p.tag;
+    flat.title = p.title || 'AZOLVE CHAT';
+    flat.body = p.body || '';
+  }
+
+  const title = isCall
+    ? `${p.from?.displayName || 'Someone'} is ${p.type === 'video' ? 'video calling' : 'calling'}`
+    : (p.title || 'AZOLVE CHAT');
+  const body = isCall
+    ? (p.type === 'video' ? 'Tap Accept to join the video call' : 'Tap Accept to answer')
+    : (p.body || '');
+
   try {
     const { sendToUserFcm } = await import('./fcm.js');
-    sent += await sendToUserFcm(userId, {
-      title: payload?.title || 'AZOLVE CHAT',
-      body: payload?.body || '',
-      data: payload?.data || {},
-    });
+    sent += await sendToUserFcm(userId, { title, body, data: flat });
   } catch { /* FCM is optional; web push still runs */ }
 
   /* --- browsers --- */
@@ -135,12 +165,12 @@ export async function sendToUser(userId, payload) {
   const subs = all('SELECT * FROM push_subscriptions WHERE user_id = ?', userId);
   if (!subs.length) return sent;
 
-  const body = JSON.stringify(payload);
+  const raw = JSON.stringify(payload);
   await Promise.all(subs.map(async (s) => {
     try {
       await sendNotification(
         { endpoint: s.endpoint, keys: { p256dh: s.p256dh, auth: s.auth } },
-        body,
+        raw,
         { TTL: 45, urgency: 'high' },
       );
       sent++;

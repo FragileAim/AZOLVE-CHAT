@@ -56,31 +56,32 @@
       /* never show the hosting badge inside the product */
       #ninja-badge, .ninja-badge { display: none !important; visibility: hidden !important; opacity: 0 !important; pointer-events: none !important; }
 
-      html, body { margin: 0; background: #0A0A12; }
+      html, body { margin: 0; background: #07070C; }
+      /* First paint before React mounts. It deliberately mirrors the native
+         Android splash and the React <Splash/> exactly — same wordmark, same
+         teal accent, same tagline, same thin progress line — so the four
+         handovers read as one continuous loading screen instead of four
+         different designs flashing past. */
       #preboot {
         position: fixed; inset: 0; display: flex; flex-direction: column;
-        align-items: center; justify-content: center; gap: 18px;
-        background: radial-gradient(120% 90% at 50% 0%, #1A1830 0%, #0A0A12 60%);
+        align-items: center; justify-content: center;
+        background: #07070C;
         font-family: 'Plus Jakarta Sans', system-ui, sans-serif; color: #EDEDF5; z-index: 9999;
       }
-      #preboot .ring {
-        width: 64px; height: 64px; border-radius: 50%;
-        border: 2px solid rgba(255,255,255,.08);
-        border-top-color: #8B7BFF; border-right-color: #5AC8FA;
-        animation: prebootSpin .9s linear infinite;
-      }
-      #preboot .bar { width: 150px; height: 3px; border-radius: 99px; background: rgba(255,255,255,.09); overflow: hidden; }
-      #preboot .bar i { display: block; width: 40%; height: 100%; border-radius: 99px; background: linear-gradient(90deg,#8B7BFF,#5AC8FA,#FF7AB6); animation: prebootSlide 1.1s ease-in-out infinite; }
-      #preboot .nm { font-size: 12px; letter-spacing: .28em; font-weight: 700; opacity: .7; }
-      @keyframes prebootSpin { to { transform: rotate(360deg); } }
+      #preboot .word { font-size: 34px; font-weight: 800; letter-spacing: .22em; color: #fff; }
+      #preboot .sub { font-size: 13px; font-weight: 800; letter-spacing: .52em; color: #18E0C8; margin-top: 6px; }
+      #preboot .tag { font-size: 12px; color: #8A8AA0; margin-top: 18px; }
+      #preboot .bar { width: 120px; height: 2px; margin-top: 26px; border-radius: 99px; background: rgba(255,255,255,.10); overflow: hidden; }
+      #preboot .bar i { display: block; width: 40%; height: 100%; border-radius: 99px; background: linear-gradient(90deg,#6D5EF8,#18E0C8); animation: prebootSlide 1.15s ease-in-out infinite; }
       @keyframes prebootSlide { 0% { transform: translateX(-100%); } 100% { transform: translateX(320%); } }
     </style>
 </head>
   <body>
     <div id="root">
       <div id="preboot">
-        <div class="ring"></div>
-        <div class="nm">AZOLVE CHAT</div>
+        <div class="word">AZOLVE</div>
+        <div class="sub">CHAT</div>
+        <div class="tag">Every language. One conversation.</div>
         <div class="bar"><i></i></div>
       </div>
     </div>

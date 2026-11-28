@@ -17,10 +17,99 @@
 
 const ICON = '/logo.svg';
 
+/* ---------------------------------------------------------------------------
+   Offline shell
+   ---------------------------------------------------------------------------
+   This worker used to handle push only. That meant a phone with no signal got
+   the browser's own "no internet" page — the app could not even open, let alone
+   show what it already knew. It now keeps the app shell on disk:
+
+     - navigations  : network first, cached index.html when the network fails
+     - /assets/*    : cache first, refreshed in the background
+
+   API responses are deliberately NOT cached here. They are handled in
+   lib/api.js, which knows which reads are safe to replay and which writes must
+   fail honestly.
+--------------------------------------------------------------------------- */
+const SHELL_CACHE = 'azolve-shell-v1';
+const ASSET_CACHE = 'azolve-assets-v1';
+
 /* Take over immediately: a worker that waits for every old tab to close is a
    worker that misses calls. */
-self.addEventListener('install', () => self.skipWaiting());
-self.addEventListener('activate', (e) => e.waitUntil(self.clients.claim()));
+self.addEventListener('install', (event) => {
+  self.skipWaiting();
+  event.waitUntil((async () => {
+    try {
+      const c = await caches.open(SHELL_CACHE);
+      await c.add(new Request('/index.html', { cache: 'reload' }));
+    } catch { /* first run offline: nothing to precache yet */ }
+  })());
+});
+
+self.addEventListener('activate', (event) => {
+  event.waitUntil((async () => {
+    /* Drop caches from older versions so a stale shell cannot outlive a deploy. */
+    const keep = new Set([SHELL_CACHE, ASSET_CACHE]);
+    const names = await caches.keys();
+    await Promise.all(names.filter((n) => n.startsWith('azolve-') && !keep.has(n)).map((n) => caches.delete(n)));
+    await self.clients.claim();
+  })());
+});
+
+self.addEventListener('fetch', (event) => {
+  const req = event.request;
+  if (req.method !== 'GET') return;
+
+  let url;
+  try { url = new URL(req.url); } catch { return; }
+  if (url.origin !== self.location.origin) return;
+
+  /* Never intercept the API, the socket, or user uploads: those must fail
+     honestly rather than be answered from disk. */
+  const p = url.pathname;
+  if (p.startsWith('/api/') || p.startsWith('/socket.io/') || p.startsWith('/uploads/')) return;
+
+  /* --- navigations: the app shell --- */
+  if (req.mode === 'navigate') {
+    event.respondWith((async () => {
+      try {
+        const fresh = await fetch(req);
+        if (fresh && fresh.ok) {
+          const c = await caches.open(SHELL_CACHE);
+          c.put('/index.html', fresh.clone()).catch(() => {});
+        }
+        return fresh;
+      } catch {
+        const c = await caches.open(SHELL_CACHE);
+        const hit = (await c.match('/index.html')) || (await c.match('/'));
+        if (hit) return hit;
+        return new Response(
+          '<!doctype html><meta name="viewport" content="width=device-width,initial-scale=1">'
+          + '<body style="margin:0;background:#07070C;color:#fff;font-family:system-ui;'
+          + 'display:grid;place-items:center;height:100vh;text-align:center">'
+          + '<div><div style="font-size:22px;font-weight:800;letter-spacing:.22em">AZOLVE</div>'
+          + '<div style="color:#18E0C8;font-size:11px;letter-spacing:.5em;margin-top:6px">CHAT</div>'
+          + '<p style="color:#8A8AA0;font-size:13px;margin-top:22px">You are offline. Reconnect to continue.</p></div></body>',
+          { headers: { 'Content-Type': 'text/html; charset=utf-8' } },
+        );
+      }
+    })());
+    return;
+  }
+
+  /* --- hashed build assets: cache first, refresh behind the scenes --- */
+  if (p.startsWith('/assets/') || /\.(js|mjs|css|woff2?|ttf|png|jpe?g|svg|webp|gif|ico)$/i.test(p)) {
+    event.respondWith((async () => {
+      const c = await caches.open(ASSET_CACHE);
+      const hit = await c.match(req);
+      const net = fetch(req)
+        .then((r) => { if (r && r.ok) c.put(req, r.clone()).catch(() => {}); return r; })
+        .catch(() => null);
+      return hit || (await net) || Response.error();
+    })());
+  }
+});
+
 
 /* ---------------------------------------------------------------------------
    Firebase Cloud Messaging, merged into this worker on purpose.

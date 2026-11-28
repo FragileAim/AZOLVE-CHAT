@@ -45,6 +45,9 @@ export default function App() {
   const [device, setDevice] = useState(() => (PREVIEW ? (localStorage.getItem('azolve.device') || 'mobile') : 'desktop'));
   const [toast, setToast] = useState(null);
   const [waking, setWaking] = useState(null);
+  /* True while what is on screen came from the on-device cache instead of the
+     server. lib/api.js raises `azolve:offline` when it serves a cached read. */
+  const [offline, setOffline] = useState(false);
   /* Set when the first request of the session fails for a reason that is not
      "you are signed out" — a sleeping host, a dead network. Showing the login
      screen in that case is what made the app feel like it logged people out
@@ -57,8 +60,7 @@ export default function App() {
   useEffect(() => {
     const onHash = () => setRoute(readHash());
     window.addEventListener('hashchange', onHash);
-    return () => window.removeEventListener('hashchange', onHash);
-  }, []);
+    return () => window.removeEventListener('hashchange', onHash);  }, []);
 
   useEffect(() => {
     const mq = matchMedia('(prefers-color-scheme: dark)');
@@ -114,11 +116,35 @@ export default function App() {
       }
       // keep the splash on screen long enough to feel intentional
       const elapsed = performance.now() - started;
-      const target = Number(new URLSearchParams(location.search).get('splash')) || 1250;
+      const target = Number(new URLSearchParams(location.search).get('splash')) || 900;
       const wait = Math.max(0, target - elapsed);
       setTimeout(() => setBooting(false), wait);
     })();
   }, [refreshMe, bootTry]);
+
+  /* While the reconnect card is on screen, keep trying in the background. A
+     cold host that takes 40 seconds to answer should not require the person to
+     tap a button six times. */
+  useEffect(() => {
+    if (!bootError || user || !getToken()) return;
+    const t = setTimeout(() => setBootTry((n) => n + 1), 7000);
+    return () => clearTimeout(t);
+  }, [bootError, bootTry, user]);
+
+  /* Offline indicator. Raised when api.js answers from disk, cleared as soon as
+     the browser reports a connection again. */
+  useEffect(() => {
+    const off = () => { setOffline(true); setWaking(false); };
+    const on = () => setOffline(false);
+    window.addEventListener('azolve:offline', off);
+    window.addEventListener('offline', off);
+    window.addEventListener('online', on);
+    return () => {
+      window.removeEventListener('azolve:offline', off);
+      window.removeEventListener('offline', off);
+      window.removeEventListener('online', on);
+    };
+  }, []);
 
   useEffect(() => {
     if (user) connectSocket();
@@ -202,26 +228,30 @@ export default function App() {
   if (booting) return <Splash />;
 
   /* The server could not be reached but we still hold a session. Offer a retry
-     instead of dumping a signed-in person on the login screen. */
+     instead of dumping a signed-in person on the login screen.
+     The copy never mentions hosting tiers or "the server waking up": that is
+     infrastructure detail leaking into the product, and it made the app look
+     unfinished. It also retries on its own, so nobody has to babysit a button. */
   if (bootError && !user && getToken()) {
     return (
       <div className="boot-retry">
         <div className="boot-retry-card">
-          <div className="boot-retry-ic" aria-hidden>!</div>
-          <h2>Can’t reach AZOLVE right now</h2>
+          <div className="boot-retry-word">AZOLVE<span>CHAT</span></div>
+          <h2>Reconnecting…</h2>
           <p>
-            You are still signed in on this device. The server did not answer —
-            it may be waking up, or your connection dropped.
+            You are still signed in on this device. AZOLVE CHAT could not reach
+            your workspace — check your connection and this screen will continue
+            on its own.
           </p>
           <div className="boot-retry-actions">
             <button
               className="btn primary"
               onClick={() => { setBootError(null); setBooting(true); setBootTry((n) => n + 1); }}
             >
-              Try again
+              Try now
             </button>
             <button className="btn ghost" onClick={() => { clearSession(); setBootError(null); }}>
-              Sign out instead
+              Sign out
             </button>
           </div>
         </div>
@@ -255,10 +285,16 @@ export default function App() {
       {toast && (
         <div className={`toast ${toast.kind === 'err' ? 'err' : 'ok'}`}>{toast.msg}</div>
       )}
-      {waking && (
+      {waking && !offline && (
         <div className="wake-banner" role="status" aria-live="polite">
           <span className="wake-dot" />
-          <span>Starting the server — this can take up to a minute after a quiet spell. Hang tight.</span>
+          <span>Connecting to AZOLVE…</span>
+        </div>
+      )}
+      {offline && (
+        <div className="offline-banner" role="status" aria-live="polite">
+          <span className="offline-dot" />
+          <span>Offline — showing saved content</span>
         </div>
       )}
       {DEMO && !FRAME && (

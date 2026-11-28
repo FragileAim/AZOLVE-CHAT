@@ -20,7 +20,58 @@ function communityFor(c, viewerId) {
 }
 
 r.get('/', requireAuth, (req, res) => {
-  const { q, category, privacy } = req.query;
+  const { q, category, privacy, feed } = req.query;
+
+  /* -------------------------------------------------------------------------
+     "For you"
+     A ranked discovery feed, not a relabelled list. Before this there was no
+     such endpoint at all — the client showed a "For you" tab that pointed at
+     nothing, so the request fell through to a network error the user read as
+     "server not found".
+
+     Ranking is deliberately simple and explainable, because a black-box score
+     is worse than a boring one:
+       +40  same category as a community the viewer already belongs to
+       +2/member (max 30)     — other people found it worth joining
+       +5/post in last 30d (max 30) — it is actually alive
+       -25  already joined    — discovery should surface something new
+       -10  private           — cannot be browsed anyway
+  ------------------------------------------------------------------------- */
+  if (feed === 'for-you') {
+    const uid = req.user.id;
+    const mine = all(
+      `SELECT c.category FROM community_members m JOIN communities c ON c.id = m.community_id WHERE m.user_id = ?`,
+      uid,
+    );
+    const cats = new Set(mine.map((x) => x.category).filter(Boolean));
+    const since = now() - 30 * 24 * 60 * 60 * 1000;
+
+    const rows = all(
+      `SELECT c.*,
+              (SELECT COUNT(*) FROM community_members mm WHERE mm.community_id = c.id) AS member_count,
+              (SELECT COUNT(*) FROM community_posts p WHERE p.community_id = c.id AND p.created_at > ?) AS recent_posts
+         FROM communities c`,
+      since,
+    );
+
+    const ranked = rows
+      .map((c) => {
+        const joined = !!get('SELECT 1 FROM community_members WHERE community_id = ? AND user_id = ?', c.id, uid);
+        let score = 0;
+        if (cats.has(c.category)) score += 40;
+        score += Math.min(30, Number(c.member_count || 0) * 2);
+        score += Math.min(30, Number(c.recent_posts || 0) * 5);
+        if (joined) score -= 25;
+        if (c.privacy === 'private') score -= 10;
+        return { c, score };
+      })
+      .sort((a, b) => b.score - a.score || (b.c.created_at || 0) - (a.c.created_at || 0))
+      .slice(0, 60)
+      .map(({ c }) => communityFor(c, uid));
+
+    return res.json({ communities: ranked, feed: 'for-you' });
+  }
+
   let rows;
   if (q) rows = all('SELECT * FROM communities WHERE lower(name) LIKE ? OR lower(description) LIKE ? ORDER BY created_at DESC', `%${String(q).toLowerCase()}%`, `%${String(q).toLowerCase()}%`);
   else if (category) rows = all('SELECT * FROM communities WHERE category = ? ORDER BY created_at DESC', category);

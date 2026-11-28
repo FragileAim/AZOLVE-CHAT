@@ -67,6 +67,9 @@ public class MainActivity extends Activity {
     private static final String LIVE_URL = BuildConfig.APP_URL;
     private static final int REQ_PERMS = 4101;
     private static final int REQ_FILE = 4102;
+    /** Quiet retries of the first navigation while the reconnect card is up. */
+    private static final long AUTO_RETRY_MS = 7000;
+    private static final int MAX_AUTO_RETRIES = 8;
 
     private WebView web;
     private ValueCallback<Uri[]> filePathCallback;
@@ -74,6 +77,7 @@ public class MainActivity extends Activity {
     private View splash;
     private View errorBox;
     private boolean firstLoadDone;
+    private int retryAttempts;
 
     @SuppressLint("SetJavaScriptEnabled")
     @Override
@@ -122,7 +126,7 @@ public class MainActivity extends Activity {
         s.setBuiltInZoomControls(false);
         s.setMixedContentMode(WebSettings.MIXED_CONTENT_COMPATIBILITY_MODE);
         s.setCacheMode(WebSettings.LOAD_DEFAULT);
-        s.setUserAgentString(s.getUserAgentString() + " AzolveChatApp/1.1.8");
+        s.setUserAgentString(s.getUserAgentString() + " AzolveChatApp/1.1.16");
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             s.setSafeBrowsingEnabled(true);
         }
@@ -173,6 +177,9 @@ public class MainActivity extends Activity {
                 if (firstLoadDone) return;
                 if (splash != null) splash.setVisibility(View.GONE);
                 if (errorBox != null) errorBox.setVisibility(View.VISIBLE);
+                /* A cold start on a sleeping host used to mean an error card
+                   until the user tapped "Try again". Retry on our own instead. */
+                scheduleAutoRetry();
             }
 
             @Override
@@ -265,12 +272,76 @@ public class MainActivity extends Activity {
         if (savedInstanceState != null) {
             web.restoreState(savedInstanceState);
         } else {
-            web.loadUrl(LIVE_URL != null && LIVE_URL.length() > 0 ? LIVE_URL : LOCAL_URL);
+            /* A cold start can be caused by tapping an incoming-call
+               notification. In that case the first URL must already carry
+               ?answer=<callId>, otherwise the app boots to the home screen and
+               the call is never joined — which is exactly the "screen goes
+               blank when I receive a call" report. */
+            String callUrl = callUrlFromIntent(getIntent());
+            web.loadUrl(callUrl != null ? callUrl
+                    : (LIVE_URL != null && LIVE_URL.length() > 0 ? LIVE_URL : LOCAL_URL));
         }
 
         /* The app may have been launched *by* the Google return trip, in which
            case the session is already sitting in the intent. */
         handleOAuthIntent(getIntent());
+    }
+
+    /**
+     * Turn an incoming-call notification tap into a URL the SPA understands.
+     *
+     * AzolveMessagingService puts `openCall`, `callId`, `fromId`, `type` and
+     * `fromName` on the PendingIntent. Nothing used to read them: the app opened,
+     * loaded the home screen, and CallHost never learned there was a call to
+     * join. The visible result was a black WebView with no call UI.
+     *
+     * CallHost already knows how to answer from a URL — the service worker uses
+     * the same `?answer=` contract — so the fix is to reuse it rather than add a
+     * second code path.
+     *
+     * Returns null when this intent is not a call, so the caller can fall back
+     * to the normal start URL.
+     */
+    private String callUrlFromIntent(Intent intent) {
+        if (intent == null) return null;
+        if (!intent.getBooleanExtra("openCall", false)) return null;
+        String callId = intent.getStringExtra("callId");
+        if (callId == null || callId.length() == 0) return null;
+
+        String base = (LIVE_URL != null && LIVE_URL.length() > 0) ? LIVE_URL : LOCAL_URL;
+        if (base.endsWith("/")) base = base.substring(0, base.length() - 1);
+
+        String peer = intent.getStringExtra("fromId");
+        String type = intent.getStringExtra("type");
+        String name = intent.getStringExtra("fromName");
+
+        StringBuilder sb = new StringBuilder(base);
+        sb.append(base.contains("?") ? '&' : '?');
+        /* The unique `r` forces a real navigation instead of a same-document
+           hash change, so the bundle actually re-boots and reads the query. */
+        sb.append("r=").append(System.currentTimeMillis());
+        sb.append("&answer=").append(Uri.encode(callId));
+        if (peer != null && peer.length() > 0) sb.append("&peer=").append(Uri.encode(peer));
+        sb.append("&type=").append(Uri.encode(type == null ? "audio" : type));
+        if (name != null && name.length() > 0) sb.append("&name=").append(Uri.encode(name));
+        sb.append("#/calls");
+
+        /* Consume the extras so a resume or a rotation cannot replay a call that
+           is already over. */
+        intent.removeExtra("openCall");
+        intent.removeExtra("callId");
+        return sb.toString();
+    }
+
+    /** Handle a call notification tapped while the Activity is already alive. */
+    private void handleCallIntent(Intent intent) {
+        String url = callUrlFromIntent(intent);
+        if (url == null) return;
+        /* The WebView is paused in onPause(); without this the call stage is
+           queued but never painted, which reads as a blank screen. */
+        web.resumeTimers();
+        web.onResume();
+        web.loadUrl(url);
     }
 
     /**
@@ -320,6 +391,7 @@ public class MainActivity extends Activity {
         super.onNewIntent(intent);
         setIntent(intent);
         handleOAuthIntent(intent);
+        handleCallIntent(intent);
     }
 
     /**
@@ -393,7 +465,16 @@ public class MainActivity extends Activity {
         }, RENDER_WATCHDOG_MS);
     }
 
-    /** Branded first-paint screen: the mark, the wordmark and a spinner. */
+    /**
+     * Branded first-paint screen.
+     *
+     * This used to be a *second* design stacked on top of the window-background
+     * splash, which itself sat on top of the React splash and the `#preboot`
+     * block in index.html — four different loading screens in a row, each with
+     * its own layout. It now mirrors the React splash exactly (same wordmark,
+     * same teal accent, same tagline, same thin progress line), so the handover
+     * is invisible and the app looks like it is loading once, not four times.
+     */
     private View buildSplash() {
         FrameLayout box = new FrameLayout(this);
         box.setBackgroundColor(0xFF07070C);
@@ -405,7 +486,7 @@ public class MainActivity extends Activity {
         TextView word = new TextView(this);
         word.setText("AZOLVE");
         word.setTextColor(0xFFFFFFFF);
-        word.setTextSize(30f);
+        word.setTextSize(34f);
         word.setTypeface(null, android.graphics.Typeface.BOLD);
         word.setLetterSpacing(0.22f);
         word.setGravity(Gravity.CENTER);
@@ -413,18 +494,29 @@ public class MainActivity extends Activity {
         TextView sub = new TextView(this);
         sub.setText("CHAT");
         sub.setTextColor(0xFF18E0C8);
-        sub.setTextSize(12f);
-        sub.setLetterSpacing(0.5f);
+        sub.setTextSize(13f);
+        sub.setLetterSpacing(0.52f);
         sub.setGravity(Gravity.CENTER);
-        sub.setPadding(0, 6, 0, 0);
+        sub.setPadding(0, dp(6), 0, 0);
 
-        ProgressBar spin = new ProgressBar(this);
-        LinearLayout.LayoutParams sp = new LinearLayout.LayoutParams(dp(28), dp(28));
-        sp.topMargin = dp(28);
+        TextView tag = new TextView(this);
+        tag.setText("Every language. One conversation.");
+        tag.setTextColor(0xFF8A8AA0);
+        tag.setTextSize(12f);
+        tag.setGravity(Gravity.CENTER);
+        tag.setPadding(0, dp(18), 0, 0);
+
+        /* A 2dp indeterminate line reads as "working" without the chunky spinner
+           that made the old screen look like a system dialog. */
+        ProgressBar line = new ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal);
+        line.setIndeterminate(true);
+        LinearLayout.LayoutParams lpBar = new LinearLayout.LayoutParams(dp(120), dp(2));
+        lpBar.topMargin = dp(26);
 
         col.addView(word);
         col.addView(sub);
-        col.addView(spin, sp);
+        col.addView(tag);
+        col.addView(line, lpBar);
 
         FrameLayout.LayoutParams lp = new FrameLayout.LayoutParams(
                 FrameLayout.LayoutParams.WRAP_CONTENT,
@@ -434,7 +526,15 @@ public class MainActivity extends Activity {
         return box;
     }
 
-    /** Shown only when the very first navigation fails — almost always a sleeping server. */
+    /**
+     * Shown only when the very first navigation fails.
+     *
+     * The old copy told the user the app "may be waking up — on the free tier
+     * that can take up to a minute", which leaked hosting details and made the
+     * product look like a hobby project. It also had no automatic retry, so a
+     * 40-second cold start meant staring at an error until you tapped a button.
+     * Now it retries on its own and says nothing about the infrastructure.
+     */
     private View buildErrorBox() {
         FrameLayout box = new FrameLayout(this);
         box.setBackgroundColor(0xFF07070C);
@@ -445,12 +545,29 @@ public class MainActivity extends Activity {
         int pad = dp(32);
         col.setPadding(pad, 0, pad, 0);
 
+        TextView mark = new TextView(this);
+        mark.setText("AZOLVE");
+        mark.setTextColor(0xFFFFFFFF);
+        mark.setTextSize(20f);
+        mark.setTypeface(null, android.graphics.Typeface.BOLD);
+        mark.setLetterSpacing(0.22f);
+        mark.setGravity(Gravity.CENTER);
+
         TextView msg = new TextView(this);
-        msg.setText("AZOLVE CHAT could not start.\n\nThe server may be waking up — on the free tier that can take up to a minute. Check your connection and try again.");
+        msg.setText("Reconnecting…");
         msg.setTextColor(0xFFE8E8F0);
-        msg.setTextSize(15f);
+        msg.setTextSize(16f);
         msg.setGravity(Gravity.CENTER);
-        msg.setLineSpacing(dp(4), 1f);
+        msg.setPadding(0, dp(22), 0, 0);
+
+        TextView hint = new TextView(this);
+        hint.setText("AZOLVE CHAT is having trouble reaching your workspace. "
+                + "Check your connection — this screen will continue on its own.");
+        hint.setTextColor(0xFF8A8AA0);
+        hint.setTextSize(13f);
+        hint.setGravity(Gravity.CENTER);
+        hint.setLineSpacing(dp(4), 1f);
+        hint.setPadding(0, dp(10), 0, 0);
 
         TextView retry = new TextView(this);
         retry.setText("Try again");
@@ -464,14 +581,11 @@ public class MainActivity extends Activity {
         retry.setBackground(bg);
         LinearLayout.LayoutParams rp = new LinearLayout.LayoutParams(dp(170), dp(46));
         rp.topMargin = dp(26);
-        retry.setOnClickListener(v -> {
-            errorBox.setVisibility(View.GONE);
-            if (splash != null) splash.setVisibility(View.VISIBLE);
-            firstLoadDone = false;
-            web.loadUrl(LIVE_URL != null && LIVE_URL.length() > 0 ? LIVE_URL : LOCAL_URL);
-        });
+        retry.setOnClickListener(v -> retryFirstLoad());
 
+        col.addView(mark);
         col.addView(msg);
+        col.addView(hint);
         col.addView(retry, rp);
 
         FrameLayout.LayoutParams lp = new FrameLayout.LayoutParams(
@@ -480,6 +594,32 @@ public class MainActivity extends Activity {
         lp.gravity = Gravity.CENTER;
         box.addView(col, lp);
         return box;
+    }
+
+    /** One place that knows how to restart the first navigation. */
+    private void retryFirstLoad() {
+        if (errorBox != null) errorBox.setVisibility(View.GONE);
+        if (splash != null) splash.setVisibility(View.VISIBLE);
+        firstLoadDone = false;
+        web.loadUrl(LIVE_URL != null && LIVE_URL.length() > 0 ? LIVE_URL : LOCAL_URL);
+    }
+
+    /**
+     * Retry the first navigation on a backoff while the error card is up.
+     *
+     * A server that has gone to sleep answers nothing for 30-60 seconds. Making
+     * the person tap "Try again" six times is not a recovery strategy; retrying
+     * quietly is. The card stays visible so there is still something to read,
+     * and the button remains as a manual override.
+     */
+    private void scheduleAutoRetry() {
+        if (retryAttempts >= MAX_AUTO_RETRIES) return;
+        retryAttempts++;
+        web.postDelayed(() -> {
+            if (firstLoadDone) return;
+            if (errorBox == null || errorBox.getVisibility() != View.VISIBLE) return;
+            web.loadUrl(LIVE_URL != null && LIVE_URL.length() > 0 ? LIVE_URL : LOCAL_URL);
+        }, AUTO_RETRY_MS);
     }
 
     private int dp(int v) {

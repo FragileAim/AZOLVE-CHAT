@@ -46,6 +46,35 @@ services:
         sync: false
       - key: CALL_RING_TIMEOUT_MS
         value: "45000"
+      # ---------------------------------------------------------------
+      # Firebase / FCM. Without these, no push can ever be sent: calls
+      # do not ring when the app is closed and chat messages arrive
+      # nowhere. They are declared here so Render shows them in the
+      # dashboard instead of hiding them; paste the values once.
+      #   FIREBASE_SERVICE_ACCOUNT_JSON = the whole admin SDK JSON on
+      #     one line (or base64 of it). Server-side sending needs it.
+      #   The other five are the public web config from Firebase
+      #     console > Project settings > Your apps > Web app.
+      # ---------------------------------------------------------------
+      - key: FIREBASE_SERVICE_ACCOUNT_JSON
+        sync: false
+      - key: FIREBASE_API_KEY
+        sync: false
+      - key: FIREBASE_PROJECT_ID
+        sync: false
+      - key: FIREBASE_MESSAGING_SENDER_ID
+        sync: false
+      - key: FIREBASE_APP_ID
+        sync: false
+      - key: FIREBASE_VAPID_KEY
+        sync: false
+      # Google sign-in (OAuth client id/secret from Google Cloud Console).
+      - key: GOOGLE_CLIENT_ID
+        sync: false
+      - key: GOOGLE_CLIENT_SECRET
+        sync: false
+      - key: PUBLIC_BASE_URL
+        sync: false
       - key: SMS_PROVIDER
         value: console               # change to textbelt / fast2sms / msg91 / twilio
       # Email is the primary OTP channel while SMS is blocked on DLT approval.

@@ -35,7 +35,7 @@
             android:exported="true"
             android:configChanges="orientation|screenSize|screenLayout|keyboardHidden|uiMode|smallestScreenSize|density"
             android:launchMode="singleTask"
-            android:screenOrientation="fullSensor"
+            android:screenOrientation="portrait"
             android:windowSoftInputMode="adjustResize"
             android:theme="@style/AzolveTheme.Splash">
             <intent-filter>

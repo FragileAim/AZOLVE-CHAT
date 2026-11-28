@@ -148,6 +148,23 @@ function CallStageInner({ call, onClose, onRedial }) {
   useEffect(() => { autoSpeakRef.current = autoSpeak; }, [autoSpeak]);
 
   /* ------------------------------ media ---------------------------------- */
+  /* -------------------------------------------------------------------------
+     Phase visibility
+     "Once a call is active it does not show the flow — ringing, ongoing,
+     ended." The state machine was correct but two of its states were
+     invisible: ICE connects in a few hundred milliseconds, so `connecting`
+     flashed past in one frame, and `active` only changed a small line of text.
+     A minimum dwell on `connecting` plus a persistent phase pill makes the
+     progression readable.
+  ------------------------------------------------------------------------- */
+  const connectingAtRef = useRef(0);
+  const goActive = useCallback(() => {
+    const since = Date.now() - (connectingAtRef.current || 0);
+    const wait = Math.max(0, 550 - since);
+    if (wait === 0) { setPhase('active'); return; }
+    setTimeout(() => setPhase('active'), wait);
+  }, []);
+
   const acquire = useCallback(async (withVideo) => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
@@ -205,12 +222,12 @@ function CallStageInner({ call, onClose, onRedial }) {
         const p = el.play?.();
         if (p && p.catch) p.catch(() => { /* retried on the next gesture below */ });
       });
-      setPhase('active');
+      goActive();
       getSocket()?.emit('call:connected', { to: peerId, callId });
     };
     pc.onconnectionstatechange = () => {
       const st = pc.connectionState;
-      if (st === 'connected') { setPhase('active'); setQuality(q => (q === 'lost' ? 'good' : q)); }
+      if (st === 'connected') { goActive(); setQuality(q => (q === 'lost' ? 'good' : q)); }
       if (st === 'disconnected') setQuality('weak');
       if (st === 'failed') restartIce();
     };
@@ -288,6 +305,7 @@ function CallStageInner({ call, onClose, onRedial }) {
       acceptedRef.current = true;
       stopRing();
       blip('connect');
+      connectingAtRef.current = Date.now();
       setPhase('connecting');
       if (sim) { setSimulated(true); setTimeout(() => setPhase('active'), 1100); return; }
       await ensurePC(true);
@@ -681,9 +699,9 @@ function CallStageInner({ call, onClose, onRedial }) {
 
   const statusText =
     phase === 'incoming' ? 'Incoming call' :
-    phase === 'ringing' ? 'Ringing' :
-    phase === 'connecting' ? 'Connecting' :
-    phase === 'active' ? fmtDur(seconds) : 'Call ended';
+    phase === 'ringing' ? 'Ringing…' :
+    phase === 'connecting' ? 'Connecting…' :
+    phase === 'active' ? `In call · ${fmtDur(seconds)}` : 'Call ended';
 
   const qualityLabel = {
     excellent: 'Excellent',
@@ -716,6 +734,10 @@ function CallStageInner({ call, onClose, onRedial }) {
   if (phase === 'ended') {
     return (
       <div className="ux-call-ended">
+        <div className="ux-call-phase ended" role="status" aria-live="polite">
+          <span className="dot" aria-hidden />
+          Call ended
+        </div>
         <Avatar user={call.peer} size={110} ring />
         <b>{call.peer?.displayName || 'Call'}</b>
         <p>{endedText}</p>
@@ -817,12 +839,19 @@ function CallStageInner({ call, onClose, onRedial }) {
         <div className="ux-call-id">
           <b>{call.peer?.displayName || 'Unknown'}</b>
           <span>
-            {phase === 'active' ? (<><i />{fmtDur(seconds)}</>) : statusText}
+            {phase === 'active' ? (<><i />{statusText}</>) : statusText}
           </span>
         </div>
         <button className="ux-call-rnd" onClick={() => setPanel(p => p === 'options' ? null : 'options')} aria-label="Call options">
           <Icon name="users" size={18} />
         </button>
+      </div>
+
+      {/* Phase pill. One glance tells you whether it is still ringing, still
+          connecting, or already connected and for how long. */}
+      <div className={`ux-call-phase ${phase}`} role="status" aria-live="polite">
+        <span className="dot" aria-hidden />
+        {statusText}
       </div>
 
       {/* live translation badge */}

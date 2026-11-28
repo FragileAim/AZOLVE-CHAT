@@ -83,12 +83,28 @@ public class AzolveMessagingService extends FirebaseMessagingService {
 
         show(this, title, body == null ? "" : body,
                 isCall ? CHANNEL_CALLS : CHANNEL_MESSAGES,
-                data.get("callId"), isCall);
+                data.get("callId"), isCall,
+                data.get("fromId"), data.get("type"), data.get("fromName"));
     }
 
     /** Draws the notification. Also used by MainActivity for a cold-start push. */
     static void show(Context ctx, String title, String body, String channel,
                      String callId, boolean isCall) {
+        show(ctx, title, body, channel, callId, isCall, null, null, null);
+    }
+
+    /**
+     * Draws the notification.
+     *
+     * The caller's id, the call type and the caller's name travel with the
+     * PendingIntent because MainActivity needs them to build the `?answer=` URL.
+     * Without them the app can open on a call notification but cannot join the
+     * call — CallHost requires a peer id to mount the stage, so it silently did
+     * nothing and the user saw a black screen.
+     */
+    static void show(Context ctx, String title, String body, String channel,
+                     String callId, boolean isCall,
+                     String fromId, String callType, String fromName) {
         ensureChannels(ctx);
         NotificationManager nm = ctx.getSystemService(NotificationManager.class);
         if (nm == null) return;
@@ -96,7 +112,12 @@ public class AzolveMessagingService extends FirebaseMessagingService {
         Intent open = new Intent(ctx, MainActivity.class);
         open.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
         if (callId != null) open.putExtra("callId", callId);
-        if (isCall) open.putExtra("openCall", true);
+        if (isCall) {
+            open.putExtra("openCall", true);
+            if (fromId != null) open.putExtra("fromId", fromId);
+            if (callType != null) open.putExtra("type", callType);
+            if (fromName != null) open.putExtra("fromName", fromName);
+        }
 
         int flags = PendingIntent.FLAG_UPDATE_CURRENT;
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) flags |= PendingIntent.FLAG_IMMUTABLE;

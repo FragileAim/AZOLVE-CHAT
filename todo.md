@@ -182,3 +182,17 @@
 - [x] Confirm every `${VAR}` in compose exists in .env.example (13/13)
 - [x] Confirm server imports never escape server/ so `COPY server` is complete
 - [x] Confirm `pg` is a runtime dependency for the snapshot backend
+
+## v1.1.16 — Android app: 10 reported issues
+- [x] (10) Blank screen when receiving a call — three causes: intent extras never read, no caller identity in the intent, and `sendToUser()` passing `payload.data` (empty for calls) to FCM. Added `callUrlFromIntent()`/`handleCallIntent()`, flattened the FCM payload, resumed the paused WebView before loading.
+- [x] (1) Push notifications not arriving outside the app — `deliverMessage()` only emitted over the socket; added per-recipient push with mute/archive/silent/deleted/sender guards, plus the missing Firebase env vars in render.yaml.
+- [x] (5) Bottom navbar overflow + active-class mismatch — `flex: 1 1 0`, no fixed padding, ellipsised labels, 46px centre button, 10px insets; `.on` and `.active` both styled. Verified at 320/360/390px: no child exceeds the pill.
+- [x] (3) Auto rotation — `screenOrientation` `fullSensor` → `portrait`
+- [x] (2) Loading screen — four stacked splash layers unified on one design (wordmark, teal CHAT, tagline, thin indeterminate line); dwell 1250 → 900ms
+- [x] (6) Render.com "server waking" page — all free-tier/waking copy removed from the native error box, the React reconnect card and the wake banner; auto-retry 8×7s native / 7s React
+- [x] (4) Offline loading — service worker caches shell + assets with a branded offline page; `api.js` caches GETs and serves them on failure. Also fixed the real blocker: the wake-up retry loop waited ~42s on a network-level failure, so offline boot hung on the splash. Network failures now fail fast (2 retries) and fall through to cache.
+- [x] (7) Call flow — 550ms minimum dwell in `connecting`, persistent phase pill (ringing/connecting/in call · mm:ss/ended) with per-phase colours
+- [x] (8) Communities "For you" — added a real `?feed=for-you` ranked endpoint, a segmented tab control, and an inline honest error card with retry (was a raw toast)
+- [x] (9) Edit profile UI — rebuilt as a full-screen `ux-*` editor: cover + camera affordance, centred avatar with edit badge, grouped field cards, live bio counter, `ux-switch` for private profile, sticky Save footer; nav hidden while editing
+- [x] Bump 1.1.16 / versionCode 26, rebuild web + APK + iOS zip
+- [x] Playwright verify all fixes, commit and push

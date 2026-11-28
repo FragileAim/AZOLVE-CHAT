@@ -13,15 +13,20 @@ function EditProfile({ user, onClose, onSaved }) {
     dob: user.dob || '', isPrivate: !!user.isPrivate, avatar: user.avatar || '', cover: user.cover || '',
   });
   const [busy, setBusy] = useState(false);
+  const [uploading, setUploading] = useState('');
   const avRef = useRef(null); const covRef = useRef(null);
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
 
   const upload = async (file, key) => {
-    try { const r = await uploadFile(file); set(key, r.url); } catch (e) { notify(e.message, 'err'); }
+    setUploading(key);
+    try { const r = await uploadFile(file); set(key, r.url); }
+    catch (e) { notify(e.message, 'err'); }
+    finally { setUploading(''); }
   };
 
   const save = async (e) => {
     e.preventDefault();
+    if (!form.displayName.trim()) { notify('Display name is required', 'err'); return; }
     setBusy(true);
     try {
       await API.updateMe(form);
@@ -33,42 +38,125 @@ function EditProfile({ user, onClose, onSaved }) {
   };
 
   return (
-    <Modal open onClose={onClose} title="Edit profile" wide>
-      <form className="stack" onSubmit={save}>
-        <div className="edit-media">
-          <div className="em-cover" style={form.cover ? { backgroundImage: `url(${form.cover})` } : {}}>
-            <button type="button" className="btn ghost btn-sm" onClick={() => covRef.current?.click()}>Change cover</button>
-            <input ref={covRef} type="file" accept="image/*" hidden onChange={e => e.target.files[0] && upload(e.target.files[0], 'cover')} />
+    <div className="ux-screen ux-edit" role="dialog" aria-modal="true" aria-label="Edit profile">
+      <div className="ux-edit-top">
+        <button type="button" className="ux-round" onClick={onClose} aria-label="Close">
+          <Icon name="back" size={19} />
+        </button>
+        <div className="ux-edit-title">Edit profile</div>
+        <div style={{ width: 40, flex: 'none' }} />
+      </div>
+
+      <form className="ux-scroll ux-edit-body" onSubmit={save} id="ux-edit-form">
+        <div className="ux-edit-media">
+          <div
+            className={`ux-edit-cover${form.cover ? ' has' : ''}`}
+            style={form.cover ? { backgroundImage: `url(${form.cover})` } : undefined}
+          >
+            <button
+              type="button"
+              className="ux-edit-cam"
+              onClick={() => covRef.current?.click()}
+              aria-label="Change cover photo"
+            >
+              <Icon name="camera" size={16} />
+              <span>{uploading === 'cover' ? 'Uploading…' : 'Cover'}</span>
+            </button>
+            <input ref={covRef} type="file" accept="image/*" hidden
+              onChange={e => e.target.files[0] && upload(e.target.files[0], 'cover')} />
           </div>
-          <div className="em-avatar">
-            <Avatar user={{ ...user, avatar: form.avatar }} size={76} />
-            <button type="button" className="btn ghost btn-sm" onClick={() => avRef.current?.click()}>Change photo</button>
-            <input ref={avRef} type="file" accept="image/*" hidden onChange={e => e.target.files[0] && upload(e.target.files[0], 'avatar')} />
+
+          <div className="ux-edit-av">
+            <Avatar user={{ ...user, avatar: form.avatar }} size={92} />
+            <button
+              type="button"
+              className="ux-edit-av-badge"
+              onClick={() => avRef.current?.click()}
+              aria-label="Change profile photo"
+            >
+              <Icon name={uploading === 'avatar' ? 'refresh' : 'camera'} size={15} />
+            </button>
+            <input ref={avRef} type="file" accept="image/*" hidden
+              onChange={e => e.target.files[0] && upload(e.target.files[0], 'avatar')} />
+          </div>
+          <div className="ux-edit-name">{form.displayName || 'Your name'}</div>
+          <div className="ux-edit-handle">@{form.username || 'username'}</div>
+        </div>
+
+        <div className="ux-edit-group">
+          <div className="ux-edit-field">
+            <label htmlFor="ep-name">Display name</label>
+            <input id="ep-name" value={form.displayName} maxLength={40}
+              onChange={e => set('displayName', e.target.value)} placeholder="Your name" />
+          </div>
+          <div className="ux-edit-field">
+            <label htmlFor="ep-user">Username</label>
+            <div className="ux-edit-prefix">
+              <span>@</span>
+              <input id="ep-user" value={form.username} placeholder="username"
+                onChange={e => set('username', e.target.value.replace(/[^a-z0-9_]/gi, '').toLowerCase())} />
+            </div>
           </div>
         </div>
-        <div className="field-row">
-          <label className="field"><span>Display name</span><input value={form.displayName} onChange={e => set('displayName', e.target.value)} /></label>
-          <label className="field"><span>Username</span><input value={form.username} onChange={e => set('username', e.target.value.replace(/[^a-z0-9_]/gi, '').toLowerCase())} /></label>
+
+        <div className="ux-edit-group">
+          <div className="ux-edit-field">
+            <label htmlFor="ep-bio">Bio <em>{form.bio.length}/160</em></label>
+            <textarea id="ep-bio" rows={3} value={form.bio} maxLength={160}
+              onChange={e => set('bio', e.target.value)} placeholder="Tell people about yourself" />
+          </div>
         </div>
-        <label className="field"><span>Bio</span><textarea rows={3} value={form.bio} onChange={e => set('bio', e.target.value)} maxLength={160} /></label>
-        <div className="field-row">
-          <label className="field"><span>Country</span><input value={form.country} onChange={e => set('country', e.target.value.toUpperCase().slice(0, 2))} placeholder="US" /></label>
-          <label className="field"><span>Date of birth</span><input type="date" value={form.dob} onChange={e => set('dob', e.target.value)} /></label>
+
+        <div className="ux-edit-group">
+          <div className="ux-edit-field">
+            <label htmlFor="ep-country">Country</label>
+            <input id="ep-country" value={form.country} placeholder="US"
+              onChange={e => set('country', e.target.value.toUpperCase().replace(/[^A-Z]/g, '').slice(0, 2))} />
+          </div>
+          <div className="ux-edit-field">
+            <label htmlFor="ep-dob">Date of birth</label>
+            <input id="ep-dob" type="date" value={form.dob} onChange={e => set('dob', e.target.value)} />
+          </div>
         </div>
-        <div className="field-row">
-          <label className="field"><span>Display language</span>
-            <select value={form.language} onChange={e => set('language', e.target.value)}>
+
+        <div className="ux-edit-group">
+          <div className="ux-edit-field">
+            <label htmlFor="ep-lang">Display language</label>
+            <select id="ep-lang" value={form.language} onChange={e => set('language', e.target.value)}>
               {LANGS.map(l => <option key={l.code} value={l.code}>{l.label} — {l.native}</option>)}
             </select>
-          </label>
-          <label className="field"><span>Mood</span><input value={form.mood} onChange={e => set('mood', e.target.value)} placeholder="🎧 Focused" /></label>
+          </div>
+          <div className="ux-edit-field">
+            <label htmlFor="ep-mood">Mood</label>
+            <input id="ep-mood" value={form.mood} maxLength={40}
+              onChange={e => set('mood', e.target.value)} placeholder="🎧 Focused" />
+          </div>
         </div>
-        <label className="switch-row"><span>Private profile<small>Only followers can see your posts</small></span>
-          <input type="checkbox" checked={form.isPrivate} onChange={e => set('isPrivate', e.target.checked)} />
-        </label>
-        <button className="btn primary" disabled={busy}>{busy ? 'Saving…' : 'Save changes'}</button>
+
+        <div className="ux-edit-group">
+          <div className="ux-edit-switch">
+            <div>
+              <b>Private profile</b>
+              <small>Only followers can see your posts</small>
+            </div>
+            <button
+              type="button"
+              role="switch"
+              aria-checked={form.isPrivate}
+              aria-label="Private profile"
+              className={`ux-switch${form.isPrivate ? ' on' : ''}`}
+              onClick={() => set('isPrivate', !form.isPrivate)}
+            ><i /></button>
+          </div>
+        </div>
+
+        <div className="ux-edit-foot">
+          <button type="submit" className="ux-edit-save" disabled={busy || !form.displayName.trim()}>
+            {busy ? 'Saving…' : 'Save changes'}
+          </button>
+        </div>
       </form>
-    </Modal>
+    </div>
   );
 }
 

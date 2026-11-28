@@ -102,9 +102,23 @@ export function emitToConv(convId, event, payload) {
 }
 
 /** Per-recipient delivery: every participant receives the message in their own language. */
+/** A short, human preview for a push notification, per message type. */
+function pushPreview(message, displayBody) {
+  if (message.type === 'image') return '📷 Photo';
+  if (message.type === 'video') return '🎥 Video';
+  if (message.type === 'audio' || message.type === 'voice') return '🎤 Voice message';
+  if (message.type === 'file') return '📎 Attachment';
+  if (message.type === 'location') return '📍 Location';
+  if (message.type === 'contact') return '👤 Contact';
+  const t = (displayBody || '').trim();
+  if (!t) return 'New message';
+  return t.length > 140 ? t.slice(0, 139) + '…' : t;
+}
+
 export async function deliverMessage(message, conversationId) {
   const parts = all('SELECT * FROM participants WHERE conversation_id = ?', conversationId);
   const sender = get('SELECT * FROM users WHERE id = ?', message.sender_id);
+  const conv = get('SELECT * FROM conversations WHERE id = ?', conversationId);
   await Promise.all(parts.map(async (p) => {
     const u = get('SELECT * FROM users WHERE id = ?', p.user_id);
     if (!u) return;
@@ -147,6 +161,35 @@ export async function deliverMessage(message, conversationId) {
     }
     payload.sender = sender ? { id: sender.id, displayName: sender.display_name, username: sender.username, avatar: sender.avatar } : null;
     emitToUser(p.user_id, 'message:new', payload);
+
+    /* ---------------------------------------------------------------------
+       Push for people who are not connected.
+       This is the whole reason a chat message never reached a closed app: the
+       socket emit above is the only delivery attempt, and a socket only exists
+       while the app is open. Anyone offline got silence.
+       Rules: never notify the sender, never notify a muted or archived thread,
+       never notify for a silent message or a deleted one.
+    --------------------------------------------------------------------- */
+    const isMine = p.user_id === message.sender_id;
+    const offline = !isOnline(p.user_id);
+    if (isMine || !offline || message.deleted || message.silent) return;
+    if (Number(p.muted) === 1 || Number(p.archived) === 1) return;
+
+    const senderName = sender?.display_name || 'AZOLVE CHAT';
+    const group = conv && conv.type !== 'dm';
+    const title = group ? `${senderName} · ${conv.title || 'Group'}` : senderName;
+
+    sendToUser(p.user_id, {
+      kind: 'message',
+      title,
+      body: pushPreview(message, payload.displayBody),
+      tag: `conv-${conversationId}`,
+      data: {
+        conversationId,
+        messageId: message.id,
+        kind: 'message',
+      },
+    }).catch(() => { /* push is best-effort; the message is already stored */ });
   }));
   if (parts.length) {
     for (const p of parts) {
