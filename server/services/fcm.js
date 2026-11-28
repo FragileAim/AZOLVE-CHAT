@@ -156,7 +156,13 @@ export async function sendToUserFcm(userId, { title, body, data = {} } = {}) {
       android: {
         priority: 'HIGH',
         ...(isCall
-          ? { ttl: 45000 }
+          ? {
+              ttl: 45000,
+              /* Deliver even if the phone rebooted and has not been unlocked
+                 yet. Without this a call placed after a restart is dropped by
+                 the system before the app's storage is readable. */
+              direct_boot_ok: true,
+            }
           : {
               notification: {
                 channel_id: 'azolve_messages',

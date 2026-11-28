@@ -96,6 +96,13 @@
             </intent-filter>
         </service>
 
+        <!-- Handles the Decline action on a call notification. A receiver can be
+             started from a notification action without opening the app, which
+             is what declining a call should do. -->
+        <receiver
+            android:name=".CallActionReceiver"
+            android:exported="false" />
+
         <meta-data
             android:name="com.google.firebase.messaging.default_notification_channel_id"
             android:value="azolve_messages" />

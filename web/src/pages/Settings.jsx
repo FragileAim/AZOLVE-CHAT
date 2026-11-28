@@ -129,7 +129,172 @@ function VoicePanel({ notify }) {
    call can ring this device while the app is closed. Every failure is reported
    in plain words instead of silently flipping back.
 --------------------------------------------------------------------------- */
-function PushPanel({ notify }) {
+function PushPanel(props) {
+  /* Inside the Android app there is no Push API at all, so the browser panel
+     would always say "this browser cannot do it" — which is true but useless.
+     The native path is a different chain with different failure points, so it
+     gets its own panel that reports each link honestly. */
+  return isNativeShell() ? <NativePushPanel {...props} /> : <WebPushPanel {...props} />;
+}
+
+/* ---------------------------------------------------------------------------
+   NativePushPanel
+   The Android chain, link by link:
+
+     Firebase token  →  registered on the server  →  notification permission
+     →  full-screen intent permission  →  battery exemption
+
+   A call can only ring if every one of those is true, and any single failure
+   produces the same symptom: the phone stays silent. So each link is shown with
+   its real state, and the ones the user can fix have the exact system dialog
+   behind a button. Nothing here is a placeholder.
+--------------------------------------------------------------------------- */
+function NativePushPanel({ notify }) {
+  const [st, setSt] = useState(null);
+  const [srv, setSrv] = useState(null);
+  const [busy, setBusy] = useState(false);
+
+  const refresh = () => {
+    setSt(nativeStatus());
+    fcmStatus().then(s => setSrv(s)).catch(() => setSrv(null));
+  };
+
+  useEffect(() => {
+    refresh();
+    const t = setInterval(refresh, 4000);
+    const onVis = () => { if (!document.hidden) refresh(); };
+    document.addEventListener('visibilitychange', onVis);
+    return () => { clearInterval(t); document.removeEventListener('visibilitychange', onVis); };
+  }, []);
+
+  const testLocal = () => {
+    const r = testLocalNotification(true);
+    if (r.ok) notify?.('Test notification posted — check your shade and lock screen', 'ok');
+    else notify?.(r.reason || 'Could not post a notification', 'err');
+  };
+
+  const testServer = async () => {
+    setBusy(true);
+    const r = await Push.sendTest();
+    setBusy(false);
+    if (r.ok) notify?.('Sent from the server — check your notification shade', 'ok');
+    else notify?.('The server delivered nothing. This device may not be registered yet.', 'err');
+  };
+
+  const rows = [
+    {
+      key: 'token',
+      label: 'Registered for push',
+      ok: !!st?.token,
+      detail: st?.token ? 'This phone has a Firebase token' : 'No token yet — open the app with internet once',
+    },
+    {
+      key: 'server',
+      label: 'Registered on the server',
+      ok: (srv?.devices || 0) > 0,
+      detail: srv?.devices ? `${srv.devices} device${srv.devices === 1 ? '' : 's'} on your account` : 'The server has no device for you yet',
+    },
+    {
+      key: 'notif',
+      label: 'Notifications allowed',
+      ok: !!st?.notifications,
+      detail: st?.notifications ? 'Android will show AZOLVE notifications' : 'Blocked — calls cannot appear until this is on',
+      fix: openNotificationSettings,
+      fixLabel: 'Allow',
+    },
+    {
+      key: 'fsi',
+      label: 'Full-screen calls allowed',
+      ok: !!st?.fullScreen,
+      detail: st?.fullScreen ? 'Calls can take over the screen and the lock screen' : 'Android will only show a banner, not a full call screen',
+      fix: openFullScreenSettings,
+      fixLabel: 'Allow',
+    },
+    {
+      key: 'battery',
+      label: 'Battery optimisation off',
+      ok: st ? !st.batteryOptimised : false,
+      detail: st?.batteryOptimised ? 'Android may delay or drop calls while the app is closed' : 'This app is exempt from battery saving',
+      fix: requestBatteryExemption,
+      fixLabel: 'Fix',
+    },
+  ];
+
+  const broken = rows.filter(r => !r.ok);
+
+  return (
+    <div className="card stack">
+      <h2>Call notifications</h2>
+      <p className="muted small">
+        When every line below is green, an incoming call takes over this phone's screen even
+        when AZOLVE CHAT is closed, with Accept and Decline on the notification.
+      </p>
+
+      {broken.length === 0 ? (
+        <div className="info-box ok">
+          <Icon name="check" size={16} />
+          <div>
+            <b>Everything is set up</b>
+            <p className="muted small">If a call still does not ring, the problem is on the caller's side or the server.</p>
+          </div>
+        </div>
+      ) : (
+        <div className="info-box warn">
+          <Icon name="warning" size={16} />
+          <div>
+            <b>{broken.length} thing{broken.length === 1 ? '' : 's'} will stop calls from ringing</b>
+            <p className="muted small">Fix them below — each button opens the exact Android setting.</p>
+          </div>
+        </div>
+      )}
+
+      {rows.map(r => (
+        <div className="data-row" key={r.key}>
+          <div>
+            <b>
+              <span style={{ color: r.ok ? '#1FBF75' : '#FF3B4E', marginRight: 6 }}>{r.ok ? '●' : '●'}</span>
+              {r.label}
+            </b>
+            <p className="muted small">{r.detail}</p>
+          </div>
+          {!r.ok && r.fix && (
+            <button className="btn ghost" onClick={r.fix}>{r.fixLabel}</button>
+          )}
+        </div>
+      ))}
+
+      <div className="data-row">
+        <div>
+          <b>Test on this phone</b>
+          <p className="muted small">Posts a call notification from the app itself, with no server involved.</p>
+        </div>
+        <button className="btn ghost" onClick={testLocal}>
+          <Icon name="bell" size={16} /> Test here
+        </button>
+      </div>
+
+      <div className="data-row">
+        <div>
+          <b>Test through the server</b>
+          <p className="muted small">Proves the whole chain: server → Firebase → this phone.</p>
+        </div>
+        <button className="btn ghost" disabled={busy} onClick={testServer}>
+          <Icon name="send" size={16} /> Send test
+        </button>
+      </div>
+
+      {st && (
+        <p className="muted small">
+          Android {st.sdk} · Firebase {st.firebase ? 'ready' : 'not initialised'}
+          {srv?.projectId ? ` · project ${srv.projectId}` : ''}
+        </p>
+      )}
+    </div>
+  );
+}
+
+
+function WebPushPanel({ notify }) {
   const [supported, setSupported] = useState(true);
   const [on, setOn] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -191,8 +356,8 @@ function PushPanel({ notify }) {
             <p className="muted small">
               Background notifications need a browser with the Push API. On iPhone, open AZOLVE
               in Safari, tap Share, then Add to Home Screen and enable this from there.
-              The Android APK rings while it is open or in the background; ringing a fully
-              closed native app needs Firebase Cloud Messaging, which is not connected yet.
+              In the Android app, notifications are handled by Firebase and are set up in the
+              app itself.
             </p>
           </div>
         </div>

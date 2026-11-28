@@ -159,7 +159,7 @@ export default function App() {
   useEffect(() => {
     if (!user?.id) return;
     let alive = true;
-    (async () => {
+    const run = async () => {
       try {
         const { registerPush } = await import('./lib/fcm.js');
         const r = await registerPush();
@@ -169,8 +169,22 @@ export default function App() {
       } catch (e) {
         console.warn('[push] registration error:', e?.message || e);
       }
-    })();
-    return () => { alive = false; };
+    };
+    run();
+
+    /* Re-register every time the app comes back to the foreground.
+       A device token can be rotated by Firebase while the app is closed, and a
+       registration that failed on a cold start (no network yet, Firebase still
+       warming up) would otherwise never be retried — which is one of the ways a
+       phone ends up unreachable for calls. */
+    const onVisible = () => { if (!document.hidden) run(); };
+    document.addEventListener('visibilitychange', onVisible);
+    window.addEventListener('focus', onVisible);
+    return () => {
+      alive = false;
+      document.removeEventListener('visibilitychange', onVisible);
+      window.removeEventListener('focus', onVisible);
+    };
   }, [user?.id]);
 
   const lang = user?.language || 'en';

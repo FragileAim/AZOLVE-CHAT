@@ -90,17 +90,20 @@ async function registerNative(plugin) {
 /* ---------------------------- android bridge ---------------------------- */
 
 /* Polls the bridge until a token appears. Firebase fetches it over the network
-   on first run, so it is not there instantly; 12 tries at 500 ms is generous
-   without leaving a spinner running forever. */
+   on first run, so it is not there instantly. This used to give up after six
+   seconds, which is not enough on a cold start over mobile data — the token
+   arrived after the loop had already given up, so the device was never
+   registered with the server and the phone could not be rung at all. Twenty
+   seconds, and a re-register on every resume, makes that self-healing. */
 async function registerAndroidBridge(bridge) {
   bridge.requestToken?.();
-  for (let i = 0; i < 12; i++) {
+  for (let i = 0; i < 28; i++) {
     const token = String(bridge.getToken?.() || '');
     if (token) {
       await api('/push/fcm/register', { method: 'POST', body: { token, platform: 'android' } });
       return { ok: true, transport: 'fcm-android' };
     }
-    await new Promise(r => setTimeout(r, 500));
+    await new Promise(r => setTimeout(r, 700));
   }
   throw new Error('Firebase did not issue a device token');
 }

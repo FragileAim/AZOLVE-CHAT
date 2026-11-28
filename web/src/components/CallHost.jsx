@@ -73,13 +73,14 @@ export default function CallHost({ children }) {
      anywhere in the app. */
   useEffect(() => {
     const s = getSocket();
-    if (!s) return;
 
     const onIncoming = (p) => {
       if (!p?.callId) return;
       // Already busy: tell the caller rather than showing a second stage.
+      // The same call arriving twice (socket + native push) is not "busy".
       if (activeRef.current) {
-        s.emit('call:decline', { to: p.from?.id, callId: p.callId });
+        if (activeRef.current.callId === p.callId) return;
+        s?.emit('call:decline', { to: p.from?.id, callId: p.callId });
         return;
       }
       const call = {
@@ -110,14 +111,31 @@ export default function CallHost({ children }) {
       notify?.('Missed call', 'err');
     };
 
-    s.on('call:incoming', onIncoming);
-    s.on('call:missed', onMissed);
+    /* The Android shell can hand a call straight to the page.
+       When a call push arrives while the app is in the foreground, the native
+       service evaluates window.__azolveNativeCall instead of drawing a second
+       ring screen on top of the app. That makes the ring instant even if the
+       socket happens to be reconnecting, and it returns true so the native side
+       knows the call was claimed and does not fall back to a notification. */
+    window.__azolveNativeCall = (p) => {
+      if (!p?.callId) return false;
+      onIncoming({
+        callId: p.callId,
+        type: p.type || 'audio',
+        conversationId: p.conversationId,
+        from: { id: p.fromId || 'unknown', displayName: p.fromName || 'Someone' },
+      });
+      return true;
+    };
+
+    s?.on('call:incoming', onIncoming);
+    s?.on('call:missed', onMissed);
     return () => {
-      s.off('call:incoming', onIncoming);
-      s.off('call:missed', onMissed);
+      s?.off('call:incoming', onIncoming);
+      s?.off('call:missed', onMissed);
+      if (window.__azolveNativeCall) delete window.__azolveNativeCall;
     };
   }, [notify, user?.id]);
-
   /* -------------------------------------------------------------------------
      Answering from the notification
      A push notification is handled by the service worker, not by this page, so

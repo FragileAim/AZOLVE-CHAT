@@ -2,14 +2,22 @@ package io.azolve.chat;
 
 import android.app.Activity;
 import android.app.NotificationManager;
+import android.content.Context;
 import android.content.Intent;
 import android.graphics.Color;
 import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
+import android.media.AudioAttributes;
+import android.media.AudioManager;
+import android.media.MediaPlayer;
+import android.media.RingtoneManager;
+import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
+import android.os.VibrationEffect;
+import android.os.Vibrator;
 import android.util.TypedValue;
 import android.view.Gravity;
 import android.view.View;
@@ -62,7 +70,7 @@ public class IncomingCallActivity extends Activity {
 
     private final Handler handler = new Handler(Looper.getMainLooper());
     private final Runnable timeout = new Runnable() {
-        @Override public void run() { dismissNotification(); finish(); }
+        @Override public void run() { stopRinging(); dismissNotification(); finish(); }
     };
 
     private String callId;
@@ -70,6 +78,16 @@ public class IncomingCallActivity extends Activity {
     private String fromName;
     private String type;
     private String declineToken;
+
+    /* The ringtone and the vibration are owned by this screen, not by the
+       notification, so they start the instant the screen is up and stop the
+       instant the user answers, declines, or the ring times out. A call that
+       only vibrates once, or that keeps ringing after it was answered, is the
+       difference between a phone call and a missed one. */
+    private MediaPlayer ringer;
+    private Vibrator vibrator;
+
+    private static final long[] VIBE = {0, 900, 500, 900, 500, 900};
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -86,8 +104,57 @@ public class IncomingCallActivity extends Activity {
                     | WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON);
         }
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+        /* Volume keys should move the ring volume while this screen is up. */
+        setVolumeControlStream(AudioManager.STREAM_RING);
 
         if (!applyIntent(getIntent())) { finish(); return; }
+    }
+
+    /** Start (or restart) the ringtone and the vibration pattern. */
+    private void startRinging() {
+        stopRinging();
+        try {
+            Uri ring = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_RINGTONE);
+            if (ring == null) ring = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION);
+            if (ring != null) {
+                ringer = new MediaPlayer();
+                ringer.setAudioAttributes(new AudioAttributes.Builder()
+                        .setUsage(AudioAttributes.USAGE_NOTIFICATION_RINGTONE)
+                        .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                        .build());
+                ringer.setDataSource(this, ring);
+                ringer.setLooping(true);
+                ringer.prepare();
+                ringer.start();
+            }
+        } catch (Throwable t) {
+            /* A silent phone is still a ringing phone on screen; never crash. */
+            android.util.Log.w("AzolveCall", "ringtone unavailable: " + t.getMessage());
+        }
+        try {
+            vibrator = (Vibrator) getSystemService(VIBRATOR_SERVICE);
+            if (vibrator != null && vibrator.hasVibrator()) {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    vibrator.vibrate(VibrationEffect.createWaveform(VIBE, 0));
+                } else {
+                    vibrator.vibrate(VIBE, 0);
+                }
+            }
+        } catch (Throwable ignored) { }
+    }
+
+    private void stopRinging() {
+        try {
+            if (ringer != null) {
+                if (ringer.isPlaying()) ringer.stop();
+                ringer.release();
+            }
+        } catch (Throwable ignored) { }
+        ringer = null;
+        try {
+            if (vibrator != null) vibrator.cancel();
+        } catch (Throwable ignored) { }
+        vibrator = null;
     }
 
     /**
@@ -127,6 +194,7 @@ public class IncomingCallActivity extends Activity {
     @Override
     protected void onDestroy() {
         handler.removeCallbacks(timeout);
+        stopRinging();
         super.onDestroy();
     }
 
@@ -261,6 +329,7 @@ public class IncomingCallActivity extends Activity {
     /* ------------------------------------------------------------- actions */
 
     private void accept() {
+        stopRinging();
         Intent open = new Intent(this, MainActivity.class);
         open.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
         open.putExtra("openCall", true);

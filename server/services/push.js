@@ -113,6 +113,11 @@ export async function sendToUser(userId, payload) {
   const p = payload || {};
   const isCall = p.kind === 'call' || p.kind === 'incoming_call';
 
+  /* Every exit path below reports how many devices a call actually reached.
+     Without it there is no way to tell "no token registered" from "Firebase
+     refused", and the last three call regressions were all diagnosed blind. */
+  try {
+
   /* --- native shell ---
      FCM v1 can only carry flat string key/value data, so a nested payload like
      {kind:'call', from:{id,name}} has to be flattened here. This used to be
@@ -181,7 +186,11 @@ export async function sendToUser(userId, payload) {
       else run('UPDATE push_subscriptions SET fails = fails + 1 WHERE id = ?', s.id);
     }
   }));
+
   return sent;
+  } finally {
+    if (isCall) console.log(`[push] call ${p.callId || '?'} -> user ${userId}: ${sent} device(s)`);
+  }
 }
 
 /**

@@ -281,17 +281,26 @@ export function initRealtime(httpServer) {
       const from = { id: uid, displayName: caller?.display_name, avatar: caller?.avatar, language: caller?.language };
       emitToUser(uid, 'call:ringing', { callId, ringTimeout: RING_TIMEOUT });
 
-      if (isOnline(to)) {
+      /* A socket is NOT proof that a human can see the ring.
+         This used to be `if (isOnline(to)) { emit; return; }`, and that single
+         early return is why a ringing phone stayed silent. A backgrounded
+         Android app keeps its socket open (the OS only freezes the WebView's
+         JavaScript), so the callee looked online, the invite went to a page that
+         was not executing, and no push was ever sent. The phone did not ring, no
+         notification appeared, and the caller heard ringing until the timeout.
+         So: always emit AND always push. The native shell suppresses the
+         duplicate when the app is genuinely in the foreground. */
+      const online = isOnline(to);
+      if (online) {
         emitToUser(to, 'call:incoming', { callId, type, conversationId, from, ringTimeout: RING_TIMEOUT });
-        return;
       }
 
-      /* No socket means the app is closed or asleep, so an in-app ring would be
-         silence. Push is the only way to reach them, and it carries Accept and
-         Decline actions so the call can be answered without opening the app. */
+      /* Push is the only transport that can wake a closed or backgrounded app,
+         and it carries Accept and Decline actions so the call can be answered
+         without opening the app. */
       sendToUser(to, callPayload({ callId, from, type, conversationId, toUserId: to }))
         .then((sent) => {
-          if (sent > 0) return;
+          if (sent > 0 || online) return;
           /* Nothing was delivered: no registered device, or every endpoint is
              dead. Say so instead of letting the caller listen to a ring that
              nobody can hear. */

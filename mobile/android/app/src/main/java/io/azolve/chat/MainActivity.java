@@ -76,6 +76,17 @@ public class MainActivity extends Activity {
        Context that outlives the Activity. */
     public static MainActivity current;
 
+    /**
+     * True between onResume and onPause.
+     *
+     * A call push consults this: if the app is genuinely on screen the page
+     * rings, and only if the page fails to claim the call does the OS raise the
+     * native ring screen. Without this flag a call that arrived while the user
+     * was already looking at the app would launch a second, native ring screen
+     * on top of the live call stage.
+     */
+    public static volatile boolean isForeground;
+
     private WebView web;
     private TtsBridge tts;
     private ValueCallback<Uri[]> filePathCallback;
@@ -156,7 +167,7 @@ public class MainActivity extends Activity {
         s.setBuiltInZoomControls(false);
         s.setMixedContentMode(WebSettings.MIXED_CONTENT_COMPATIBILITY_MODE);
         s.setCacheMode(WebSettings.LOAD_DEFAULT);
-        s.setUserAgentString(s.getUserAgentString() + " AzolveChatApp/1.1.18");
+        s.setUserAgentString(s.getUserAgentString() + " AzolveChatApp/1.1.19");
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             s.setSafeBrowsingEnabled(true);
         }
@@ -717,6 +728,7 @@ public class MainActivity extends Activity {
     @Override
     protected void onPause() {
         super.onPause();
+        isForeground = false;
         web.onPause();
         web.pauseTimers();
     }
@@ -724,6 +736,7 @@ public class MainActivity extends Activity {
     @Override
     protected void onResume() {
         super.onResume();
+        isForeground = true;
         web.resumeTimers();
         web.onResume();
     }
@@ -744,5 +757,17 @@ public class MainActivity extends Activity {
         try {
             if (web != null) web.evaluateJavascript(js, null);
         } catch (Throwable ignored) { /* page is gone */ }
+    }
+
+    /** Run a snippet and read its result. Used to let the page claim a push. */
+    public void evalJsWithResult(String js, ValueCallback<String> cb) {
+        try {
+            if (web != null) web.evaluateJavascript(js, cb);
+            else if (cb != null) cb.onReceiveValue("null");
+        } catch (Throwable ignored) {
+            if (cb != null) {
+                try { cb.onReceiveValue("null"); } catch (Throwable ignored2) { /* page gone */ }
+            }
+        }
     }
 }

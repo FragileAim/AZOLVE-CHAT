@@ -2093,3 +2093,7 @@ img, video, iframe { max-width: 100%; }
   .integ-env { display: none; }
   .integ-row { padding: 12px 14px; }
 }
+
+/* A positive state box, used by the native notification diagnostics. */
+.info-box.ok { background: rgba(31,191,117,.08); border-color: rgba(31,191,117,.24); }
+.info-box.ok svg { color: #1FBF75; }

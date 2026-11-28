@@ -224,3 +224,21 @@
 - [x] Reworded the failure copy: it now says the *device* has no speech engine and tells Android users to enable "Speech Services by Google", instead of blaming the browser inside an app.
 - [x] Verified the routing in isolation: native bridge → 1 native call, `ok:true`; browser → 1 web utterance, `ok:true`; no engine → clean `novoice` with no throw.
 - [x] Bump 1.1.18 / versionCode 28, rebuild web + APK + iOS zip
+
+## v1.1.19 — Calls never arrived at all (closed, background, or open)
+- [x] Traced the full delivery chain instead of guessing at the layer that looked suspicious (the previous three fixes were each real but each hit the wrong layer).
+- [x] **Root cause 1, the whole bug:** `server/realtime.js` `call:start` did `if (isOnline(to)) { emit; return; }`. A backgrounded Android app keeps its Socket.IO connection open — the OS only freezes the WebView's JavaScript — so the callee looked online, the invite was emitted into a page that was not executing, and `sendToUser()` was **never called**. No push → no notification → no ring screen. Replaced with emit-AND-push: the socket is no longer treated as proof that a human can see the ring.
+- [x] **Root cause 2:** the `azolve_calls` notification channel was created with no ringtone, so calls arrived with a single default blip. Android channels are immutable after creation, so added `azolve_calls_v2` with a real `TYPE_RINGTONE` sound and deleted the legacy channel in `ensureChannels()`.
+- [x] **Root cause 3:** `setFullScreenIntent()` was gated on `Build.VERSION_CODES.Q`, so Android 8 and 9 phones only ever got a tray entry. Full-screen intents have existed since API 1; gate removed.
+- [x] **Root cause 4:** the native ring screen had no audio of its own. `IncomingCallActivity` now owns a looping `MediaPlayer` ringtone and a waveform vibration, stopped on accept, decline, timeout and destroy, with `setVolumeControlStream(STREAM_RING)`.
+- [x] **Root cause 5:** no way to see which link in the chain was broken. Added `PushBridge.status()` (token, firebase, notifications, full-screen, battery optimisation, sdk), four system-dialog launchers, and a server-free local test notification.
+- [x] Foreground claim handshake: when a call push lands while `MainActivity.isForeground`, the service evaluates `window.__azolveNativeCall(...)` in the WebView and waits 1500 ms; if the page claims it, no second ring screen is drawn, and if the page is frozen/crashed/signed-out the OS takes over. A call can never be lost because the WebView was asleep.
+- [x] `CallHost.jsx` registers `window.__azolveNativeCall`, tolerates a null socket, and de-duplicates a call that legitimately arrives twice (socket + push).
+- [x] Notification Accept and Decline actions; `CallActionReceiver` declines without opening the app.
+- [x] `direct_boot_ok: true` on call pushes so a call survives a reboot before first unlock; 45 s TTL.
+- [x] Push re-registration on every foreground resume, and the native token poll extended to ~20 s so a cold start over mobile data no longer outlives the loop.
+- [x] Settings → Notifications: five green/red status rows, each broken row carrying the exact Android dialog, plus "Test here" (local) and "Send test" (server → Firebase → phone).
+- [x] Ops log `[push] call <id> -> user <id>: N device(s)` on every call push, so this can never again be diagnosed blind.
+- [x] Verified the fix functionally: with the callee **online**, a call now logs `[push] call call_zaXwExKwejlC -> user u_YLqgqwJldQfy: 0 device(s)` — the push path runs even when the socket ring succeeded, which was impossible before.
+- [x] Re-ran the two-user Playwright accept test for both types: video → `In call · 0:07` with remote audio+video; voice → `In call · 0:08` with remote audio. No regression to the online path.
+- [x] Bump 1.1.19 / versionCode 29, rebuild web + APK + iOS zip.
